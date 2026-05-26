@@ -1,0 +1,47 @@
+
+trusted := "../tools/filesystem/trusted"
+effects := trusted + "/effects.py"
+prove := "uv run clauz3 prove --trusted-root " + trusted + " --import-root .."
+
+test: lint cases
+
+lint:
+    uv run python -m deal lint {{effects}}
+
+cases: only-write-under-pass only-write-under-fail only-write-under-branch-pass never-write-under-pass never-write-under-fail never-read-under-pass never-read-under-fail read-only-pass read-only-fail only-read-under-pass writes-at-most-pass writes-at-most-fail
+
+only-write-under-pass:
+    {{prove}} cases/only_write_under_pass.py
+
+only-write-under-fail:
+    if {{prove}} cases/only_write_under_fail.py; then exit 1; fi
+
+only-write-under-branch-pass:
+    {{prove}} cases/only_write_under_branch_pass.py
+
+never-write-under-pass:
+    {{prove}} cases/never_write_under_pass.py
+
+never-write-under-fail:
+    if {{prove}} cases/never_write_under_fail.py; then exit 1; fi
+
+never-read-under-pass:
+    {{prove}} cases/never_read_under_pass.py
+
+never-read-under-fail:
+    if {{prove}} cases/never_read_under_fail.py; then exit 1; fi
+
+read-only-pass:
+    {{prove}} cases/read_only_pass.py
+
+read-only-fail:
+    if {{prove}} cases/read_only_fail.py; then exit 1; fi
+
+only-read-under-pass:
+    {{prove}} cases/only_read_under_pass.py
+
+writes-at-most-pass:
+    {{prove}} cases/writes_at_most_pass.py
+
+writes-at-most-fail:
+    if {{prove}} cases/writes_at_most_fail.py; then exit 1; fi

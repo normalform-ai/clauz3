@@ -1,0 +1,5 @@
+name,email,consented,role
+Bob,bob@example.com,true,user
+Ann,ann@example.com,true,user
+Carol,carol@example.com,false,user
+Admin,admin@example.com,true,admin

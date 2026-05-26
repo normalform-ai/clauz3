@@ -1,0 +1,87 @@
+
+trusted := "tools/email/trusted"
+effects := trusted + "/effects.py"
+prove := "uv run clauz3 prove --trusted-root " + trusted
+
+test: lint cases
+
+lint:
+    uv run python -m deal lint {{effects}}
+
+cases: only-bob-pass only-bob-fail none-pass none-fail no-guarantees-pass helper-pass helper-fail precondition-fail dead-branch-pass unique-recipients-pass unique-recipients-fail unique-recipients-branch-pass nobody-emailed-twice-fail at-most-two-pass at-most-two-fail bob-at-most-two-pass bob-at-most-two-fail bob-at-most-two-branch-pass content-length-pass content-length-fail content-length-branch-pass same-content-pass same-content-fail same-content-branch-pass
+
+only-bob-pass:
+    {{prove}} cases/only_bob_pass.py
+
+only-bob-fail:
+    if {{prove}} cases/only_bob_fail.py; then exit 1; fi
+
+none-pass:
+    {{prove}} cases/none_pass.py
+
+none-fail:
+    if {{prove}} cases/none_fail.py; then exit 1; fi
+
+no-guarantees-pass:
+    {{prove}} cases/no_guarantees_pass.py
+
+helper-pass:
+    {{prove}} cases/helper_pass.py
+
+helper-fail:
+    if {{prove}} cases/helper_fail.py; then exit 1; fi
+
+precondition-fail:
+    if {{prove}} cases/precondition_fail.py; then exit 1; fi
+
+dead-branch-pass:
+    {{prove}} cases/dead_branch_pass.py
+
+unique-recipients-pass:
+    {{prove}} cases/unique_recipients_pass.py
+
+unique-recipients-fail:
+    if {{prove}} cases/unique_recipients_fail.py; then exit 1; fi
+
+unique-recipients-branch-pass:
+    {{prove}} cases/unique_recipients_branch_pass.py
+
+nobody-emailed-twice-fail:
+    if {{prove}} cases/nobody_emailed_twice_fail.py; then exit 1; fi
+
+at-most-two-pass:
+    {{prove}} cases/at_most_two_pass.py
+
+at-most-two-fail:
+    if {{prove}} cases/at_most_two_fail.py; then exit 1; fi
+
+bob-at-most-two-pass:
+    {{prove}} cases/bob_at_most_two_pass.py
+
+bob-at-most-two-fail:
+    if {{prove}} cases/bob_at_most_two_fail.py; then exit 1; fi
+
+bob-at-most-two-branch-pass:
+    {{prove}} cases/bob_at_most_two_branch_pass.py
+
+content-length-pass:
+    {{prove}} cases/content_length_pass.py
+
+content-length-fail:
+    if {{prove}} cases/content_length_fail.py; then exit 1; fi
+
+content-length-branch-pass:
+    {{prove}} cases/content_length_branch_pass.py
+
+same-content-pass:
+    {{prove}} cases/same_content_pass.py
+
+same-content-fail:
+    if {{prove}} cases/same_content_fail.py; then exit 1; fi
+
+same-content-branch-pass:
+    {{prove}} cases/same_content_branch_pass.py
+
+case1: only-bob-pass
+
+case1-fail: only-bob-fail

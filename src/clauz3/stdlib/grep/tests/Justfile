@@ -1,0 +1,36 @@
+
+grep_trusted := "../tools/grep/trusted"
+effects := grep_trusted + "/effects.py"
+# grep imports the filesystem layer, so make it importable too.
+prove := "uv run clauz3 prove --trusted-root " + grep_trusted + " --import-root .. --import-root ../../filesystem"
+
+test: lint cases
+
+lint:
+    uv run python -m deal lint {{effects}}
+
+cases: only-read-under-pass only-read-under-fail never-read-under-pass never-read-under-fail searches-at-most-pass searches-at-most-fail only-pattern-pass only-pattern-fail
+
+only-read-under-pass:
+    {{prove}} cases/only_read_under_pass.py
+
+only-read-under-fail:
+    if {{prove}} cases/only_read_under_fail.py; then exit 1; fi
+
+never-read-under-pass:
+    {{prove}} cases/never_read_under_pass.py
+
+never-read-under-fail:
+    if {{prove}} cases/never_read_under_fail.py; then exit 1; fi
+
+searches-at-most-pass:
+    {{prove}} cases/searches_at_most_pass.py
+
+searches-at-most-fail:
+    if {{prove}} cases/searches_at_most_fail.py; then exit 1; fi
+
+only-pattern-pass:
+    {{prove}} cases/only_pattern_pass.py
+
+only-pattern-fail:
+    if {{prove}} cases/only_pattern_fail.py; then exit 1; fi

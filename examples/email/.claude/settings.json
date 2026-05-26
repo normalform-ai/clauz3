@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "defaultMode": "default",
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Bash(clauz3:*)"
+    ]
+  }
+}

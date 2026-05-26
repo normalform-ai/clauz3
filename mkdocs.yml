@@ -1,0 +1,113 @@
+site_name: ClauZ3
+site_description: Static contracts for agent-authored Python
+site_url: https://normalform-ai.github.io/clauz3/
+repo_url: https://github.com/normalform-ai/clauz3
+repo_name: normalform-ai/clauz3
+edit_uri: edit/main/docs/
+
+docs_dir: docs
+site_dir: site
+dev_addr: 127.0.0.1:8077
+
+theme:
+  name: material
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - content.action.edit
+    - search.suggest
+    - search.highlight
+    - toc.follow
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+nav:
+  - Home: index.md
+  - Quickstart: quickstart.md
+  - Talk slides: slides/index.html
+  - Examples:
+    - Email: examples/email.md
+    - Bank: examples/bank.md
+    - Email-from-DB: examples/email-from-db.md
+  - How-to guides:
+    - Install trusted layers: how-to/install-layers.md
+    - Run the approval service: how-to/approval-service.md
+    - Integration testing: how-to/integration-testing.md
+    - Use Pi as a harness: how-to/pi-harness.md
+  - Reference:
+    - CLI: reference/cli.md
+    - Python subset: reference/python-subset.md
+    - Effect specs: reference/effect-specs.md
+    - Coverage policies: reference/coverage-policies.md
+    - Standard library tools: reference/stdlib.md
+  - Explanation:
+    - Concepts: explanation/concepts.md
+    - Background: explanation/background.md
+    - FAQ: explanation/faq.md
+    - Symbolic iteration: explanation/symbolic-iteration.md
+
+not_in_nav: |
+  todos/
+  examples/*-all-cases.md
+
+exclude_docs: |
+  superpowers/
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+
+plugins:
+  - search
+  - macros:
+      module_name: docs/macros
+      include_dir: .
+  - redirects:
+      redirect_maps:
+        installing-layers.md: how-to/install-layers.md
+        approval-service.md: how-to/approval-service.md
+        integration-testing.md: how-to/integration-testing.md
+        pi-extension.md: how-to/pi-harness.md
+        cli-reference.md: reference/cli.md
+        python-subset.md: reference/python-subset.md
+        effect-specs.md: reference/effect-specs.md
+        coverage-policies.md: reference/coverage-policies.md
+        stdlib.md: reference/stdlib.md
+        concepts.md: explanation/concepts.md
+        background.md: explanation/background.md
+        faq.md: explanation/faq.md
+        symbolic-iteration.md: explanation/symbolic-iteration.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/normalform-ai/clauz3

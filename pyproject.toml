@@ -1,0 +1,64 @@
+[project]
+name = "clauz3"
+version = "0.1.0"
+description = "Static contract experiments for agent-authored Python"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "astroid>=4.1.2",
+    "deal>=4.24.6",
+    "fastapi>=0.136.3",
+    "uvicorn>=0.48.0",
+    "z3-solver>=4.16.0.0",
+]
+
+[project.scripts]
+clauz3 = "clauz3.cli:main"
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "mypy>=1.15.0",
+    "pytest>=8.3.0",
+    "ruff>=0.11.0",
+]
+docs = [
+    "mkdocs>=1.6.0",
+    "mkdocs-material>=9.5.0",
+    "mkdocs-macros-plugin>=1.3.7",
+    "mkdocs-redirects>=1.2.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/clauz3"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+src = ["src", "tests", "examples"]
+extend-exclude = ["src/clauz3/_vendor"]
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "SIM", "UP"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+mypy_path = "src"
+explicit_package_bases = true
+exclude = "(src/clauz3/_vendor|src/clauz3/stdlib|tests/fixtures/.*/cases/.*)"
+
+[[tool.mypy.overrides]]
+module = ["astroid.*", "deal.*", "z3"]
+ignore_missing_imports = true

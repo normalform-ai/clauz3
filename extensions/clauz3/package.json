@@ -1,0 +1,9 @@
+{
+  "name": "pi-clauz3-extension",
+  "private": true,
+  "type": "module",
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  }
+}

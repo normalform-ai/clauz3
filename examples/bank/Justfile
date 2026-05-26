@@ -1,0 +1,35 @@
+
+trusted := "tools/bank/trusted"
+effects := trusted + "/effects.py"
+prove := "uv run clauz3 prove --trusted-root " + trusted
+
+test: lint cases
+
+lint:
+    uv run python -m deal lint {{effects}}
+
+cases: max-spend-pass max-spend-fail max-spend-branch-pass for-loop-sum-pass for-loop-sum-fail only-account-pass only-account-fail negative-amount-fail
+
+max-spend-pass:
+    {{prove}} cases/max_spend_pass.py
+
+max-spend-fail:
+    if {{prove}} cases/max_spend_fail.py; then exit 1; fi
+
+max-spend-branch-pass:
+    {{prove}} cases/max_spend_branch_pass.py
+
+for-loop-sum-pass:
+    {{prove}} cases/for_loop_sum_pass.py
+
+for-loop-sum-fail:
+    if {{prove}} cases/for_loop_sum_fail.py; then exit 1; fi
+
+only-account-pass:
+    {{prove}} cases/only_account_pass.py
+
+only-account-fail:
+    if {{prove}} cases/only_account_fail.py; then exit 1; fi
+
+negative-amount-fail:
+    if {{prove}} cases/negative_amount_fail.py; then exit 1; fi
