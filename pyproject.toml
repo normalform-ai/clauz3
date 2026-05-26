@@ -1,6 +1,6 @@
 [project]
 name = "clauz3"
-version = "0.1.0"
+version = "0.1.1"
 description = "Static contract experiments for agent-authored Python"
 readme = "README.md"
 requires-python = ">=3.11"

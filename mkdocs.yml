@@ -11,6 +11,7 @@ dev_addr: 127.0.0.1:8077
 
 theme:
   name: material
+  favicon: assets/favicon.svg
   features:
     - navigation.instant
     - navigation.tracking
@@ -68,6 +69,9 @@ not_in_nav: |
 
 exclude_docs: |
   superpowers/
+
+extra_css:
+  - stylesheets/extra.css
 
 markdown_extensions:
   - admonition

@@ -1,3 +1,8 @@
+<p align="center">
+  <img src="assets/logo-lockup.svg#only-light" alt="ClauZ3 — Static contracts for agent-authored Python" width="420">
+  <img src="assets/logo-lockup-dark.svg#only-dark" alt="ClauZ3 — Static contracts for agent-authored Python" width="420">
+</p>
+
 # ClauZ3
 
 Static contracts for agent-authored Python.

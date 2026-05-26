@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-lockup-dark.svg">
+    <img src="docs/assets/logo-lockup.svg" alt="ClauZ3 — Static contracts for agent-authored Python" width="420">
+  </picture>
+</p>
+
 # clauz3
 
 Static contracts for agent-authored Python.

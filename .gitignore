@@ -8,3 +8,4 @@ dist/
 *.egg-info/
 *.py[cod]
 site/
+.superpowers/
