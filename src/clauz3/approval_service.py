@@ -15,10 +15,21 @@ from clauz3.approval import (
     APPROVED_DECISIONS,
     request_id_from_payload,
 )
+from clauz3.approval_policy import (
+    ApprovalPolicy,
+    auto_approval_response,
+    evaluate_policy,
+)
 
 
-def create_approval_app() -> FastAPI:
-    """Create a simple localhost approval-service app."""
+def create_approval_app(*, policy: ApprovalPolicy | None = None) -> FastAPI:
+    """Create a simple localhost approval-service app.
+
+    When ``policy`` is given, each incoming request is first evaluated against
+    the policy-admin rules. A matching rule resolves the request immediately
+    (``auto_approved`` or ``auto_rejected``) without waiting for a human;
+    otherwise the request stays pending for a user decision.
+    """
 
     app = FastAPI(title="clauz3 approval service")
     records: dict[str, dict[str, object]] = {}
@@ -53,6 +64,19 @@ def create_approval_app() -> FastAPI:
             if isinstance(previous_approval, dict):
                 record["approval"] = previous_approval
                 record["status"] = _status_for_decision(previous_approval)
+            elif policy is not None:
+                decision = evaluate_policy(policy, record)
+                if decision is not None:
+                    auto_approval = auto_approval_response(
+                        request_id=request_id,
+                        decision=decision,
+                    )
+                    record["approval"] = auto_approval
+                    record["status"] = _status_for_decision(auto_approval)
+                    record["auto_decision"] = {
+                        "rule": decision.rule,
+                        "reason": decision.reason,
+                    }
             records[request_id] = record
             if is_new:
                 order.append(request_id)
@@ -246,6 +270,7 @@ def _render_request(record: Mapping[str, object]) -> str:
         </section>
         <section>
           <h2>User decision</h2>
+          {_render_auto_decision(record.get("auto_decision"))}
           {approval_block}
         </section>
         <section>
@@ -271,6 +296,19 @@ def _render_request(record: Mapping[str, object]) -> str:
           </details>
         </section>
         """,
+    )
+
+
+def _render_auto_decision(value: object) -> str:
+    auto = _mapping(value)
+    if not auto:
+        return ""
+    rule = str(auto.get("rule", ""))
+    reason = str(auto.get("reason") or "")
+    detail = f" — {escape(reason)}" if reason else ""
+    return (
+        "<p class='auto'>Decided automatically by policy rule "
+        f"<code>{escape(rule)}</code>{detail}</p>"
     )
 
 
@@ -542,9 +580,10 @@ def serve_approval_service(
     *,
     host: str,
     port: int,
+    policy: ApprovalPolicy | None = None,
 ) -> None:
     """Start a blocking localhost FastAPI approval service."""
 
-    app = create_approval_app()
+    app = create_approval_app(policy=policy)
     print(f"{APPROVAL_SERVICE_ENV}=http://{host}:{port}", flush=True)
     uvicorn.run(app, host=host, port=port)

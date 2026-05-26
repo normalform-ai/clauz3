@@ -8,7 +8,7 @@ authoritative output from your installed version.
 ## `clauz3`
 
 ```
-clauz3 [--version] {prove,run,tools,approval-service,mock-approval-service,install} ...
+clauz3 [--version] {prove,run,tools,approval-service,policy-check,mock-approval-service,install,config} ...
 ```
 
 Static contract proofs for agent-authored Python.
@@ -79,16 +79,43 @@ Start a localhost FastAPI approval service with REST endpoints and a browser
 UI.
 
 ```
-clauz3 approval-service [--host HOST] [--port PORT]
+clauz3 approval-service [--host HOST] [--port PORT] [--policy POLICY]
 ```
 
 | Option | Default | Description |
 | --- | --- | --- |
 | `--host` | `127.0.0.1` | Bind host. |
 | `--port` | `8765` | Bind port. |
+| `--policy` | _(none)_ | JSON approval policy for auto-decisions (see below). |
+
+With `--policy`, each request is evaluated against policy-admin rules before a
+human is asked: a match resolves it as `auto_approved` or `auto_rejected`,
+otherwise it stays pending. See
+[Approval policies](../todos/approval-policies.md).
 
 See [Run the approval service](../how-to/approval-service.md) for the operational
 flow.
+
+## `clauz3 policy-check`
+
+Dry-run an approval policy against a program and report the auto-decision
+(`auto_approved`, `auto_rejected`, or `ask`) without starting a service or
+executing anything. This is the policy admin's authoring tool: it runs the same
+entailment checks the service would.
+
+```
+clauz3 policy-check [PROGRAM] --policy POLICY [--target NAME] [--expect DECISION]
+```
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `PROGRAM` | stdin | Program path, or stdin when omitted or `-`. |
+| `--policy` | _(required)_ | JSON approval policy to evaluate. |
+| `--trusted-root` / `--import-root` | discovered | Roots used to prove the clauses. |
+| `--target` | `main` | Function to evaluate. |
+| `--expect` | _(none)_ | Exit non-zero unless the decision matches this value. |
+
+See [Approval policies](../todos/approval-policies.md).
 
 ## `clauz3 mock-approval-service`
 
@@ -122,3 +149,26 @@ clauz3 install [--into PATH] [--skills] [--force] SOURCE
 
 See [Install trusted layers](../how-to/install-layers.md) for the recommended
 workflow.
+
+## `clauz3 config`
+
+Configure a repository for clauz3-mediated agent access by writing the default
+Claude Code permissions to `.claude/settings.json`: read-only inspection
+(`Read`, `Glob`, `Grep`) plus the `clauz3` CLI (`Bash(clauz3:*)`). With these
+settings an agent reaches every side-effecting tool through `clauz3`, where the
+prover checks its contract first.
+
+```
+clauz3 config [--into PATH] [--force]
+```
+
+| Option | Description |
+| --- | --- |
+| `--into` | Project root to configure (defaults to the current directory). |
+| `--force` | Overwrite an existing `.claude/settings.json` with the defaults. |
+
+`config` is idempotent: if `.claude/settings.json` already exists, its entries
+(including any extra allows and a custom `defaultMode`) are preserved and only
+the missing default permissions are merged in. It is the configuration
+counterpart to `install`; together they move toward a single command that
+ensures a repo is set up and its tools installed.

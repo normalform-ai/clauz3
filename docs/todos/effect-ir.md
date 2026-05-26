@@ -178,3 +178,7 @@ executor are identical regardless of which front-end produced it.
   exclude.
 - [user-approval-dialog.md](user-approval-dialog.md) — deterministic
   natural-language summaries for the dialog are a consumer of the IR.
+- [guardians-synergies.md](guardians-synergies.md) — a Guardians-style workflow
+  front-end is safe only if it lowers into this IR (executable, not descriptive);
+  taint/provenance and ordered effect traces are facts the IR grammar would need
+  to carry.

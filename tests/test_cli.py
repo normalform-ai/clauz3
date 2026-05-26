@@ -29,6 +29,50 @@ def test_clauz3_prove_pass(capsys: CaptureFixture[str]) -> None:
     assert "main: proved! assertion, guarantee" in capsys.readouterr().out
 
 
+def test_clauz3_policy_check_decisions(capsys: CaptureFixture[str]) -> None:
+    policy = EMAIL_ROOT / "approval-policy.json"
+    expectations = {
+        "cases/only_bob_pass.py": "auto_approved",
+        "cases/policy_reject.py": "auto_rejected",
+        "cases/policy_ask.py": "ask",
+    }
+    for case, expected in expectations.items():
+        result = main(
+            [
+                "policy-check",
+                str(EMAIL_ROOT / case),
+                "--policy",
+                str(policy),
+                "--trusted-root",
+                str(TRUSTED_ROOT),
+                "--import-root",
+                str(EMAIL_ROOT),
+                "--expect",
+                expected,
+            ]
+        )
+        assert result == 0, case
+        assert expected in capsys.readouterr().out
+
+
+def test_clauz3_policy_check_expect_mismatch_fails() -> None:
+    result = main(
+        [
+            "policy-check",
+            str(EMAIL_ROOT / "cases/policy_reject.py"),
+            "--policy",
+            str(EMAIL_ROOT / "approval-policy.json"),
+            "--trusted-root",
+            str(TRUSTED_ROOT),
+            "--import-root",
+            str(EMAIL_ROOT),
+            "--expect",
+            "auto_approved",
+        ]
+    )
+    assert result == 1
+
+
 def test_clauz3_prove_fail(capsys: CaptureFixture[str]) -> None:
     case = ROOT / "examples/email/cases/only_bob_fail.py"
 

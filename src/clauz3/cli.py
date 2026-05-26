@@ -15,7 +15,13 @@ from clauz3.approval import (
     load_mock_config,
     serve_mock_approval_service,
 )
+from clauz3.approval_policy import (
+    ApprovalPolicyError,
+    evaluate_policy,
+    load_approval_policy,
+)
 from clauz3.approval_service import serve_approval_service
+from clauz3.config import ConfigError, configure_repo
 from clauz3.install import InstallError, install_layer
 from clauz3.prover import ProofResult, ProverConfigError, prove_path
 from clauz3.runner import (
@@ -129,7 +135,44 @@ def _build_parser() -> argparse.ArgumentParser:
         type=int,
         help="bind port (default: 8765)",
     )
+    approval_service.add_argument(
+        "--policy",
+        type=Path,
+        default=None,
+        help="JSON approval policy authored by the policy admin for auto-decisions",
+    )
     approval_service.set_defaults(handler=_approval_service)
+
+    policy_check = subparsers.add_parser(
+        "policy-check",
+        help="dry-run an approval policy against a program",
+        description=(
+            "Report the auto-decision an approval policy would make for a "
+            "program (auto_approved, auto_rejected, or ask) without starting a "
+            "service or executing anything."
+        ),
+    )
+    policy_check.add_argument(
+        "program",
+        nargs="?",
+        help="program path, or stdin when omitted or '-'",
+    )
+    policy_check.add_argument(
+        "--policy",
+        required=True,
+        type=Path,
+        help="JSON approval policy to evaluate",
+    )
+    _add_trusted_root_args(policy_check)
+    _add_import_root_args(policy_check)
+    policy_check.add_argument("--target", default="main")
+    policy_check.add_argument(
+        "--expect",
+        choices=["auto_approved", "auto_rejected", "ask"],
+        default=None,
+        help="exit non-zero unless the decision matches this value",
+    )
+    policy_check.set_defaults(handler=_policy_check)
 
     install = subparsers.add_parser(
         "install",
@@ -160,6 +203,28 @@ def _build_parser() -> argparse.ArgumentParser:
         help="overwrite an existing trusted layer at the destination",
     )
     install.set_defaults(handler=_install)
+
+    config = subparsers.add_parser(
+        "config",
+        help="configure a repository for clauz3-mediated agent access",
+        description=(
+            "Write the default Claude Code permissions for this repository: "
+            "read-only inspection plus the clauz3 CLI. Merges into an existing "
+            ".claude/settings.json so it is safe to re-run."
+        ),
+    )
+    config.add_argument(
+        "--into",
+        type=Path,
+        default=None,
+        help="project root to configure (defaults to the current directory)",
+    )
+    config.add_argument(
+        "--force",
+        action="store_true",
+        help="overwrite an existing .claude/settings.json with the defaults",
+    )
+    config.set_defaults(handler=_config)
     return parser
 
 
@@ -300,6 +365,24 @@ def _install(args: argparse.Namespace) -> int:
     return 0
 
 
+def _config(args: argparse.Namespace) -> int:
+    into = args.into or Path.cwd()
+    try:
+        result = configure_repo(into=into, force=args.force)
+    except ConfigError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    if result.created:
+        print(f"wrote claude config: {result.path}")
+    elif result.added:
+        added = ", ".join(result.added)
+        print(f"updated claude config: {result.path} (added: {added})")
+    else:
+        print(f"claude config already up to date: {result.path}")
+    return 0
+
+
 def _mock_approval_service(args: argparse.Namespace) -> int:
     try:
         config = load_mock_config(args.config)
@@ -314,12 +397,46 @@ def _mock_approval_service(args: argparse.Namespace) -> int:
 
 def _approval_service(args: argparse.Namespace) -> int:
     try:
-        serve_approval_service(host=args.host, port=args.port)
+        policy = load_approval_policy(args.policy) if args.policy else None
+        serve_approval_service(host=args.host, port=args.port, policy=policy)
     except KeyboardInterrupt:
         return 130
-    except ApprovalServiceError as exc:
+    except (ApprovalServiceError, ApprovalPolicyError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    return 0
+
+
+def _policy_check(args: argparse.Namespace) -> int:
+    try:
+        source, _source_name, import_roots = _read_run_program(
+            program=args.program,
+            import_roots=args.import_roots,
+        )
+        trusted_roots = list(args.trusted_roots)
+        if not trusted_roots:
+            trusted_roots = discover_trusted_roots(import_roots=import_roots)
+        policy = load_approval_policy(args.policy)
+    except ApprovalPolicyError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    request = {
+        "program": source,
+        "target": args.target,
+        "trusted_roots": [str(path) for path in trusted_roots],
+        "import_roots": [str(path) for path in import_roots],
+    }
+    decision = evaluate_policy(policy, request)
+    label = decision.decision if decision is not None else "ask"
+    if decision is not None:
+        print(f"{label}: {decision.rule} ({decision.reason or 'no reason'})")
+    else:
+        print(f"{label}: no rule matched; a human would decide")
+
+    if args.expect is not None and label != args.expect:
+        print(f"error: expected {args.expect}, got {label}", file=sys.stderr)
+        return 1
     return 0
 
 

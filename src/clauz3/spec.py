@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import ast
 import inspect
-import textwrap
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TypeVar, cast
@@ -536,15 +535,28 @@ class LambdaSpec:
 
     @classmethod
     def from_callable(cls, func: Callable[[Any], Any]) -> LambdaSpec:
-        source_lines, start_line = inspect.getsourcelines(func)
-        module = ast.parse(textwrap.dedent("".join(source_lines)))
-        target_line = func.__code__.co_firstlineno - start_line + 1
+        # Parse the whole defining file rather than inspect.getsourcelines(func):
+        # for a lambda passed as a call argument on its own continuation line,
+        # getsourcelines returns only the lambda's first physical line, silently
+        # truncating multi-line bodies (e.g. a chained ``and``). Locating the
+        # node in the full module by its first line number keeps the body whole.
+        all_lines, _ = inspect.findsource(func)
+        module = ast.parse("".join(all_lines))
+        firstlineno = func.__code__.co_firstlineno
         lambdas = [
             node
             for node in ast.walk(module)
-            if isinstance(node, ast.Lambda)
-            and node.lineno <= target_line <= getattr(node, "end_lineno", node.lineno)
+            if isinstance(node, ast.Lambda) and node.lineno == firstlineno
         ]
+        if len(lambdas) > 1 and func.__code__.co_argcount:
+            first_arg = func.__code__.co_varnames[0]
+            narrowed = [
+                node
+                for node in lambdas
+                if node.args.args and node.args.args[0].arg == first_arg
+            ]
+            if narrowed:
+                lambdas = narrowed
         if not lambdas:
             raise UnsupportedError("could not find lambda source")
         lambda_node = lambdas[0]

@@ -1,0 +1,77 @@
+
+trusted := "tools/text/trusted"
+effects := trusted + "/effects.py"
+prove := "uv run clauz3 prove --trusted-root " + trusted
+
+test: lint cases
+
+lint:
+    uv run python -m deal lint {{effects}}
+
+cases: length-at-most-pass length-at-most-fail length-at-least-pass length-at-least-fail length-between-pass length-between-branch-pass must-contain-pass must-contain-fail must-not-contain-pass must-not-contain-fail no-regex-metacharacters-pass no-regex-metacharacters-fail sends-at-most-pass sends-at-most-fail empty-text-precondition-fail text-no-guarantees-pass only-edit-under-pass only-edit-under-fail edit-length-at-most-pass edit-length-at-most-fail no-edits-pass no-edits-fail
+
+length-at-most-pass:
+    {{prove}} cases/length_at_most_pass.py
+
+length-at-most-fail:
+    if {{prove}} cases/length_at_most_fail.py; then exit 1; fi
+
+length-at-least-pass:
+    {{prove}} cases/length_at_least_pass.py
+
+length-at-least-fail:
+    if {{prove}} cases/length_at_least_fail.py; then exit 1; fi
+
+length-between-pass:
+    {{prove}} cases/length_between_pass.py
+
+length-between-branch-pass:
+    {{prove}} cases/length_between_branch_pass.py
+
+must-contain-pass:
+    {{prove}} cases/must_contain_pass.py
+
+must-contain-fail:
+    if {{prove}} cases/must_contain_fail.py; then exit 1; fi
+
+must-not-contain-pass:
+    {{prove}} cases/must_not_contain_pass.py
+
+must-not-contain-fail:
+    if {{prove}} cases/must_not_contain_fail.py; then exit 1; fi
+
+no-regex-metacharacters-pass:
+    {{prove}} cases/no_regex_metacharacters_pass.py
+
+no-regex-metacharacters-fail:
+    if {{prove}} cases/no_regex_metacharacters_fail.py; then exit 1; fi
+
+sends-at-most-pass:
+    {{prove}} cases/sends_at_most_pass.py
+
+sends-at-most-fail:
+    if {{prove}} cases/sends_at_most_fail.py; then exit 1; fi
+
+empty-text-precondition-fail:
+    if {{prove}} cases/empty_text_precondition_fail.py; then exit 1; fi
+
+text-no-guarantees-pass:
+    {{prove}} cases/text_no_guarantees_pass.py
+
+only-edit-under-pass:
+    {{prove}} cases/only_edit_under_pass.py
+
+only-edit-under-fail:
+    if {{prove}} cases/only_edit_under_fail.py; then exit 1; fi
+
+edit-length-at-most-pass:
+    {{prove}} cases/edit_length_at_most_pass.py
+
+edit-length-at-most-fail:
+    if {{prove}} cases/edit_length_at_most_fail.py; then exit 1; fi
+
+no-edits-pass:
+    {{prove}} cases/no_edits_pass.py
+
+no-edits-fail:
+    if {{prove}} cases/no_edits_fail.py; then exit 1; fi

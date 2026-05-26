@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "imports": {
+    "pol": "tools.email.trusted.contracts"
+  },
+  "rules": [
+    {
+      "name": "deny-blocked-recipients",
+      "decision": "auto_rejected",
+      "reason": "the program cannot prove it never emails a blocked address",
+      "unless_proven": [
+        "pol.recipient_at_most('ceo@example.com', 0)",
+        "pol.recipient_at_most('press@example.com', 0)"
+      ]
+    },
+    {
+      "name": "auto-pass-internal",
+      "decision": "auto_approved",
+      "reason": "bounded, unique, internal-only email",
+      "when_proven": [
+        "pol.only(['bob@example.com', 'ann@example.com'])",
+        "pol.unique_recipients()",
+        "pol.at_most(10)"
+      ]
+    }
+  ]
+}

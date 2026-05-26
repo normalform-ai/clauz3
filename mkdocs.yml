@@ -46,6 +46,7 @@ nav:
     - Email: examples/email.md
     - Bank: examples/bank.md
     - Email-from-DB: examples/email-from-db.md
+    - Text: examples/text.md
   - How-to guides:
     - Install trusted layers: how-to/install-layers.md
     - Run the approval service: how-to/approval-service.md

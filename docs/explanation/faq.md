@@ -55,16 +55,32 @@ promises nothing, but it has to say so out loud.
 
 ### Is this static or runtime?
 
-Static. The whole program is accepted or rejected before any trusted effect
-runs, which avoids partial side effects mid-transaction. There is no runtime
-enforcement yet. See [Concepts](concepts.md#static-proof-vs-runtime).
+Both — it is a two-layer system. The *default* layer is **static**: the whole
+program is accepted or rejected before any trusted effect runs, which avoids
+partial side effects mid-transaction. Underneath it, the trusted layer's
+[deal](https://deal.readthedocs.io/) contracts — `@deal.pre`, `@deal.post`,
+`@deal.has` — are enforced at **runtime** on every call. The static prover
+discharges those obligations *ahead* of execution; deal enforces the same
+checks *at* execution. So when a contract is weak, unproven, or the program
+runs in runtime-only mode, deal is still on guard at the trusted boundary.
+
+The piece that genuinely is *not* implemented yet is binding the **approval
+receipt** into that runtime boundary, so a trusted effect could refuse to run
+without a valid receipt (see the README "Status" section). The earlier claim
+that "there is no runtime enforcement" was wrong: deal's contract enforcement
+is real and live. See [Concepts](concepts.md#static-proof-vs-runtime) for how
+the two layers relate and [the email example](../examples/email.md#the-runtime-layer-deal-as-a-backstop)
+for the runtime layer in action.
 
 ### How is this different from runtime guardrails or policy monitors?
 
-Those intercept individual actions during execution; `clauz3` proves the whole
-program up front, so it can reject before the first effect rather than blocking
-the second one mid-transaction. The two are complementary, not rivals. See
-[background](background.md#forge).
+Policy monitors intercept individual actions during execution and decide each
+one against a policy; `clauz3` proves the whole program up front, so it can
+reject before the first effect rather than blocking the second one
+mid-transaction. This is *not* the same as the deal runtime layer above: deal
+enforces fixed preconditions at the trusted boundary, it does not evaluate a
+policy over the agent's actions. Static proof and policy monitors are
+complementary, not rivals. See [background](background.md#forge).
 
 ### Is it production-ready?
 

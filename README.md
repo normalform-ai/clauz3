@@ -152,13 +152,14 @@ top level. `just stdlib` proves them all.
 
 ## Examples
 
-The repo currently has three worked examples:
+The repo currently has four worked examples:
 
 | Example | Contracts | What it demonstrates |
 | --- | --- | --- |
 | [`examples/email`](examples/email) | `emails.only`, `emails.none`, `emails.no_guarantees`, `emails.unique_recipients`, `emails.content_length_at_most` | allowlists, explicit absence of guarantees, absence of effects, pairwise uniqueness, string length bounds |
 | [`examples/bank`](examples/bank) | `bank.max_spend`, `bank.only_account` | numeric aggregation, field equality, and fixed-bound loop unrolling over trusted calls |
 | [`examples/email-from-db`](examples/email-from-db) | `emails.addresses_from`, `db.only_table`, `db.only_where` | for-loops over trusted query returns, column-binding constraints |
+| [`examples/text`](examples/text) | `text.length_between`, `text.must_not_contain`, `text.no_regex_metacharacters`, `text.only_edit_under`, `text.edit_length_at_most` | string-length bounds, required/banned substrings, regex-metacharacter safety before sending, and file-edit path/size policies |
 
 All examples use generic effect relations inferred from trusted function
 signatures. There is no email-specific, bank-specific, or database-specific logic in the core.
@@ -177,11 +178,19 @@ Implemented pieces include:
 - `clauz3 install` for copying a trusted `tools/` layer from a local path or a
   bundled stdlib tool (`stdlib:filesystem`, `stdlib:grep`), optionally
   generating `agents/skills/<domain>/SKILL.md` stubs.
+- `clauz3 config` for writing this repo's default Claude Code permissions
+  (read-only tools plus the `clauz3` CLI) to `.claude/settings.json`. Idempotent
+  and the configuration counterpart to `install`.
 - `clauz3 run` for proving a complete inline program, submitting an approval
   request to an externally configured approval service, and executing `main`
   only after an approval receipt is returned.
 - `clauz3 approval-service` for starting a simple localhost FastAPI approval
-  service with REST endpoints and a browser UI for user decisions.
+  service with REST endpoints and a browser UI for user decisions. With
+  `--policy`, a policy admin's rules can auto-approve or auto-reject a request
+  by asking the prover whether the program *entails* the rule's contracts,
+  falling back to a human otherwise. `clauz3 policy-check` dry-runs a policy
+  against a program. See
+  [docs/todos/approval-policies.md](docs/todos/approval-policies.md).
 - `clauz3 mock-approval-service` for config-driven tests and local demos.
 - For-loops over `list[Row]`-returning trusted calls, with column-binding
   contracts via `UserRow.email` markers. See
@@ -218,6 +227,7 @@ More detail:
 - [ClauZ3 Python subset](docs/reference/python-subset.md)
 - [Approval service](docs/how-to/approval-service.md)
 - [User approval dialog design](docs/todos/user-approval-dialog.md)
+- [Guardians synergies](docs/todos/guardians-synergies.md)
 - [Ideas](docs/todos/ideas.md)
 
 ## Development

@@ -2,13 +2,25 @@
 trusted := "tools/email/trusted"
 effects := trusted + "/effects.py"
 prove := "uv run clauz3 prove --trusted-root " + trusted
+policy-check := "uv run clauz3 policy-check --policy approval-policy.json --trusted-root " + trusted + " --import-root ."
 
-test: lint cases
+test: lint cases policy
 
 lint:
     uv run python -m deal lint {{effects}}
 
 cases: only-bob-pass only-bob-fail none-pass none-fail no-guarantees-pass helper-pass helper-fail precondition-fail dead-branch-pass unique-recipients-pass unique-recipients-fail unique-recipients-branch-pass nobody-emailed-twice-fail at-most-two-pass at-most-two-fail bob-at-most-two-pass bob-at-most-two-fail bob-at-most-two-branch-pass content-length-pass content-length-fail content-length-branch-pass same-content-pass same-content-fail same-content-branch-pass
+
+policy: policy-auto-pass policy-auto-reject policy-ask
+
+policy-auto-pass:
+    {{policy-check}} --expect auto_approved cases/only_bob_pass.py
+
+policy-auto-reject:
+    {{policy-check}} --expect auto_rejected cases/policy_reject.py
+
+policy-ask:
+    {{policy-check}} --expect ask cases/policy_ask.py
 
 only-bob-pass:
     {{prove}} cases/only_bob_pass.py

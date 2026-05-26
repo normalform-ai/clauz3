@@ -33,6 +33,33 @@ prover.
 
 {{ include_file("examples/email/cases/only_bob_fail.py") }}
 
+## The runtime layer (deal as a backstop)
+
+The static prover is only the first layer. The `@deal.pre` on `send_email`
+(`addr` must contain `"@"`) is also a *runtime* contract. The two layers act on
+the same artifact at different times.
+
+Statically, `precondition_fail.py` is rejected by the prover before anything
+runs, because it cannot discharge that precondition for the call below:
+
+{{ include_file("examples/email/cases/precondition_fail.py") }}
+
+The same precondition is what [deal](https://deal.readthedocs.io/) enforces at
+runtime. If the program is run outside a successful proof — a weak or
+`no_guarantees()` contract, or runtime-only mode — deal still raises on the bad
+call at the trusted boundary:
+
+```pycon
+>>> from tools.email.trusted.effects import send_email
+>>> send_email("bob@example.com", "hi")        # precondition holds: runs
+>>> send_email("not-an-email", "hi")           # precondition violated
+deal.PreContractError: addr must contain "@" (where addr='not-an-email', msg='hi')
+```
+
+Same check, different time: the prover discharges it ahead of execution, deal
+enforces it at execution. See
+[Concepts: static proof vs runtime](../explanation/concepts.md#static-proof-vs-runtime).
+
 ## All cases
 
 Every file under `cases/` is a small program plus its declared guarantee.

@@ -49,3 +49,25 @@ def test_startswith_requires_single_argument() -> None:
 
     with pytest.raises(UnsupportedError):
         spec.evaluate(row={"path": types.str.val("/a", ctx=ctx)}, ctx=ctx)
+
+
+def test_multiline_lambda_body_is_not_truncated() -> None:
+    ctx = _ctx()
+    # A lambda passed as a call argument across continuation lines: a regression
+    # guard against from_callable capturing only the lambda's first physical
+    # line, which would silently drop the trailing ``and`` clauses and let an
+    # unsound contract prove. The final clause (``]``) must still be enforced.
+    spec = LambdaSpec.from_callable(
+        lambda e: (
+            "(" not in e.text
+            and ")" not in e.text
+            and "[" not in e.text
+            and "]" not in e.text
+        )
+    )
+
+    only_last = spec.evaluate(row={"text": types.str.val("safe]now", ctx=ctx)}, ctx=ctx)
+    clean = spec.evaluate(row={"text": types.str.val("safe now", ctx=ctx)}, ctx=ctx)
+
+    assert z3.simplify(only_last.expr) == z3.BoolVal(False)
+    assert z3.simplify(clean.expr) == z3.BoolVal(True)

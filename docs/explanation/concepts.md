@@ -162,6 +162,26 @@ proof succeeds, the deal checks at runtime are redundant (but still safe). If
 the proof is skipped or the contract is intentionally weak, deal is still on
 guard at the trusted boundary.
 
+Concretely, the email trusted layer declares `@deal.pre(lambda addr, msg: "@"
+in addr)` on `send_email`. A program that calls `send_email("not-an-email",
+...)` is rejected *statically* by the prover (it cannot discharge the
+precondition). The exact same precondition fires *at runtime* if such a call is
+ever executed:
+
+```pycon
+>>> send_email("not-an-email", "hi")
+deal.PreContractError: addr must contain "@" (where addr='not-an-email', msg='hi')
+```
+
+Same obligation, two enforcement points. See
+[the email example](../examples/email.md#the-runtime-layer-deal-as-a-backstop)
+for the full worked case.
+
+So the only enforcement that is genuinely *not* implemented yet is binding the
+approval **receipt** into this runtime boundary — a trusted effect refusing to
+run without a valid receipt. The deal preconditions, postconditions, and effect
+markers themselves are enforced today.
+
 ## Glossary
 
 - **User** — reviews and consents to contracts; does not read or run code.
