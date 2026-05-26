@@ -1,6 +1,6 @@
 [project]
 name = "clauz3"
-version = "0.1.1"
+version = "0.1.2"
 description = "Static contract experiments for agent-authored Python"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -11,6 +11,12 @@ dependencies = [
     "uvicorn>=0.48.0",
     "z3-solver>=4.16.0.0",
 ]
+
+[project.urls]
+Homepage = "https://normalform-ai.github.io/clauz3/"
+Documentation = "https://normalform-ai.github.io/clauz3/"
+Repository = "https://github.com/normalform-ai/clauz3"
+Issues = "https://github.com/normalform-ai/clauz3/issues"
 
 [project.scripts]
 clauz3 = "clauz3.cli:main"
