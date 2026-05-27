@@ -1,16 +1,18 @@
-# Standard Library Tools
+# Standard library tools
 
 `clauz3` ships a small set of **real (non-mock) tools** under
-`src/clauz3/stdlib`. Unlike the layers under `examples/`, their effect bodies
-do real work: the prover skips them, but `clauz3 run` executes them after a
-program is proved and approved.
+`src/clauz3/stdlib`. Unlike the layers under `examples/`, their effect
+bodies do real work: the prover skips them, but `clauz3 run` executes them
+after a program is proved and approved.
+
+## Install
 
 After `pip install clauz3`, install one into the current repo with the
 `stdlib:` scheme:
 
 ```bash
 clauz3 install stdlib:filesystem
-clauz3 install stdlib:grep
+clauz3 install stdlib:web_fetch
 ```
 
 `install stdlib:<name>` locates the bundled tool with `importlib.resources`
@@ -26,78 +28,38 @@ A stdlib tool is deliberately leaner than an example. There is no top-level
 
 ```
 <name>/
-  tools/<name>/trusted/   # the installable trusted layer (effects + contracts)
+  README.md                     # user-facing prose; also rendered on the per-tool doc page
+  tools/<name>/trusted/         # the installable trusted layer (effects + contracts)
   tests/
-    cases/                # *_pass.py must prove, *_fail.py must not
-    Justfile              # proves the cases — the tool's guarantees
-  README.md
+    cases/                      # *_pass.py must prove, *_fail.py must not
+    Justfile                    # proves the cases — the tool's own guarantees
 ```
 
-The repo's `just stdlib` target runs every stdlib tool's `tests/Justfile`.
+The repo's `just stdlib` target runs every stdlib tool's `tests/Justfile`,
+and `clauz3 test stdlib:<name>` does the same for a single tool.
 
-## filesystem
+## Available tools
 
-`read_file` and `write_file`, plus path-prefix policies over where a program
-may read and write. Reads carry deal's `read` marker and writes carry `write`,
-so the contracts can constrain each independently.
+| Tool | One-line | Doc |
+|---|---|---|
+| `filesystem` | Read and write files with path-prefix policies. | [filesystem](../stdlib/filesystem.md) |
+| `grep` | Substring search over files; shares the filesystem `read` marker. | [grep](../stdlib/grep.md) |
+| `editor` | In-place file edit and append with path-prefix + content-substring guards. | [editor](../stdlib/editor.md) |
+| `web_fetch` | HTTP GET via `urllib`, with URL-prefix and exfil-style URL-content guards. | [web_fetch](../stdlib/web_fetch.md) |
+| `web_search` | Search via a configurable JSON backend, with query-content guards. | [web_search](../stdlib/web_search.md) |
+| `env` | Read environment variables with name allowlist / blocklist / prefix vetoes. | [env](../stdlib/env.md) |
 
-| Contract | Guarantee |
-| --- | --- |
-| `read_only()` | no writes |
-| `no_reads()` | no reads |
-| `only_read_under(root)` | every read path is under `root` |
-| `only_write_under(root)` | every write path is under `root` |
-| `never_read_under(prefix)` | no read path is under `prefix` |
-| `never_write_under(prefix)` | no write path is under `prefix` |
-| `writes_at_most(count)` | at most `count` writes |
+Each per-tool doc page renders the tool's `README.md` and inlines the
+trusted layer's source, so the doc tracks the code without a hand-maintained
+API table. Adding a new stdlib tool requires one README in the tool
+directory plus two thin stub pages (`docs/stdlib/<tool>.md` and
+`docs/stdlib/<tool>-all-cases.md`) and three nav lines.
 
-The prefix policies compile to `str.startswith` over the symbolic call
-argument (see [Python subset](python-subset.md)).
+## Composition
 
-```python
-import clauz3
-from tools.filesystem.trusted import contracts as fs
-from tools.filesystem.trusted.effects import read_file, write_file
-
-
-@clauz3.guarantee(fs.only_read_under("/repo"))
-@clauz3.guarantee(fs.only_write_under("/repo/build"))
-def main() -> None:
-    source = read_file("/repo/src/app.py")
-    write_file("/repo/build/app.txt", source)
-```
-
-## grep
-
-A substitute for an agent's `ripgrep`. `grep(pattern, path)` reads a file, so it
-carries the same `read` marker as `read_file` and **imports the `filesystem`
-layer**: its `only_read_under` / `never_read_under` contracts delegate to the
-filesystem read policies, which therefore also govern grep calls. grep adds
-search-specific contracts:
-
-| Contract | Guarantee |
-| --- | --- |
-| `only_read_under(root)` | every search reads under `root` |
-| `never_read_under(prefix)` | no search reads under `prefix` |
-| `searches_at_most(count)` | at most `count` searches |
-| `only_pattern(pattern)` | every search uses exactly `pattern` |
-
-Because grep imports filesystem, install both:
-
-```bash
-clauz3 install stdlib:filesystem
-clauz3 install stdlib:grep
-```
-
-```python
-import clauz3
-from tools.grep.trusted import contracts as grep_rules
-from tools.grep.trusted.effects import grep
-
-
-@clauz3.guarantee(grep_rules.only_read_under("/repo"))
-@clauz3.guarantee(grep_rules.searches_at_most(3))
-def main() -> None:
-    grep("TODO", "/repo/src/app.py")
-    grep("FIXME", "/repo/src/util.py")
-```
+Marker-named relations (`Read = effect("read")`, `Write = effect("write")`)
+cross-cut tools that carry the same marker. For example, `stdlib:grep`
+imports `stdlib:filesystem`'s `read` marker, so a `fs.only_read_under("/repo")`
+guarantee constrains both `read_file` and `grep` calls. Similarly,
+`stdlib:editor` carries both `edit` and `write` markers, so installing both
+`editor` and `filesystem` stacks their respective write policies.

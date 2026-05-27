@@ -1,0 +1,23 @@
+
+trusted := "tools/http/trusted"
+effects := trusted + "/effects.py"
+prove := "uv run clauz3 prove --trusted-root " + trusted
+
+test: lint cases
+
+lint:
+    uv run python -m deal lint {{effects}}
+
+cases: host-pass host-fail no-posts-pass no-posts-fail
+
+host-pass:
+    {{prove}} cases/host_pass.py
+
+host-fail:
+    if {{prove}} cases/host_fail.py; then exit 1; fi
+
+no-posts-pass:
+    {{prove}} cases/no_posts_pass.py
+
+no-posts-fail:
+    if {{prove}} cases/no_posts_fail.py; then exit 1; fi

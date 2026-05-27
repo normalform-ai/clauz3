@@ -94,7 +94,11 @@ def eval_bin_op(node: astroid.BinOp, ctx: Context) -> ProxySort:
 
 @eval_expr.register(astroid.Compare)
 def eval_compare(node: astroid.Compare, ctx: Context) -> ProxySort:
+    # Python chained comparisons `a OP1 b OP2 c` mean `a OP1 b and b OP2 c`,
+    # with each intermediate expression evaluated once. We reuse the
+    # previously-evaluated right as the next left to preserve that.
     left = eval_expr(node=node.left, ctx=ctx)
+    pairs: list[ProxySort] = []
     for op, right_node in node.ops:
         assert op, "missed comparison operator"
         op_name = COMAPARISON.get(op)
@@ -102,10 +106,14 @@ def eval_compare(node: astroid.Compare, ctx: Context) -> ProxySort:
             raise UnsupportedError("unsupported comparison operator", op)
 
         right = eval_expr(node=right_node, ctx=ctx)
-        # TODO: proper chain
         method = left.m_getattr(op_name, ctx=ctx)
-        return method.m_call(right, ctx=ctx)
-    raise RuntimeError("unreachable")
+        pairs.append(method.m_call(right, ctx=ctx))
+        left = right
+    if not pairs:
+        raise RuntimeError("unreachable")
+    if len(pairs) == 1:
+        return pairs[0]
+    return and_expr(*(p.m_bool(ctx=ctx) for p in pairs), ctx=ctx)
 
 
 @eval_expr.register(astroid.BoolOp)

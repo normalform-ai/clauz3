@@ -1,0 +1,203 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1480 820" font-size="16" role="img"
+     aria-label="ClauZ3 flow: the user asks the agent in plain English; the agent writes a Python program with declarative guarantees; the ClauZ3 prover (the gate) proves them and presents only the guarantees to the user for approval; once approved, ClauZ3 invokes the Python runtime to execute the program.">
+  <title>ClauZ3 — approve the guarantee, not the program</title>
+
+  <defs>
+    <style>
+      .cs   { font-family: 'Comic Sans MS', 'Comic Neue', 'Chalkboard SE', cursive; }
+      .mono { font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, 'Courier New', monospace; }
+      .sym  { font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Arial Unicode MS', sans-serif; }
+    </style>
+
+    <marker id="arrow" markerWidth="11" markerHeight="11" refX="8" refY="3.5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L9,3.5 L0,7 Z" fill="#4f46e5"/>
+    </marker>
+    <marker id="arrowG" markerWidth="11" markerHeight="11" refX="8" refY="3.5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L9,3.5 L0,7 Z" fill="#16a34a"/>
+    </marker>
+
+    <filter id="shadow" x="-25%" y="-25%" width="150%" height="160%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#1e1b4b" flood-opacity="0.16"/>
+    </filter>
+  </defs>
+
+  <!-- background -->
+  <rect x="0" y="0" width="1480" height="820" fill="#fbfbff"/>
+  <rect x="1" y="1" width="1478" height="818" fill="none" stroke="#e5e7eb" stroke-width="2"/>
+
+  <!-- title -->
+  <text class="cs" x="356" y="46" font-size="30" font-weight="bold" fill="#1e1b4b">
+    ClauZ3 — approve the <tspan fill="#4f46e5">guarantee</tspan>, not the program
+  </text>
+  <text class="cs" x="740" y="78" text-anchor="middle" font-size="16" fill="#6b7280">
+    The agent writes the code; a Z3-backed prover is the gate that runs it only after you approve its guarantees.
+  </text>
+
+  <!-- =========================================================
+       ACTOR 1 — USER
+       ========================================================= -->
+  <g filter="url(#shadow)">
+    <rect x="22" y="150" width="252" height="124" rx="18" fill="#ffffff" stroke="#4f46e5" stroke-width="2.5"/>
+  </g>
+  <path d="M132,273 L146,300 L166,273" fill="#ffffff" stroke="#4f46e5" stroke-width="2.5"/>
+  <text class="cs" x="42" y="184" font-size="15.5" fill="#1e1b4b">
+    <tspan x="42" dy="0">Pay my bills from</tspan>
+    <tspan x="42" dy="21">checking — but never</tspan>
+    <tspan x="42" dy="21">spend more than $5,</tspan>
+    <tspan x="42" dy="21">and don't touch my</tspan>
+    <tspan x="42" dy="21">other accounts!</tspan>
+  </text>
+
+  <!-- human figure (short neck) -->
+  <path d="M129,338 C132,320 168,320 171,338 C162,330 138,330 129,338 Z" fill="#1e1b4b"/>
+  <g stroke="#1e1b4b" stroke-width="2.5">
+    <path d="M110,432 C110,390 128,374 150,374 C172,374 190,390 190,432 Z" fill="#6366f1"/>
+    <rect x="142" y="367" width="16" height="8" fill="#f6c89f"/>
+    <circle cx="150" cy="348" r="22" fill="#f6c89f"/>
+  </g>
+  <circle cx="143" cy="347" r="2.4" fill="#1e1b4b"/>
+  <circle cx="157" cy="347" r="2.4" fill="#1e1b4b"/>
+  <path d="M141,356 Q150,363 159,356" fill="none" stroke="#1e1b4b" stroke-width="2"/>
+  <text class="cs" x="150" y="456" text-anchor="middle" font-size="17" font-weight="bold" fill="#1e1b4b">USER</text>
+
+  <!-- approved stamp -->
+  <g transform="rotate(-11 150 498)">
+    <rect x="92" y="481" width="116" height="32" rx="8" fill="none" stroke="#16a34a" stroke-width="2.5"/>
+    <text class="cs" x="150" y="503" text-anchor="middle" font-size="17" font-weight="bold" fill="#16a34a">APPROVED</text>
+  </g>
+
+  <!-- =========================================================
+       ACTOR 2 — AGENT (robot, smaller head) + plan.py
+       ========================================================= -->
+  <g stroke="#4f46e5" stroke-width="2.5">
+    <line x1="326" y1="236" x2="326" y2="222"/>
+    <circle cx="326" cy="217" r="4" fill="#f59e0b"/>
+    <rect x="291" y="251" width="7" height="15" rx="2" fill="#c7d2fe"/>
+    <rect x="354" y="251" width="7" height="15" rx="2" fill="#c7d2fe"/>
+    <rect x="298" y="236" width="56" height="44" rx="11" fill="#e0e7ff"/>
+    <rect x="306" y="284" width="40" height="24" rx="7" fill="#c7d2fe"/>
+  </g>
+  <circle cx="314" cy="257" r="5.5" fill="#4f46e5"/>
+  <circle cx="338" cy="257" r="5.5" fill="#4f46e5"/>
+  <circle cx="315.8" cy="255.2" r="1.9" fill="#ffffff"/>
+  <circle cx="339.8" cy="255.2" r="1.9" fill="#ffffff"/>
+  <rect x="312" y="269" width="28" height="4.5" rx="2" fill="#4f46e5"/>
+  <circle cx="326" cy="298" r="4" fill="#4f46e5"/>
+  <text class="cs" x="326" y="336" text-anchor="middle" font-size="16" font-weight="bold" fill="#1e1b4b">AGENT</text>
+
+  <!-- writes -> -->
+  <path d="M366,300 L396,300" fill="none" stroke="#4f46e5" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <text class="cs" x="381" y="290" text-anchor="middle" font-size="12" fill="#6b7280">writes</text>
+
+  <!-- code editor card -->
+  <g filter="url(#shadow)">
+    <rect x="402" y="234" width="374" height="256" rx="12" fill="#14122e" stroke="#4f46e5" stroke-width="2"/>
+  </g>
+  <path d="M402,246 a12,12 0 0 1 12,-12 h350 a12,12 0 0 1 12,12 v16 h-374 Z" fill="#2a2748"/>
+  <circle cx="420" cy="250" r="4.5" fill="#ff5f56"/>
+  <circle cx="436" cy="250" r="4.5" fill="#ffbd2e"/>
+  <circle cx="452" cy="250" r="4.5" fill="#27c93f"/>
+  <text class="mono" x="758" y="254" text-anchor="end" font-size="12" fill="#9aa0c0">plan.py</text>
+
+  <g class="mono" font-size="13" fill="#d6deeb">
+    <text x="420" y="288"><tspan fill="#c792ea">import</tspan> clauz3</text>
+    <text x="420" y="309"><tspan fill="#c792ea">from</tspan> tools.bank.trusted <tspan fill="#c792ea">import</tspan> contracts <tspan fill="#c792ea">as</tspan> bank</text>
+    <text x="420" y="330"><tspan fill="#c792ea">from</tspan> tools.bank.trusted.effects <tspan fill="#c792ea">import</tspan> withdraw</text>
+    <text x="420" y="366" fill="#ffcb6b">@clauz3.guarantee(bank.max_spend(5))</text>
+    <text x="420" y="387" fill="#ffcb6b">@clauz3.guarantee(bank.only_account(<tspan fill="#c3e88d">"checking"</tspan>))</text>
+    <text x="420" y="408"><tspan fill="#c792ea">def</tspan> <tspan fill="#82aaff">main</tspan>():</text>
+    <text x="420" y="429">    withdraw(<tspan fill="#c3e88d">"checking"</tspan>, <tspan fill="#f78c6c">2</tspan>)</text>
+    <text x="420" y="450">    withdraw(<tspan fill="#c3e88d">"checking"</tspan>, <tspan fill="#f78c6c">3</tspan>)</text>
+  </g>
+
+  <!-- =========================================================
+       ACTOR 3 — ClauZ3 (the gate / static prover)
+       ========================================================= -->
+  <g filter="url(#shadow)">
+    <rect x="822" y="208" width="372" height="342" rx="16" fill="#ffffff" stroke="#4f46e5" stroke-width="2.5"/>
+  </g>
+
+  <!-- ClauZ3 logo lockup inside the card -->
+  <g transform="translate(872,220) scale(0.85)">
+    <g fill="none" stroke="#4f46e5" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M 38,18 c -10,0 -14,5 -14,14 l 0,14 c 0,7 -4,8 -8,8 c 4,0 8,1 8,8 l 0,14 c 0,9 4,14 14,14"/>
+      <path d="M 282,18 c 10,0 14,5 14,14 l 0,14 c 0,7 4,8 8,8 c -4,0 -8,1 -8,8 l 0,14 c 0,9 -4,14 -14,14"/>
+    </g>
+    <text x="84" y="65" font-family="Inter, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif"
+          font-weight="700" font-size="44">
+      <tspan fill="#1e1b4b">Clau</tspan><tspan fill="#4f46e5">Z3</tspan>
+    </text>
+  </g>
+  <text class="cs" x="1008" y="306" text-anchor="middle" font-size="12.5" fill="#6b7280">the gate · static prover (Z3 / SMT)</text>
+  <line x1="842" y1="320" x2="1174" y2="320" stroke="#e5e7eb" stroke-width="1.5"/>
+
+  <circle cx="852" cy="348" r="12" fill="#16a34a"/>
+  <path d="M845.5,348 l4.5,4.5 l8,-10" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text class="cs" x="872" y="356" font-size="20" font-weight="bold" fill="#16a34a">Proved.</text>
+
+  <g class="sym" font-size="14.5" fill="#1e1b4b">
+    <text x="842" y="386">Σ withdraw.amount = 2 + 3 = 5</text>
+    <text x="862" y="409">5 ≤ 5   <tspan fill="#16a34a" font-weight="bold">✓</tspan></text>
+    <text x="842" y="432">∀ w · w.account = "checking"   <tspan fill="#16a34a" font-weight="bold">✓</tspan></text>
+  </g>
+
+  <line x1="842" y1="450" x2="1174" y2="450" stroke="#e5e7eb" stroke-width="1.5"/>
+  <text class="cs" x="842" y="472" font-size="13" fill="#6b7280">You sign off on only these:</text>
+  <rect x="842" y="482" width="156" height="27" rx="13.5" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.5"/>
+  <text class="cs" x="920" y="501" text-anchor="middle" font-size="14" fill="#1e1b4b">max_spend($5)</text>
+  <rect x="842" y="515" width="240" height="27" rx="13.5" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.5"/>
+  <text class="cs" x="962" y="534" text-anchor="middle" font-size="14" fill="#1e1b4b">only_account("checking")</text>
+
+  <!-- =========================================================
+       ACTOR 4 — PYTHON RUNTIME
+       ========================================================= -->
+  <g filter="url(#shadow)">
+    <rect x="1238" y="296" width="226" height="214" rx="12" fill="#f5f9ff" stroke="#3776ab" stroke-width="2.5"/>
+  </g>
+  <!-- mini python-style emblem -->
+  <g>
+    <path d="M1262,316 q0,-8 8,-8 h10 q8,0 8,8 v6 h-16 q-8,0 -8,8 v6 q0,8 -8,8 h-2 q-8,0 -8,-8 v-12 q0,-8 8,-8 z" fill="#3776ab"/>
+    <path d="M1284,340 q0,8 -8,8 h-10 q-8,0 -8,-8 v-6 h16 q8,0 8,-8 v-6 q0,-8 8,-8 h2 q8,0 8,8 v12 q0,8 -8,8 z" fill="#ffd43b"/>
+    <circle cx="1267" cy="314" r="1.8" fill="#ffffff"/>
+    <circle cx="1280" cy="342" r="1.8" fill="#1e3a5f"/>
+  </g>
+  <text class="cs" x="1298" y="323" font-size="14.5" font-weight="bold" fill="#1e3a5f">Python runtime</text>
+  <line x1="1256" y1="338" x2="1446" y2="338" stroke="#cfe0f0" stroke-width="1.5"/>
+
+  <g class="mono" font-size="12" fill="#1e293b">
+    <text x="1256" y="362">main() executes:</text>
+    <text x="1256" y="384">withdraw("checking", 2) <tspan class="sym" fill="#16a34a" font-weight="bold">✓</tspan></text>
+    <text x="1256" y="406">withdraw("checking", 3) <tspan class="sym" fill="#16a34a" font-weight="bold">✓</tspan></text>
+  </g>
+  <line x1="1256" y1="420" x2="1446" y2="420" stroke="#cfe0f0" stroke-width="1.5"/>
+  <text class="cs" x="1256" y="446" font-size="14" font-weight="bold" fill="#1e3a5f">checking:  −$5 total</text>
+  <text class="cs sym" x="1256" y="470" font-size="13.5" fill="#16a34a">within the $5 cap  ✓</text>
+
+  <!-- =========================================================
+       FLOW ARROWS (state-diagram transitions)
+       ========================================================= -->
+  <!-- 1: USER -> AGENT -->
+  <path d="M196,398 C236,388 252,300 290,276" fill="none" stroke="#4f46e5" stroke-width="3" marker-end="url(#arrow)"/>
+  <circle cx="232" cy="356" r="13" fill="#4f46e5"/>
+  <text class="cs" x="232" y="361" text-anchor="middle" font-size="15" font-weight="bold" fill="#ffffff">1</text>
+  <text class="cs" x="251" y="361" font-size="14" fill="#4f46e5">asks in plain English</text>
+
+  <!-- 2: code -> ClauZ3 gate -->
+  <path d="M778,362 L818,362" fill="none" stroke="#4f46e5" stroke-width="3" marker-end="url(#arrow)"/>
+  <circle cx="470" cy="600" r="13" fill="#4f46e5"/>
+  <text class="cs" x="470" y="605" text-anchor="middle" font-size="15" font-weight="bold" fill="#ffffff">2</text>
+  <text class="cs" x="490" y="605" font-size="14" fill="#4f46e5">submits program + guarantees to the gate</text>
+
+  <!-- 4: ClauZ3 gate -> Python runtime -->
+  <path d="M1196,398 L1234,398" fill="none" stroke="#4f46e5" stroke-width="3" marker-end="url(#arrow)"/>
+  <circle cx="1215" cy="372" r="13" fill="#4f46e5"/>
+  <text class="cs" x="1215" y="377" text-anchor="middle" font-size="15" font-weight="bold" fill="#ffffff">4</text>
+  <text class="cs" x="1351" y="538" text-anchor="middle" font-size="13.5" fill="#4f46e5">runs only after you approve</text>
+
+  <!-- 3: ClauZ3 gate -> USER (approval loop, along the bottom) -->
+  <path d="M884,550 C884,712 884,730 540,730 C300,730 184,560 165,452"
+        fill="none" stroke="#16a34a" stroke-width="3" marker-end="url(#arrowG)"/>
+  <circle cx="438" cy="763" r="13" fill="#16a34a"/>
+  <text class="cs" x="438" y="768" text-anchor="middle" font-size="15" font-weight="bold" fill="#ffffff">3</text>
+  <text class="cs" x="458" y="768" font-size="16" font-weight="bold" fill="#16a34a">presents only the two guarantees — you review &amp; approve, never the code</text>
+</svg>

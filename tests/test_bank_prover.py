@@ -24,6 +24,9 @@ TRUSTED_ROOT = BANK_ROOT / "tools/bank/trusted"
         ("only_account_pass.py", True, "assertion, assertion, guarantee"),
         ("only_account_fail.py", False, "guarantee"),
         ("negative_amount_fail.py", False, "assertion"),
+        ("pay_bill_capped_pass.py", True, "assertion, assertion, guarantee, guarantee"),
+        ("pay_bill_uncapped_fail.py", False, "guarantee"),
+        ("pay_bill_cap_too_tight_fail.py", False, "guarantee"),
     ],
 )
 def test_bank_case(case_name: str, ok: bool, description: str) -> None:

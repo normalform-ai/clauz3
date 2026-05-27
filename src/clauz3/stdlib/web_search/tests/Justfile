@@ -1,0 +1,40 @@
+# Runner commands. Default to `uv run` for the source-checkout dev flow;
+# `clauz3 test` overrides CLAUZ3/DEAL so the bundled suite also runs from an
+# installed wheel, where `uv` is absent.
+clauz3 := env_var_or_default("CLAUZ3", "uv run clauz3")
+deal := env_var_or_default("DEAL", "uv run python -m deal")
+
+trusted := "../tools/web_search/trusted"
+effects := trusted + "/effects.py"
+prove := clauz3 + " prove --trusted-root " + trusted + " --import-root .."
+
+test: lint cases
+
+lint:
+    {{deal}} lint {{effects}}
+
+cases: no-searches-pass no-searches-fail searches-at-most-pass searches-at-most-fail query-length-at-most-pass query-length-at-most-fail no-query-contains-pass no-query-contains-fail
+
+no-searches-pass:
+    {{prove}} cases/no_searches_pass.py
+
+no-searches-fail:
+    if {{prove}} cases/no_searches_fail.py; then exit 1; fi
+
+searches-at-most-pass:
+    {{prove}} cases/searches_at_most_pass.py
+
+searches-at-most-fail:
+    if {{prove}} cases/searches_at_most_fail.py; then exit 1; fi
+
+query-length-at-most-pass:
+    {{prove}} cases/query_length_at_most_pass.py
+
+query-length-at-most-fail:
+    if {{prove}} cases/query_length_at_most_fail.py; then exit 1; fi
+
+no-query-contains-pass:
+    {{prove}} cases/no_query_contains_pass.py
+
+no-query-contains-fail:
+    if {{prove}} cases/no_query_contains_fail.py; then exit 1; fi

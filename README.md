@@ -22,6 +22,22 @@ to answer questions like:
 - Will this withdraw more than $5 total?
 - Will this write outside a sandbox?
 
+## In one picture
+
+A run, end to end. The user asks for a bill to be paid (capped); the agent
+writes a small program that looks up the outstanding balance and pays
+`min(balance, $500)`; ClauZ3 proves the spend stays under the cap on *every*
+branch and that only the named account is touched; the user approves the
+*guarantees*, not the code; only then does the runtime execute it.
+
+<p align="center">
+  <img src="docs/assets/figure-sequence.png"
+       alt="UML sequence diagram of a ClauZ3 run. Lifelines: User, Agent, ClauZ3 gate, Python runtime. The User asks the Agent to pay a card bill capped at $500. The Agent submits a program plus guarantees to the ClauZ3 gate as a single tool call. The prover proves spending stays under $500 in both branches and that only the card account is paid, then presents only the two guarantees to the User, who approves. ClauZ3 invokes the Python runtime to execute the program; the result returns up through the agent, which summarizes success in plain English."
+       width="900">
+</p>
+
+<sub>Editable vector source: <a href="docs/assets/figure-sequence.svg">docs/assets/figure-sequence.svg</a>.</sub>
+
 ## Current Shape
 
 Projects are split into three layers:
@@ -106,11 +122,21 @@ uv run clauz3 prove plan.py \
 ## Installing a trusted layer
 
 To start a new project from an existing one, copy its trusted `tools/` layer
-with `clauz3 install`. It takes a local path to a project (or directly to a
-`tools/` folder) and copies each `tools/<domain>/` into the current directory:
+with `clauz3 install`. It accepts a local path, a `gh:org/repo` shorthand, or
+a full git URL, and copies each `tools/<domain>/` into the current directory:
 
 ```bash
+# Local path
 clauz3 install /path/to/repo/examples/email
+
+# GitHub shorthand (clones into ~/.cache/clauz3/sources/<sha>/)
+clauz3 install gh:normalform-ai/clauz3-tools-autolabs
+
+# Pin to a tag, branch, or sha for reproducibility
+clauz3 install gh:normalform-ai/clauz3-tools-autolabs@v0.3.1
+
+# Full URL (HTTPS or SSH)
+clauz3 install git@github.com:normalform-ai/clauz3-tools-assistant.git
 ```
 
 Pass `--into <dir>` to target a different destination, `--force` to overwrite an
@@ -119,11 +145,19 @@ existing layer, and `--skills` to also generate
 contracts:
 
 ```bash
-clauz3 install /path/to/repo/examples/email --into my-project --skills
+clauz3 install gh:normalform-ai/clauz3-tools-autolabs --into my-project --skills
 ```
 
-For now this is a trivial filesystem copy. Future work will add signing so a
-user has guarantees that the installed layer is untouched.
+Authentication for git remotes uses your existing git configuration (SSH key
+or credential helper); `clauz3` does not manage credentials itself. The remote
+cache is keyed by the resolved commit sha; pinning to `@<sha>` hits a stable
+entry forever, while ref-pinned or HEAD installs re-resolve on each call and
+get a fresh cache entry whenever upstream moves. Override the cache location
+with `CLAUZ3_CACHE`.
+
+The install itself is a filesystem copy. Signing — so a user can verify the
+installed layer matches what was attested upstream — is tracked in
+[issue #47](https://github.com/cmungall/agent-deal/issues/47).
 
 ## Standard library tools
 
@@ -148,11 +182,13 @@ filesystem` also works as a shorthand.)
 These differ from the `examples/` layers in two ways: their effect bodies do
 real work (so the prover skips them but `clauz3 run` executes them), and their
 proof cases live under `tests/cases/` with a `tests/Justfile` rather than at the
-top level. `just stdlib` proves them all.
+top level. `just stdlib` proves them all, or run one library's suite directly
+with `clauz3 test stdlib:filesystem` (it invokes the library's `tests/Justfile`
+with [`just`](https://just.systems)).
 
 ## Examples
 
-The repo currently has four worked examples:
+The repo currently has five worked examples:
 
 | Example | Contracts | What it demonstrates |
 | --- | --- | --- |
@@ -160,6 +196,7 @@ The repo currently has four worked examples:
 | [`examples/bank`](examples/bank) | `bank.max_spend`, `bank.only_account` | numeric aggregation, field equality, and fixed-bound loop unrolling over trusted calls |
 | [`examples/email-from-db`](examples/email-from-db) | `emails.addresses_from`, `db.only_table`, `db.only_where` | for-loops over trusted query returns, column-binding constraints |
 | [`examples/text`](examples/text) | `text.length_between`, `text.must_not_contain`, `text.no_regex_metacharacters`, `text.only_edit_under`, `text.edit_length_at_most` | string-length bounds, required/banned substrings, regex-metacharacter safety before sending, and file-edit path/size policies |
+| [`examples/http`](examples/http) | `http.host_only`, `http.no_posts` | a shared `@deal.has` marker spanning two trusted calls, url-prefix matching, and method-specific absence of effects |
 
 All examples use generic effect relations inferred from trusted function
 signatures. There is no email-specific, bank-specific, or database-specific logic in the core.
@@ -174,10 +211,18 @@ Implemented pieces include:
 - `clauz3.spec.effect(...)` for relation-style queries over trusted facts.
 - relation primitives: `no_guarantees`, `all`, `empty`, `where`, `count`,
   `distinct`, numeric `sum`, and `shares_value`.
+- stateful **fluents** (`clauz3.fluent`): trusted functions declare
+  successor-state axioms with `@effect(...)`, and contracts query the final
+  valuation with `Fluent.final.all(...)` / `Fluent.final[key] == value`. This
+  expresses order- and post-state-sensitive policies such as "every door is
+  locked at the end" that the multiset relation language cannot. See
+  [docs/reference/fluents.md](docs/reference/fluents.md).
 - `clauz3 prove` for proving examples from the CLI.
 - `clauz3 install` for copying a trusted `tools/` layer from a local path or a
   bundled stdlib tool (`stdlib:filesystem`, `stdlib:grep`), optionally
   generating `agents/skills/<domain>/SKILL.md` stubs.
+- `clauz3 test` for running a library's bundled `tests/Justfile` with `just`,
+  resolving the source the same way as `install`.
 - `clauz3 config` for writing this repo's default Claude Code permissions
   (read-only tools plus the `clauz3` CLI) to `.claude/settings.json`. Idempotent
   and the configuration counterpart to `install`.

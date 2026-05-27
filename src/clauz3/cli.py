@@ -23,6 +23,7 @@ from clauz3.approval_policy import (
 from clauz3.approval_service import serve_approval_service
 from clauz3.config import ConfigError, configure_repo
 from clauz3.install import InstallError, install_layer
+from clauz3.libtest import LibTestError, run_lib_tests
 from clauz3.prover import ProofResult, ProverConfigError, prove_path
 from clauz3.runner import (
     ApprovalDeniedError,
@@ -204,6 +205,30 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     install.set_defaults(handler=_install)
 
+    test = subparsers.add_parser(
+        "test",
+        help="run a trusted library's bundled test suite",
+        description=(
+            "Run a library's tests/Justfile with just. The source is resolved "
+            "the same way as install: a bundled stdlib tool (such as "
+            "stdlib:filesystem), a local project path containing a tests/ "
+            "folder, or a tests/ folder itself."
+        ),
+    )
+    test.add_argument(
+        "source",
+        help=(
+            "a bundled stdlib tool (such as stdlib:filesystem or stdlib:grep), "
+            "a local project path containing a tests/ folder, or a tests/ folder"
+        ),
+    )
+    test.add_argument(
+        "--recipe",
+        default="test",
+        help="just recipe to run (default: test)",
+    )
+    test.set_defaults(handler=_test)
+
     config = subparsers.add_parser(
         "config",
         help="configure a repository for clauz3-mediated agent access",
@@ -363,6 +388,15 @@ def _install(args: argparse.Namespace) -> int:
     for skill in result.skills:
         print(f"generated skill: {skill}")
     return 0
+
+
+def _test(args: argparse.Namespace) -> int:
+    try:
+        result = run_lib_tests(args.source, recipe=args.recipe)
+    except LibTestError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    return result.returncode
 
 
 def _config(args: argparse.Namespace) -> int:

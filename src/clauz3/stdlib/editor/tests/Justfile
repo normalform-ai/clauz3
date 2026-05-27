@@ -1,0 +1,52 @@
+# Runner commands. Default to `uv run` for the source-checkout dev flow;
+# `clauz3 test` overrides CLAUZ3/DEAL so the bundled suite also runs from an
+# installed wheel, where `uv` is absent.
+clauz3 := env_var_or_default("CLAUZ3", "uv run clauz3")
+deal := env_var_or_default("DEAL", "uv run python -m deal")
+
+trusted := "../tools/editor/trusted"
+effects := trusted + "/effects.py"
+prove := clauz3 + " prove --trusted-root " + trusted + " --import-root .."
+
+test: lint cases
+
+lint:
+    {{deal}} lint {{effects}}
+
+cases: only-edit-under-pass only-edit-under-fail never-edit-under-pass never-edit-under-fail no-edits-pass no-edits-fail edits-at-most-pass edits-at-most-fail must-not-replace-pass must-not-replace-fail replace-length-at-most-pass replace-length-at-most-fail
+
+only-edit-under-pass:
+    {{prove}} cases/only_edit_under_pass.py
+
+only-edit-under-fail:
+    if {{prove}} cases/only_edit_under_fail.py; then exit 1; fi
+
+never-edit-under-pass:
+    {{prove}} cases/never_edit_under_pass.py
+
+never-edit-under-fail:
+    if {{prove}} cases/never_edit_under_fail.py; then exit 1; fi
+
+no-edits-pass:
+    {{prove}} cases/no_edits_pass.py
+
+no-edits-fail:
+    if {{prove}} cases/no_edits_fail.py; then exit 1; fi
+
+edits-at-most-pass:
+    {{prove}} cases/edits_at_most_pass.py
+
+edits-at-most-fail:
+    if {{prove}} cases/edits_at_most_fail.py; then exit 1; fi
+
+must-not-replace-pass:
+    {{prove}} cases/must_not_replace_pass.py
+
+must-not-replace-fail:
+    if {{prove}} cases/must_not_replace_fail.py; then exit 1; fi
+
+replace-length-at-most-pass:
+    {{prove}} cases/replace_length_at_most_pass.py
+
+replace-length-at-most-fail:
+    if {{prove}} cases/replace_length_at_most_fail.py; then exit 1; fi

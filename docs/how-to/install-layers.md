@@ -11,11 +11,13 @@ audited modules under `tools/<domain>/trusted/` that the prover trusts (see
 their `@clauz3.guarantee(...)` decorators) is untrusted and proved against this
 layer.
 
-!!! note "Local paths only, for now"
-    `install` currently accepts a local filesystem path. Remote sources and a
-    signing mechanism that lets a user verify the installed layer is untouched
-    are future work. Until then, treat an installed layer as trusted only if
-    you trust its source.
+!!! note "Signing is still future work"
+    `install` accepts local filesystem paths, bundled stdlib tools, and git
+    remotes (`gh:org/repo`, full URLs). A signing mechanism that lets a user
+    verify the installed layer matches what was attested upstream is still
+    future work — see [issue #47](https://github.com/cmungall/agent-deal/issues/47).
+    Until then, treat an installed layer as trusted only if you trust its
+    source.
 
 ## Quickstart
 
@@ -40,8 +42,10 @@ The `source` argument may be:
 - a bundled stdlib tool, written `stdlib:<name>` (for example
   `stdlib:filesystem`); see [Standard library tools](../reference/stdlib.md),
 - a project directory that contains a `tools/` folder (for example
-  `examples/email`), or
-- a `tools/` folder directly (for example `examples/email/tools`).
+  `examples/email`),
+- a `tools/` folder directly (for example `examples/email/tools`), or
+- a git remote — either the `gh:org/repo` shorthand or a full git URL,
+  optionally with `@<ref>` appended.
 
 Every `tools/<domain>/` that contains a `trusted/` package is copied. A source
 with several domains installs all of them.
@@ -49,6 +53,36 @@ with several domains installs all of them.
 stdlib tools are located with `importlib.resources` rather than a filesystem
 path, so `stdlib:` sources resolve identically whether `clauz3` runs from a
 source checkout or a `pip install`ed wheel.
+
+### Installing from a git remote
+
+The shorthand and full-URL forms both clone into a content-addressed cache
+under `~/.cache/clauz3/sources/<sha>/` and then resolve like a local path.
+
+```bash
+# GitHub shorthand
+clauz3 install gh:normalform-ai/clauz3-tools-autolabs
+
+# Pin to a tag, branch, or sha
+clauz3 install gh:normalform-ai/clauz3-tools-autolabs@v0.3.1
+clauz3 install gh:normalform-ai/clauz3-tools-autolabs@abc1234
+
+# Full URL (also accepts @<ref>)
+clauz3 install https://github.com/normalform-ai/clauz3-tools-autolabs.git
+clauz3 install git@github.com:normalform-ai/clauz3-tools-assistant.git
+```
+
+The cache is keyed by the resolved commit sha, not the source string, so
+multiple invocations against the same upstream sha share a single clone.
+When a moveable ref (HEAD, a branch, a re-tagged tag) advances upstream,
+the next invocation resolves the new sha and creates a fresh cache entry.
+Pinning to `@<sha>` therefore hits a stable cache entry forever.
+
+Authentication uses git's existing configuration — SSH key, credential
+helper, or `gh auth setup-git`. Private repos work the same way once your
+user has access; `clauz3` does not manage credentials itself.
+
+Override the cache location with `CLAUZ3_CACHE` (defaults to `~/.cache/clauz3`).
 
 ## Options
 

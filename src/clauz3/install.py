@@ -17,6 +17,8 @@ from importlib.resources.abc import Traversable
 from pathlib import Path
 from shutil import copytree, ignore_patterns
 
+from clauz3.source import is_remote_source, resolve_remote_source
+
 #: Scheme that selects a tool bundled in ``clauz3``'s stdlib, e.g.
 #: ``stdlib:filesystem``. Resolved via ``importlib.resources`` so it works the
 #: same whether clauz3 is run from a source checkout or a ``pip install``ed
@@ -104,13 +106,17 @@ def _resolve_tools_dir(source: str | Path, stack: ExitStack) -> Path:
     stdlib tools are located through ``importlib.resources`` and materialized to
     a real filesystem path via ``stack`` (a no-op for on-disk installs, an
     extraction for zipped ones), so the rest of the copy logic can use ordinary
-    ``Path`` operations.
+    ``Path`` operations. Remote git sources (``gh:org/repo``, full URLs) are
+    cloned into a content-addressed cache and then resolved like a local path.
     """
     stdlib_name = _stdlib_name(source)
     if stdlib_name is not None:
         return _resolve_stdlib_tools(stdlib_name, stack)
 
-    path = Path(source)
+    if is_remote_source(source):
+        path = resolve_remote_source(str(source))
+    else:
+        path = Path(source)
     if not path.exists():
         raise InstallError(f"source path does not exist: {path}{_stdlib_hint()}")
     if path.name == "tools" and path.is_dir():

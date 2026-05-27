@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 import typing
 
 import astroid
@@ -181,14 +182,20 @@ def _trusted_markers(node: astroid.FunctionDef, ctx: Context) -> tuple[str, ...]
     return tuple(markers)
 
 
+_SCALAR_RETURN_COUNTER = itertools.count()
+
+
 def _materialize_trusted_return(
     *,
     node: astroid.FunctionDef,
     bound_args: dict[str, ProxySort],
     ctx: Context,
 ) -> "ProxySort | None":
-    """If the trusted function returns list[Row], return a QueryResultSort.
+    """Materialize a symbolic value for a trusted function's return.
 
+    Handles ``list[Row]`` (a QueryResultSort) and a scalar ``int`` (a fresh
+    symbolic integer, so a looked-up value can flow into branch conditions and
+    effect arguments). Postconditions on the result are applied by the caller.
     Otherwise return None and let the caller fall back to bool.val(True).
     """
     import z3
@@ -198,6 +205,11 @@ def _materialize_trusted_return(
     returns = node.returns
     if returns is None:
         return None
+    # Scalar `int` return: a fresh symbolic integer, unique per call so that
+    # repeated lookups are not conflated.
+    if isinstance(returns, astroid.Name) and returns.name == "int":
+        uid = next(_SCALAR_RETURN_COUNTER)
+        return types.int(expr=z3.Int(f"{node.name}_result_{uid}"))
     # Pattern: list[SomeRowSubclass]
     if not isinstance(returns, astroid.Subscript):
         return None

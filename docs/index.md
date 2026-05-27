@@ -20,6 +20,18 @@ to answer questions like:
 - Will this withdraw more than $5 total?
 - Will this write outside a sandbox?
 
+## In one picture
+
+A run, end to end: the user asks for a bill to be paid (capped); the agent
+writes a program that looks up the outstanding balance and pays
+`min(balance, $500)`; ClauZ3 proves the spend stays under the cap on *every*
+branch and that only the named account is touched; the user approves the
+*guarantees*, not the code; only then does the runtime execute it.
+
+<p align="center">
+  <img src="assets/figure-sequence.png" alt="UML sequence diagram of a ClauZ3 run: the user asks the agent to pay a card bill capped at $500; the agent submits code plus guarantees to the ClauZ3 gate as one tool call; the prover proves the spend stays under $500 on both branches and only the card is paid; the user approves only the guarantees; the runtime then executes and the agent reports success." width="900">
+</p>
+
 ## How it fits together
 
 Projects split into two layers:

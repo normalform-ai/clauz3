@@ -8,7 +8,7 @@ authoritative output from your installed version.
 ## `clauz3`
 
 ```
-clauz3 [--version] {prove,run,tools,approval-service,policy-check,mock-approval-service,install,config} ...
+clauz3 [--version] {prove,run,tools,approval-service,policy-check,mock-approval-service,install,test,config} ...
 ```
 
 Static contract proofs for agent-authored Python.
@@ -149,6 +149,27 @@ clauz3 install [--into PATH] [--skills] [--force] SOURCE
 
 See [Install trusted layers](../how-to/install-layers.md) for the recommended
 workflow.
+
+## `clauz3 test`
+
+Run a library's bundled test suite by invoking its `tests/Justfile` with
+[`just`](https://just.systems). The source is resolved the same way as
+`install`.
+
+```
+clauz3 test [--recipe RECIPE] SOURCE
+```
+
+| Option | Description |
+| --- | --- |
+| `SOURCE` | A bundled stdlib tool (such as `stdlib:filesystem`), a local project path containing a `tests/` folder, or a `tests/` folder directly. |
+| `--recipe` | The `just` recipe to run (default: `test`). |
+
+The command exits with the recipe's exit status, so it composes with CI. The
+bundled libraries' tests use `clauz3 prove`/`policy-check`, which are purely
+static: the prover records each trusted-effect call as a fact and never runs
+the function body, so no real side effects fire. A library whose tests instead
+drive `clauz3 run` would execute real effects and should mock them first.
 
 ## `clauz3 config`
 

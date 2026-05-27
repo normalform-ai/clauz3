@@ -1,0 +1,46 @@
+# Runner commands. Default to `uv run` for the source-checkout dev flow;
+# `clauz3 test` overrides CLAUZ3/DEAL so the bundled suite also runs from an
+# installed wheel, where `uv` is absent.
+clauz3 := env_var_or_default("CLAUZ3", "uv run clauz3")
+deal := env_var_or_default("DEAL", "uv run python -m deal")
+
+trusted := "../tools/env/trusted"
+effects := trusted + "/effects.py"
+prove := clauz3 + " prove --trusted-root " + trusted + " --import-root .."
+
+test: lint cases
+
+lint:
+    {{deal}} lint {{effects}}
+
+cases: no-env-reads-pass no-env-reads-fail only-vars-pass only-vars-fail never-vars-pass never-vars-fail never-var-prefix-pass never-var-prefix-fail env-reads-at-most-pass env-reads-at-most-fail
+
+no-env-reads-pass:
+    {{prove}} cases/no_env_reads_pass.py
+
+no-env-reads-fail:
+    if {{prove}} cases/no_env_reads_fail.py; then exit 1; fi
+
+only-vars-pass:
+    {{prove}} cases/only_vars_pass.py
+
+only-vars-fail:
+    if {{prove}} cases/only_vars_fail.py; then exit 1; fi
+
+never-vars-pass:
+    {{prove}} cases/never_vars_pass.py
+
+never-vars-fail:
+    if {{prove}} cases/never_vars_fail.py; then exit 1; fi
+
+never-var-prefix-pass:
+    {{prove}} cases/never_var_prefix_pass.py
+
+never-var-prefix-fail:
+    if {{prove}} cases/never_var_prefix_fail.py; then exit 1; fi
+
+env-reads-at-most-pass:
+    {{prove}} cases/env_reads_at_most_pass.py
+
+env-reads-at-most-fail:
+    if {{prove}} cases/env_reads_at_most_fail.py; then exit 1; fi

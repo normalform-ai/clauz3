@@ -41,12 +41,15 @@ theme:
 nav:
   - Home: index.md
   - Quickstart: quickstart.md
+  - Registry: registry.md
   - Talk slides: slides/index.html
   - Examples:
     - Email: examples/email.md
     - Bank: examples/bank.md
     - Email-from-DB: examples/email-from-db.md
     - Text: examples/text.md
+    - LIMS: examples/lims.md
+    - Home automation: examples/home-automation.md
   - How-to guides:
     - Install trusted layers: how-to/install-layers.md
     - Run the approval service: how-to/approval-service.md
@@ -56,8 +59,16 @@ nav:
     - CLI: reference/cli.md
     - Python subset: reference/python-subset.md
     - Effect specs: reference/effect-specs.md
+    - Fluents: reference/fluents.md
     - Coverage policies: reference/coverage-policies.md
     - Standard library tools: reference/stdlib.md
+  - Standard library:
+    - filesystem: stdlib/filesystem.md
+    - grep: stdlib/grep.md
+    - editor: stdlib/editor.md
+    - web_fetch: stdlib/web_fetch.md
+    - web_search: stdlib/web_search.md
+    - env: stdlib/env.md
   - Explanation:
     - Concepts: explanation/concepts.md
     - Background: explanation/background.md
@@ -67,6 +78,7 @@ nav:
 not_in_nav: |
   todos/
   examples/*-all-cases.md
+  stdlib/*-all-cases.md
 
 exclude_docs: |
   superpowers/

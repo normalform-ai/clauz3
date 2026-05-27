@@ -257,6 +257,8 @@ def validate_untrusted_source(*, source: str, path: Path) -> None:
                 "has",
                 "clauz3.solver",
                 "solver",
+                "effect",
+                "clauz3.fluent.effect",
             }:
                 raise ProverConfigError(
                     f"{path}: @{name} is only allowed in trusted roots",

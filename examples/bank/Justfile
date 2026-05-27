@@ -8,7 +8,7 @@ test: lint cases
 lint:
     uv run python -m deal lint {{effects}}
 
-cases: max-spend-pass max-spend-fail max-spend-branch-pass for-loop-sum-pass for-loop-sum-fail only-account-pass only-account-fail negative-amount-fail
+cases: max-spend-pass max-spend-fail max-spend-branch-pass for-loop-sum-pass for-loop-sum-fail only-account-pass only-account-fail negative-amount-fail pay-bill-capped-pass pay-bill-uncapped-fail pay-bill-cap-too-tight-fail
 
 max-spend-pass:
     {{prove}} cases/max_spend_pass.py
@@ -33,3 +33,12 @@ only-account-fail:
 
 negative-amount-fail:
     if {{prove}} cases/negative_amount_fail.py; then exit 1; fi
+
+pay-bill-capped-pass:
+    {{prove}} cases/pay_bill_capped_pass.py
+
+pay-bill-uncapped-fail:
+    if {{prove}} cases/pay_bill_uncapped_fail.py; then exit 1; fi
+
+pay-bill-cap-too-tight-fail:
+    if {{prove}} cases/pay_bill_cap_too_tight_fail.py; then exit 1; fi

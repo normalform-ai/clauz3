@@ -1,0 +1,49 @@
+trusted := "tools/lims/trusted"
+effects := trusted + "/effects.py"
+prove := "uv run clauz3 prove --trusted-root " + trusted
+
+test: lint cases
+
+lint:
+    uv run python -m deal lint {{effects}}
+
+cases: only-plate-pass only-plate-fail reagent-budget-pass reagent-budget-fail only-instruments-pass only-instruments-fail total-runtime-pass total-runtime-fail no-hazard-sequence-pass no-hazard-sequence-fail dbtl-campaign-pass pipette-volume-precondition-fail lims-no-guarantees-pass
+
+only-plate-pass:
+    {{prove}} cases/only_plate_pass.py
+
+only-plate-fail:
+    if {{prove}} cases/only_plate_fail.py; then exit 1; fi
+
+reagent-budget-pass:
+    {{prove}} cases/reagent_budget_pass.py
+
+reagent-budget-fail:
+    if {{prove}} cases/reagent_budget_fail.py; then exit 1; fi
+
+only-instruments-pass:
+    {{prove}} cases/only_instruments_pass.py
+
+only-instruments-fail:
+    if {{prove}} cases/only_instruments_fail.py; then exit 1; fi
+
+total-runtime-pass:
+    {{prove}} cases/total_runtime_pass.py
+
+total-runtime-fail:
+    if {{prove}} cases/total_runtime_fail.py; then exit 1; fi
+
+no-hazard-sequence-pass:
+    {{prove}} cases/no_hazard_sequence_pass.py
+
+no-hazard-sequence-fail:
+    if {{prove}} cases/no_hazard_sequence_fail.py; then exit 1; fi
+
+dbtl-campaign-pass:
+    {{prove}} cases/dbtl_campaign_pass.py
+
+pipette-volume-precondition-fail:
+    if {{prove}} cases/pipette_volume_precondition_fail.py; then exit 1; fi
+
+lims-no-guarantees-pass:
+    {{prove}} cases/lims_no_guarantees_pass.py

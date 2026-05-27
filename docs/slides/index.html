@@ -377,6 +377,17 @@ def send_email(addr: str, msg: str) -> None:
   <h2>ClauZ3</h2>
 </section>
 
+<section class="center">
+  <h2>One run, end to end</h2>
+  <img src="../assets/figure-sequence.svg"
+       alt="UML sequence diagram: the user asks the agent to pay a card bill capped at $500; the agent submits a program plus guarantees to the ClauZ3 gate as a single tool call; the prover proves the spend stays under $500 on both branches and only the card is paid; the user approves only the guarantees; the runtime executes; the result returns up through the agent, which summarizes success."
+       style="max-height: 620px; width: auto; box-shadow: 0 4px 14px rgba(0,0,0,0.08); border-radius: 10px;">
+  <p class="note" style="text-align: center;">
+    One agentic tool call: the agent writes the code, the gate proves the
+    guarantees, you approve the <em>guarantees</em> (not the code), then it runs.
+  </p>
+</section>
+
 <section>
   <h2>The idea</h2>
   <p>Read deal's decorators <strong>statically</strong>, before any effect fires.</p>

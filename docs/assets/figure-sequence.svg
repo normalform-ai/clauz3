@@ -1,0 +1,211 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1520 1204" font-size="16" role="img"
+     aria-label="UML sequence diagram for ClauZ3. Lifelines: User, Agent, ClauZ3 gate, Python runtime. 1) User asks the Agent to pay a card bill, capped at $500. 2) Agent submits plan.py (it looks up the balance, then pays min(balance, 500)) to ClauZ3 as a single tool call. ClauZ3 proves that spending stays under $500 in both branches and that only the card is paid. 3) ClauZ3 presents only the guarantees to the User. 4) User approves. 5) ClauZ3 invokes the Python runtime to execute main(). 6) The runtime returns to ClauZ3. 7) The one tool call returns to the Agent's agentic loop. 8) The Agent summarizes success in plain English back to the User.">
+  <title>ClauZ3 — sequence diagram (pay a bill, capped)</title>
+
+  <defs>
+    <style>
+      .cs   { font-family: 'Comic Sans MS', 'Comic Neue', 'Chalkboard SE', cursive; }
+      .mono { font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, 'Courier New', monospace; }
+      .sym  { font-family: 'DejaVu Sans', 'Segoe UI Symbol', 'Arial Unicode MS', sans-serif; }
+    </style>
+    <marker id="call" markerWidth="11" markerHeight="11" refX="8" refY="3.5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L9,3.5 L0,7 Z" fill="#4f46e5"/>
+    </marker>
+    <marker id="callG" markerWidth="11" markerHeight="11" refX="8" refY="3.5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L9,3.5 L0,7 Z" fill="#16a34a"/>
+    </marker>
+    <marker id="ret" markerWidth="13" markerHeight="11" refX="9" refY="3.5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L9,3.5 L0,7" fill="none" stroke="#16a34a" stroke-width="1.4"/>
+    </marker>
+    <filter id="shadow" x="-25%" y="-25%" width="150%" height="160%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#1e1b4b" flood-opacity="0.16"/>
+    </filter>
+  </defs>
+
+  <rect x="0" y="0" width="1520" height="1204" fill="#fbfbff"/>
+  <rect x="1" y="1" width="1518" height="1202" fill="none" stroke="#e5e7eb" stroke-width="2"/>
+
+  <!-- Title/subtitle are intentionally omitted: in a paper the caption/legend
+       carries that text. Everything is shifted up to drop the header band. -->
+  <g transform="translate(0,-66)">
+
+  <!-- ===================== LIFELINES ===================== -->
+  <g stroke="#b9b9d6" stroke-width="2" stroke-dasharray="3 6">
+    <line x1="185"  y1="186" x2="185"  y2="1240"/>
+    <line x1="560"  y1="186" x2="560"  y2="1240"/>
+    <line x1="975"  y1="186" x2="975"  y2="1240"/>
+    <line x1="1365" y1="186" x2="1365" y2="1240"/>
+  </g>
+
+  <!-- ===================== ACTIVATION BARS ===================== -->
+  <g fill="#e0e7ff" stroke="#4f46e5" stroke-width="1.2">
+    <rect x="179" y="298" width="12" height="34"/>            <!-- user: send -->
+    <rect x="554" y="300" width="12" height="930"/>           <!-- agent: blocked on the one tool call, then summarizes -->
+    <rect x="969" y="580" width="12" height="542"/>           <!-- clauz3: the tool call -->
+    <rect x="179" y="896" width="12" height="40"/>            <!-- user: approve -->
+    <rect x="1359" y="956" width="12" height="130"/>          <!-- runtime -->
+    <rect x="179" y="1216" width="12" height="24"/>           <!-- user: receives summary -->
+  </g>
+
+  <!-- ===================== HEADERS / ENTITY ICONS ===================== -->
+  <!-- USER -->
+  <g filter="url(#shadow)"><rect x="123" y="90" width="124" height="94" rx="14" fill="#ffffff" stroke="#4f46e5" stroke-width="2"/></g>
+  <path d="M173,124 C175,112 195,112 197,124 C190,118 180,118 173,124 Z" fill="#1e1b4b"/>
+  <g stroke="#1e1b4b" stroke-width="2">
+    <path d="M167,150 C167,134 177,127 185,127 C193,127 203,134 203,150 Z" fill="#6366f1"/>
+    <circle cx="185" cy="128" r="13" fill="#f6c89f"/>
+  </g>
+  <circle cx="180" cy="127" r="1.6" fill="#1e1b4b"/><circle cx="190" cy="127" r="1.6" fill="#1e1b4b"/>
+  <path d="M180,133 Q185,137 190,133" fill="none" stroke="#1e1b4b" stroke-width="1.4"/>
+  <text class="cs" x="185" y="174" text-anchor="middle" font-size="15" font-weight="bold" fill="#1e1b4b">USER</text>
+
+  <!-- AGENT -->
+  <g filter="url(#shadow)"><rect x="498" y="90" width="124" height="94" rx="14" fill="#ffffff" stroke="#4f46e5" stroke-width="2"/></g>
+  <g stroke="#4f46e5" stroke-width="2">
+    <line x1="560" y1="110" x2="560" y2="102"/>
+    <circle cx="560" cy="99" r="3" fill="#f59e0b"/>
+    <rect x="536" y="110" width="48" height="36" rx="9" fill="#e0e7ff"/>
+  </g>
+  <circle cx="549" cy="126" r="4.5" fill="#4f46e5"/><circle cx="571" cy="126" r="4.5" fill="#4f46e5"/>
+  <rect x="548" y="136" width="24" height="4" rx="2" fill="#4f46e5"/>
+  <text class="cs" x="560" y="174" text-anchor="middle" font-size="15" font-weight="bold" fill="#1e1b4b">AGENT</text>
+
+  <!-- ClauZ3 (gate) -->
+  <g filter="url(#shadow)"><rect x="883" y="90" width="184" height="94" rx="14" fill="#ffffff" stroke="#4f46e5" stroke-width="2"/></g>
+  <g transform="translate(889,112) scale(0.5)">
+    <g fill="none" stroke="#4f46e5" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M 38,18 c -10,0 -14,5 -14,14 l 0,14 c 0,7 -4,8 -8,8 c 4,0 8,1 8,8 l 0,14 c 0,9 4,14 14,14"/>
+      <path d="M 282,18 c 10,0 14,5 14,14 l 0,14 c 0,7 4,8 8,8 c -4,0 -8,1 -8,8 l 0,14 c 0,9 -4,14 -14,14"/>
+    </g>
+    <text x="84" y="65" font-family="Inter, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif" font-weight="700" font-size="44">
+      <tspan fill="#1e1b4b">Clau</tspan><tspan fill="#4f46e5">Z3</tspan>
+    </text>
+  </g>
+
+  <!-- Python runtime -->
+  <g filter="url(#shadow)"><rect x="1295" y="90" width="140" height="94" rx="14" fill="#ffffff" stroke="#3776ab" stroke-width="2"/></g>
+  <g transform="translate(1351,102)">
+    <path d="M12,4 q0,-4 4,-4 h6 q4,0 4,4 v3 h-9 q-4,0 -4,4 v3 q0,4 -4,4 h-1 q-4,0 -4,-4 v-6 q0,-4 4,-4 z" fill="#3776ab"/>
+    <path d="M24,16 q0,4 -4,4 h-6 q-4,0 -4,-4 v-3 h9 q4,0 4,-4 v-3 q0,-4 4,-4 h1 q4,0 4,4 v6 q0,4 -4,4 z" fill="#ffd43b"/>
+  </g>
+  <text class="cs" x="1365" y="150" text-anchor="middle" font-size="13.5" font-weight="bold" fill="#1e3a5f">Python</text>
+  <text class="cs" x="1365" y="170" text-anchor="middle" font-size="13.5" font-weight="bold" fill="#1e3a5f">runtime</text>
+
+  <!-- ===================== MESSAGES (top → bottom) ===================== -->
+
+  <!-- M1: USER -> AGENT  (human speech, terse) -->
+  <g filter="url(#shadow)"><rect x="232" y="220" width="248" height="52" rx="16" fill="#ffffff" stroke="#4f46e5" stroke-width="2.2"/></g>
+  <path d="M284,272 L266,298 L314,272" fill="#ffffff" stroke="#4f46e5" stroke-width="2.2"/>
+  <text class="cs" x="356" y="252" text-anchor="middle" font-size="15" fill="#1e1b4b">Pay my AI subscriptions.</text>
+  <line x1="191" y1="320" x2="552" y2="320" stroke="#4f46e5" stroke-width="2.6" marker-end="url(#call)"/>
+  <circle cx="300" cy="336" r="11" fill="#4f46e5"/>
+  <text class="cs" x="300" y="340" text-anchor="middle" font-size="13" font-weight="bold" fill="#ffffff">1</text>
+  <text class="cs" x="318" y="340" font-size="13.5" fill="#4f46e5">asks in plain English</text>
+
+  <!-- Agent reasoning (thought bubble): the $500 cap is INFERRED, not stated by the user -->
+  <g filter="url(#shadow)"><rect x="206" y="356" width="322" height="126" rx="18" fill="#f4f3ff" stroke="#6366f1" stroke-width="2" stroke-dasharray="6 4"/></g>
+  <circle cx="516" cy="492" r="7" fill="#f4f3ff" stroke="#6366f1" stroke-width="1.6"/>
+  <circle cx="536" cy="500" r="4.5" fill="#f4f3ff" stroke="#6366f1" stroke-width="1.6"/>
+  <circle cx="551" cy="507" r="3" fill="#f4f3ff" stroke="#6366f1" stroke-width="1.6"/>
+  <text class="cs" x="224" y="384" font-size="13" fill="#4338ca">
+    <tspan x="224" dy="0">These bill to their card. From</tspan>
+    <tspan x="224" dy="22">past approvals they never okay</tspan>
+    <tspan x="224" dy="22">over $500 at once. I'll use the</tspan>
+    <tspan x="224" dy="22">bank skill and pay up to $500.</tspan>
+  </text>
+
+  <!-- M2: AGENT -> ClauZ3  (code: plan.py) -->
+  <g filter="url(#shadow)"><rect x="574" y="300" width="396" height="250" rx="11" fill="#14122e" stroke="#4f46e5" stroke-width="2"/></g>
+  <path d="M574,312 a11,11 0 0 1 11,-11 h374 a11,11 0 0 1 11,11 v12 h-396 Z" fill="#2a2748"/>
+  <circle cx="591" cy="316" r="4" fill="#ff5f56"/><circle cx="606" cy="316" r="4" fill="#ffbd2e"/><circle cx="621" cy="316" r="4" fill="#27c93f"/>
+  <text class="mono" x="956" y="320" text-anchor="end" font-size="11.5" fill="#9aa0c0">plan.py</text>
+  <g class="mono" font-size="11" fill="#d6deeb" xml:space="preserve">
+    <text x="590" y="343"><tspan fill="#c792ea">import</tspan> clauz3</text>
+    <text x="590" y="360"><tspan fill="#c792ea">from</tspan> tools.bank.trusted <tspan fill="#c792ea">import</tspan> contracts <tspan fill="#c792ea">as</tspan> bank</text>
+    <text x="590" y="377"><tspan fill="#c792ea">from</tspan> tools.bank.trusted.effects <tspan fill="#c792ea">import</tspan> balance, withdraw</text>
+    <text x="590" y="411" fill="#ffcb6b">@clauz3.guarantee(bank.max_spend(500))</text>
+    <text x="590" y="428" fill="#ffcb6b">@clauz3.guarantee(bank.only_account(<tspan fill="#c3e88d">"card"</tspan>))</text>
+    <text x="590" y="445"><tspan fill="#c792ea">def</tspan> <tspan fill="#82aaff">main</tspan>():</text>
+    <text x="590" y="462">    owed = balance(<tspan fill="#c3e88d">"card"</tspan>)</text>
+    <text x="590" y="479">    <tspan fill="#c792ea">if</tspan> owed &gt; <tspan fill="#f78c6c">500</tspan>:</text>
+    <text x="590" y="496">        withdraw(<tspan fill="#c3e88d">"card"</tspan>, <tspan fill="#f78c6c">500</tspan>)</text>
+    <text x="590" y="513">    <tspan fill="#c792ea">else</tspan>:</text>
+    <text x="590" y="530">        withdraw(<tspan fill="#c3e88d">"card"</tspan>, owed)</text>
+  </g>
+  <line x1="566" y1="578" x2="966" y2="578" stroke="#4f46e5" stroke-width="2.6" marker-end="url(#call)"/>
+  <circle cx="690" cy="578" r="11" fill="#4f46e5"/>
+  <text class="cs" x="690" y="582" text-anchor="middle" font-size="13" font-weight="bold" fill="#ffffff">2</text>
+  <text class="cs" x="768" y="572" text-anchor="middle" font-size="13.5" fill="#4f46e5">submits program + guarantees</text>
+
+  <!-- M3: ClauZ3 self-message: prove -->
+  <path d="M981,598 C1034,598 1034,628 987,628" fill="none" stroke="#4f46e5" stroke-width="2.4" marker-end="url(#call)"/>
+  <text class="cs" x="1040" y="612" font-size="13.5" fill="#4f46e5">prove()</text>
+  <g filter="url(#shadow)"><rect x="596" y="642" width="384" height="150" rx="12" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/></g>
+  <circle cx="620" cy="670" r="11" fill="#16a34a"/>
+  <path d="M614,670 l4,4 l7.5,-9" fill="none" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <text class="cs" x="638" y="676" font-size="17" font-weight="bold" fill="#16a34a">Proved.</text>
+  <g class="sym" font-size="13.5" fill="#1e1b4b">
+    <text x="616" y="706">balance("card") ≥ 0   <tspan fill="#6b7280">(trusted post)</tspan></text>
+    <text x="616" y="730">owed &gt; 500  →  pay 500 ≤ 500   <tspan fill="#16a34a" font-weight="bold">✓</tspan></text>
+    <text x="616" y="754">owed ≤ 500  →  pay owed ≤ 500   <tspan fill="#16a34a" font-weight="bold">✓</tspan></text>
+    <text x="616" y="778">∀ w · w.account = "card"   <tspan fill="#16a34a" font-weight="bold">✓</tspan></text>
+  </g>
+
+  <!-- M4: ClauZ3 -> USER: present guarantees to approve -->
+  <g filter="url(#shadow)"><rect x="352" y="806" width="476" height="74" rx="12" fill="#eef2ff" stroke="#4f46e5" stroke-width="2"/></g>
+  <text class="cs" x="368" y="829" font-size="13" fill="#6b7280">Approve only these — never the code:</text>
+  <rect x="368" y="838" width="158" height="27" rx="13.5" fill="#ffffff" stroke="#4f46e5" stroke-width="1.5"/>
+  <text class="cs" x="447" y="857" text-anchor="middle" font-size="13.5" fill="#1e1b4b">max_spend($500)</text>
+  <rect x="542" y="838" width="190" height="27" rx="13.5" fill="#ffffff" stroke="#4f46e5" stroke-width="1.5"/>
+  <text class="cs" x="637" y="857" text-anchor="middle" font-size="13.5" fill="#1e1b4b">only_account("card")</text>
+  <line x1="966" y1="900" x2="193" y2="900" stroke="#4f46e5" stroke-width="2.6" marker-end="url(#call)"/>
+  <circle cx="880" cy="900" r="11" fill="#4f46e5"/>
+  <text class="cs" x="880" y="904" text-anchor="middle" font-size="13" font-weight="bold" fill="#ffffff">3</text>
+  <text class="cs" x="540" y="894" text-anchor="middle" font-size="13.5" fill="#4f46e5">presents the two guarantees</text>
+
+  <!-- M5: USER -> ClauZ3: approve (return) -->
+  <line x1="193" y1="928" x2="966" y2="928" stroke="#16a34a" stroke-width="2.4" stroke-dasharray="7 5" marker-end="url(#ret)"/>
+  <circle cx="300" cy="928" r="11" fill="#16a34a"/>
+  <text class="cs" x="300" y="932" text-anchor="middle" font-size="13" font-weight="bold" fill="#ffffff">4</text>
+  <text class="cs sym" x="560" y="922" text-anchor="middle" font-size="13.5" font-weight="bold" fill="#16a34a">approve ✓</text>
+
+  <!-- M6: ClauZ3 -> Python runtime: execute -->
+  <line x1="981" y1="958" x2="1357" y2="958" stroke="#4f46e5" stroke-width="2.6" marker-end="url(#call)"/>
+  <circle cx="1010" cy="958" r="11" fill="#4f46e5"/>
+  <text class="cs" x="1010" y="962" text-anchor="middle" font-size="13" font-weight="bold" fill="#ffffff">5</text>
+  <text class="cs" x="1175" y="952" text-anchor="middle" font-size="13.5" fill="#4f46e5">run main()</text>
+
+  <!-- M7: runtime self execute + effect note -->
+  <path d="M1371,974 C1420,974 1420,1002 1377,1002" fill="none" stroke="#3776ab" stroke-width="2.4" marker-end="url(#call)"/>
+  <g filter="url(#shadow)"><rect x="1058" y="970" width="294" height="96" rx="12" fill="#f5f9ff" stroke="#3776ab" stroke-width="2"/></g>
+  <g class="mono" font-size="11.5" fill="#1e293b">
+    <text x="1074" y="996">balance("card")  →  $420</text>
+    <text x="1074" y="1018">withdraw("card", 420) <tspan class="sym" fill="#16a34a" font-weight="bold">✓</tspan></text>
+  </g>
+  <text class="cs sym" x="1074" y="1049" font-size="13" font-weight="bold" fill="#16a34a">paid $420 · under the $500 cap ✓</text>
+
+  <!-- M6 (return): runtime -> ClauZ3 : executed -->
+  <line x1="1357" y1="1088" x2="981" y2="1088" stroke="#16a34a" stroke-width="2.4" stroke-dasharray="7 5" marker-end="url(#ret)"/>
+  <circle cx="1088" cy="1088" r="11" fill="#16a34a"/>
+  <text class="cs" x="1088" y="1092" text-anchor="middle" font-size="13" font-weight="bold" fill="#ffffff">6</text>
+  <text class="cs sym" x="1200" y="1082" text-anchor="middle" font-size="13" font-weight="bold" fill="#16a34a">executed ✓</text>
+
+  <!-- M7 (return): ClauZ3 -> AGENT : the one tool call returns to the agentic loop -->
+  <line x1="969" y1="1124" x2="566" y2="1124" stroke="#16a34a" stroke-width="2.4" stroke-dasharray="7 5" marker-end="url(#ret)"/>
+  <circle cx="640" cy="1124" r="11" fill="#16a34a"/>
+  <text class="cs" x="640" y="1128" text-anchor="middle" font-size="13" font-weight="bold" fill="#ffffff">7</text>
+  <text class="cs sym" x="800" y="1118" text-anchor="middle" font-size="13" font-weight="bold" fill="#16a34a">tool call returns (proof receipt + result)</text>
+
+  <!-- M8: AGENT -> USER : agent summarizes success (tinted = the agent's words; tail points at the AGENT lifeline) -->
+  <g filter="url(#shadow)"><rect x="228" y="1132" width="332" height="80" rx="16" fill="#eef2ff" stroke="#4f46e5" stroke-width="2.2"/></g>
+  <path d="M520,1212 L558,1226 L552,1212" fill="#eef2ff" stroke="#4f46e5" stroke-width="2.2"/>
+  <text class="cs" x="246" y="1158" font-size="14" fill="#312e81">
+    <tspan x="246" dy="0">Done! Paid your card bill —</tspan>
+    <tspan x="246" dy="19">$420, under your $500 cap,</tspan>
+    <tspan x="246" dy="19">and nothing else was touched.</tspan>
+  </text>
+  <line x1="554" y1="1226" x2="193" y2="1226" stroke="#16a34a" stroke-width="2.4" stroke-dasharray="7 5" marker-end="url(#ret)"/>
+  <circle cx="470" cy="1226" r="11" fill="#16a34a"/>
+  <text class="cs" x="470" y="1230" text-anchor="middle" font-size="13" font-weight="bold" fill="#ffffff">8</text>
+  </g>
+</svg>

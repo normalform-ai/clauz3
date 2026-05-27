@@ -159,10 +159,9 @@ The program subset supports:
 - comparisons:
   - `<`, `<=`, `>`, `>=`, `==`, `!=`
   - `in`, `not in`
-
-Important caveat: chained comparisons are not implemented as Python semantics.
-The evaluator currently handles only the first comparison in a chain. Write
-`x < y and y < z`, not `x < y < z`.
+- chained comparisons (`0 < x <= 200`), which lower to the conjunction of
+  pairwise comparisons matching Python semantics; intermediate expressions are
+  evaluated once
 
 Boolean operators are symbolic combinators. Do not rely on Python
 short-circuiting to avoid unsupported expressions or side effects.
@@ -366,7 +365,8 @@ Relation lambdas do not support:
 - loops or comprehensions
 - mutation
 - dynamic attribute access
-- chained comparisons
+- chained comparisons (unlike the program subset, which lowers them
+  correctly; in relation lambdas, write `a < b and b < c`)
 - bare row values such as `lambda e: e`
 
 Unsupported lambda syntax raises `UnsupportedError`.
@@ -387,7 +387,8 @@ handled as rejection by any runner.
 
 - Contract helper builder bodies are executed rather than fully AST-validated.
 - Trusted functions with meaningful return values are not modeled.
-- Chained comparisons are not Python-correct.
+- Chained comparisons in relation lambdas raise `UnsupportedError` rather
+  than being lowered (the program-subset evaluator handles them correctly).
 - Runtime receipt enforcement has not been implemented.
 - Marker-level effect schemas are not validated up front.
 - There is no formal grammar file or conformance test suite for the subset yet.

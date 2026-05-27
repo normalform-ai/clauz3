@@ -1,13 +1,19 @@
 
+# Runner commands. Default to `uv run` for the source-checkout dev flow;
+# `clauz3 test` overrides CLAUZ3/DEAL so the bundled suite also runs from an
+# installed wheel, where `uv` is absent.
+clauz3 := env_var_or_default("CLAUZ3", "uv run clauz3")
+deal := env_var_or_default("DEAL", "uv run python -m deal")
+
 grep_trusted := "../tools/grep/trusted"
 effects := grep_trusted + "/effects.py"
 # grep imports the filesystem layer, so make it importable too.
-prove := "uv run clauz3 prove --trusted-root " + grep_trusted + " --import-root .. --import-root ../../filesystem"
+prove := clauz3 + " prove --trusted-root " + grep_trusted + " --import-root .. --import-root ../../filesystem"
 
 test: lint cases
 
 lint:
-    uv run python -m deal lint {{effects}}
+    {{deal}} lint {{effects}}
 
 cases: only-read-under-pass only-read-under-fail never-read-under-pass never-read-under-fail searches-at-most-pass searches-at-most-fail only-pattern-pass only-pattern-fail
 

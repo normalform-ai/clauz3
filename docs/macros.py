@@ -1,8 +1,10 @@
 """Macros for inlining repo files into the mkdocs site.
 
-Three primitives, all callable from any .md page via ``{{ ... }}``:
+Four primitives, all callable from any .md page via ``{{ ... }}``:
 
 - ``include_file(path)`` — inline one file in a fenced block.
+- ``include_markdown(path)`` — inline a markdown file as rendered markdown
+  (no fence). Use this to surface a tool's ``README.md`` on a doc page.
 - ``list_dir(path, glob="**/*")`` — bulleted listing of matching files.
 - ``include_dir(path, glob="**/*", sort="path", heading_level=4)`` — iterate
   and inline each matching file.
@@ -75,6 +77,18 @@ def define_env(env):  # type: ignore[no-untyped-def]
         rel = target.relative_to(root)
         fence = f"```{lang}" if lang else "```"
         return f"`{rel}`\n\n{fence}\n{body.rstrip()}\n```"
+
+    @env.macro  # type: ignore[misc]
+    def include_markdown(path: str) -> str:
+        """Inline a markdown file as rendered markdown (no fence).
+
+        Use this to surface a tool's existing ``README.md`` on a doc page
+        instead of duplicating the prose. Unlike ``include_file``, the body
+        is returned as-is so markdown structure (headings, code blocks,
+        tables) renders normally.
+        """
+        target = _resolve(root, path)
+        return target.read_text().rstrip()
 
     @env.macro  # type: ignore[misc]
     def list_dir(path: str, glob: str = "**/*") -> str:

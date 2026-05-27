@@ -1,0 +1,49 @@
+trusted := "tools/home/trusted"
+effects := trusted + "/effects.py"
+prove := "uv run clauz3 prove --trusted-root " + trusted
+
+test: lint cases
+
+lint:
+    uv run python -m deal lint {{effects}}
+
+cases: temp-range-pass temp-range-fail only-unlock-doors-pass only-unlock-doors-fail never-unlock-front-door-pass never-unlock-front-door-fail grocery-budget-pass grocery-budget-fail away-mode-pass grocery-qty-precondition-fail home-no-guarantees-pass locked-at-end-pass locked-at-end-fail
+
+temp-range-pass:
+    {{prove}} cases/temp_range_pass.py
+
+temp-range-fail:
+    if {{prove}} cases/temp_range_fail.py; then exit 1; fi
+
+only-unlock-doors-pass:
+    {{prove}} cases/only_unlock_doors_pass.py
+
+only-unlock-doors-fail:
+    if {{prove}} cases/only_unlock_doors_fail.py; then exit 1; fi
+
+never-unlock-front-door-pass:
+    {{prove}} cases/never_unlock_front_door_pass.py
+
+never-unlock-front-door-fail:
+    if {{prove}} cases/never_unlock_front_door_fail.py; then exit 1; fi
+
+grocery-budget-pass:
+    {{prove}} cases/grocery_budget_pass.py
+
+grocery-budget-fail:
+    if {{prove}} cases/grocery_budget_fail.py; then exit 1; fi
+
+away-mode-pass:
+    {{prove}} cases/away_mode_pass.py
+
+grocery-qty-precondition-fail:
+    if {{prove}} cases/grocery_qty_precondition_fail.py; then exit 1; fi
+
+home-no-guarantees-pass:
+    {{prove}} cases/home_no_guarantees_pass.py
+
+locked-at-end-pass:
+    {{prove}} cases/locked_at_end_pass.py
+
+locked-at-end-fail:
+    if {{prove}} cases/locked_at_end_fail.py; then exit 1; fi
