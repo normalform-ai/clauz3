@@ -1,5 +1,4 @@
-import deal
-
+import clauz3
 from clauz3.fluent import effect, fluent
 
 # Successor-state fluent: every door starts locked; ``unlock_door`` clears the
@@ -11,11 +10,11 @@ from clauz3.fluent import effect, fluent
 DoorLocked = fluent("door_locked", key=str, value=bool, initial=True)
 
 
-@deal.pre(
+@clauz3.requires(
     lambda zone, temp_f: 30 <= temp_f <= 90,
     message="temp_f must be a sane indoor range [30, 90]",
 )
-@deal.has("trusted")
+@clauz3.trusted
 def set_thermostat(zone: str, temp_f: int) -> None:
     """MOCK trusted thermostat setpoint.
 
@@ -26,8 +25,8 @@ def set_thermostat(zone: str, temp_f: int) -> None:
     pass
 
 
-@deal.pre(lambda door: len(door) > 0, message="door must be non-empty")
-@deal.has("trusted")
+@clauz3.requires(lambda door: len(door) > 0, message="door must be non-empty")
+@clauz3.trusted
 @effect(lambda door: DoorLocked.set(door, False))
 def unlock_door(door: str) -> None:
     """MOCK trusted door unlock.
@@ -40,8 +39,8 @@ def unlock_door(door: str) -> None:
     pass
 
 
-@deal.pre(lambda door: len(door) > 0, message="door must be non-empty")
-@deal.has("trusted")
+@clauz3.requires(lambda door: len(door) > 0, message="door must be non-empty")
+@clauz3.trusted
 @effect(lambda door: DoorLocked.set(door, True))
 def lock_door(door: str) -> None:
     """MOCK trusted door lock.
@@ -52,11 +51,11 @@ def lock_door(door: str) -> None:
     pass
 
 
-@deal.pre(
+@clauz3.requires(
     lambda item, qty, usd: qty > 0 and usd > 0,
     message="qty and usd must be positive",
 )
-@deal.has("trusted")
+@clauz3.trusted
 def order_grocery(item: str, qty: int, usd: int) -> None:
     """MOCK trusted grocery order.
 

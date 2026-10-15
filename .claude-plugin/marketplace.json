@@ -1,0 +1,40 @@
+{
+  "name": "clauz3",
+  "owner": {
+    "name": "Chris Mungall",
+    "email": "cjm@berkeleybop.org"
+  },
+  "metadata": {
+    "description": "Skills for working with clauz3 — using installed trusted layers, authoring new ones, and stress-testing agents through clauz3.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "clauz3",
+      "description": "For agents that need to do real-world things — send mail, edit files, fetch URLs, move money, run a lab step — in a project where clauz3 is the only outlet to side effects. Covers writing the small Python program against trusted modules, attaching guarantees the user will review, and passing through clauz3 prove / clauz3 run.",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "./skills/clauz3"
+      ]
+    },
+    {
+      "name": "clauz3-authoring",
+      "description": "For designing the trusted boundary an agent acts through — effects, contracts, fluents — when no trusted layer exists yet for a domain. Root-of-trust role: if this layer is wrong, every proof against it is wrong. Covers effects.py with deal/clauz3 markers, contracts via the relation algebra, optional fluents for stateful properties, and packaging as a clauz3-install-able library.",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "./skills/clauz3-authoring"
+      ]
+    },
+    {
+      "name": "clauz3-exploring",
+      "description": "For acting as the user-proxy while driving an independent Claude Code (or other agent) through clauz3 tasks adaptively — picking prompts, watching what the agent submits, deciding approvals via the approval service's REST API, escalating to adversarial cases, and surfacing design issues. Open-ended counterpart to the deterministic e2e driver.",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "./skills/clauz3-exploring"
+      ]
+    }
+  ]
+}

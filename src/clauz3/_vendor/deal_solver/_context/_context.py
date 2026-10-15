@@ -4,6 +4,7 @@ import typing
 
 import z3
 
+from .._ownership import Ownership
 from ._layer import ExceptionInfo, FactInfo, Layer, ReturnInfo
 from ._quantifier import Quantifier
 from ._scope import Scope
@@ -23,10 +24,16 @@ class Context(typing.NamedTuple):
 
     # Scope holds z3 values for all variables executed up to the current line.
     scope: Scope
+    ownership: Ownership
+    frame: object
 
     # Given are checks that we don't validate but assume them to be always true.
     # For example, post-conditions of all functions the current function calls.
     given: Layer[BoolSort]
+
+    # Generated domains on free input symbols are jointly satisfiable when
+    # there are no other assumptions. Keep provenance for that fast path.
+    pure_domains: Layer[BoolSort]
 
     # Expected are checks we do validate. For example, all `assert` statements.
     expected: Layer[BoolSort]
@@ -54,7 +61,10 @@ class Context(typing.NamedTuple):
         obj = cls(
             z3_ctx=None,
             scope=Scope.make_empty(),
+            ownership=Ownership(),
+            frame=object(),
             given=Layer(),
+            pure_domains=Layer(),
             expected=Layer(),
             exceptions=Layer(),
             returns=Layer(),
@@ -106,6 +116,7 @@ class Context(typing.NamedTuple):
         return self.evolve(
             scope=self.scope.make_child(),
             given=self.given.make_child(),
+            pure_domains=self.pure_domains.make_child(),
             expected=self.expected.make_child(),
             exceptions=self.exceptions.make_child(),
             returns=self.returns.make_child(),

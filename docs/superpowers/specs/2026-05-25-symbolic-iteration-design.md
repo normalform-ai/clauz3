@@ -247,6 +247,12 @@ Per-fact contribution:
   `product(q.upper for q in quantifiers)`. Sound but loose; `count <= N`
   proofs still discharge when the loose bound fits.
 
+As built, the last case emits `If(cond, product, 0)` with the bound variables
+left free rather than a bare `product`, which is what makes it loose in the
+upper direction and unusable in the lower one. See
+[explanation/symbolic-iteration.md](../../explanation/symbolic-iteration.md#counting-and-summing-over-a-loop)
+for the shipped encoding.
+
 For `count <= N` to prove, the prover needs an upper bound on each
 quantifier's source length. This comes from the trusted call's
 postcondition (e.g., `@deal.post(lambda result: len(result) <= 100)`).

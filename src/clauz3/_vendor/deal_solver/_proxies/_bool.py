@@ -119,12 +119,62 @@ class BoolSort(ProxySort):
     def m_inv(self, ctx: Context) -> ProxySort:
         return self.m_int(ctx=ctx).m_inv(ctx=ctx)
 
+    @methods.add(name='__and__')
+    def m_and(self, other: ProxySort, ctx: Context) -> ProxySort:
+        if not isinstance(other, (types.bool, types.int)):
+            return self._bad_bin_op(other, op='&', ctx=ctx)
+        if isinstance(other, types.bool):
+            return types.bool(z3.And(self.expr, other.expr))
+        result = self.m_int(ctx=ctx).m_and(other, ctx=ctx)
+        return result
+
+    @methods.add(name='__or__')
+    def m_or(self, other: ProxySort, ctx: Context) -> ProxySort:
+        if not isinstance(other, (types.bool, types.int)):
+            return self._bad_bin_op(other, op='|', ctx=ctx)
+        if isinstance(other, types.bool):
+            return types.bool(z3.Or(self.expr, other.expr))
+        result = self.m_int(ctx=ctx).m_or(other, ctx=ctx)
+        return result
+
+    @methods.add(name='__xor__')
+    def m_xor(self, other: ProxySort, ctx: Context) -> ProxySort:
+        if not isinstance(other, (types.bool, types.int)):
+            return self._bad_bin_op(other, op='^', ctx=ctx)
+        if isinstance(other, types.bool):
+            return types.bool(z3.Xor(self.expr, other.expr))
+        result = self.m_int(ctx=ctx).m_xor(other, ctx=ctx)
+        return result
+
+    @methods.add(name='__lshift__')
+    def m_lshift(self, other: ProxySort, ctx: Context) -> ProxySort:
+        if not isinstance(other, (types.bool, types.int)):
+            return self._bad_bin_op(other, op='<<', ctx=ctx)
+        return self.m_int(ctx=ctx).m_lshift(other, ctx=ctx)
+
+    @methods.add(name='__rshift__')
+    def m_rshift(self, other: ProxySort, ctx: Context) -> ProxySort:
+        if not isinstance(other, (types.bool, types.int)):
+            return self._bad_bin_op(other, op='>>', ctx=ctx)
+        return self.m_int(ctx=ctx).m_rshift(other, ctx=ctx)
+
+    def _comp_op(
+        self, other: ProxySort, handler: typing.Callable, ctx: Context
+    ) -> BoolSort:
+        if isinstance(other, (types.bool, types.int, types.float)):
+            return self.m_int(ctx=ctx)._comp_op(
+                other=other,
+                handler=handler,
+                ctx=ctx,
+            )
+        return super()._comp_op(other=other, handler=handler, ctx=ctx)
+
     @methods.add(name='__eq__')
     def m_eq(self, other: ProxySort, ctx: Context) -> BoolSort:
         if isinstance(other, types.int):
             return other.m_eq(self.m_int(ctx=ctx), ctx=ctx)
         if isinstance(other, types.float):
-            return other.m_eq(self.m_float(ctx=ctx), ctx=ctx)
+            return other.m_eq(self.m_int(ctx=ctx), ctx=ctx)
         if isinstance(other, types.bool):
             return types.bool(self.expr == other.expr)
         return types.bool.val(False, ctx=ctx)

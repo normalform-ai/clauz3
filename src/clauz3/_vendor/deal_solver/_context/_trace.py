@@ -5,6 +5,15 @@ from collections import Counter
 from contextlib import contextmanager
 
 
+# Not a legal Python function name, so source code cannot collide with it.
+LAMBDA_BODY = '<lambda body>'
+
+COMPREHENSION_BODY = '<comprehension body>'
+QUANTIFIED_LOOP_BODY = '<quantified loop body>'
+BOOLEAN_OPERAND = '<boolean operand>'
+GUARDED_EXPRESSION = '<guarded expression>'
+
+
 class Trace:
     __slots__ = ['_names']
     _names: Counter

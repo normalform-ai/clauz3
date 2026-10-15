@@ -4,24 +4,38 @@ from __future__ import annotations
 
 import ast
 import inspect
-from collections.abc import Callable
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, TypeVar, cast
+import itertools
+from collections.abc import Callable, Container, Iterable, Iterator, Mapping
+from contextlib import contextmanager
+from dataclasses import dataclass, replace
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, TypeVar, cast, overload
+
+import z3
 
 if TYPE_CHECKING:
+    from types import CodeType
+
     from clauz3.row import ColumnRef
 
+from clauz3._vendor.deal_solver._bool_op import eval_boolean_operands
+from clauz3._vendor.deal_solver._context._layer import Layer
 from clauz3._vendor.deal_solver._exceptions import UnsupportedError
 from clauz3._vendor.deal_solver._funcs._registry import register
 from clauz3._vendor.deal_solver._proxies import (
     BoolSort,
+    DictSort,
     ProxySort,
+    UntypedDictSort,
     UntypedListSort,
+    UntypedSetSort,
+    UntypedVarTupleSort,
     and_expr,
     if_expr,
     or_expr,
     types,
 )
+from clauz3.contract_literals import ContractLiteralArgument
 
 F = TypeVar("F", bound=Callable[..., object])
 
@@ -30,27 +44,226 @@ F = TypeVar("F", bound=Callable[..., object])
 # policies such as "every write path is under this root".
 _STR_METHODS = frozenset({"startswith", "endswith"})
 
+# Unique suffixes for the fresh bound variables the distinct clauses introduce.
+_FRESH_COUNTER = itertools.count()
 
-def contract(func: F) -> F:
+
+#: Fully-qualified names of every helper decorated with :func:`contract`.
+#:
+#: ``deal_solver``'s ``FUNCTIONS`` registry also holds builtins, ``math``,
+#: ``os.path`` and friends, so it cannot answer "is this name a domain
+#: contract?". This set can, and it is what
+#: :mod:`clauz3.guarantees` checks a guarantee's callee against.
+REGISTERED_CONTRACTS: set[str] = set()
+
+
+@overload
+def contract(func: F, *, description: str | None = None) -> F: ...
+
+
+@overload
+def contract(*, description: str) -> Callable[[F], F]: ...
+
+
+def contract(
+    func: F | None = None, *, description: str | None = None
+) -> F | Callable[[F], F]:
     """Register a domain contract helper.
 
     The helper itself builds a declarative ContractSpec. The registered wrapper
     is the bridge deal-solver calls when it sees ``module.helper(...)`` in a
-    guarantee.
+    guarantee. An optional trusted description uses named parameter placeholders
+    for deterministic approval text, e.g. ``description="At most {count} calls."``.
     """
 
-    register(f"{func.__module__}.{func.__name__}")(_solve_with(func))
+    if func is None:
+        if description is None:
+            raise TypeError("contract requires a function or description")
+        return lambda helper: contract(helper, description=description)
+    if description is not None:
+        from clauz3.contract_metadata import (
+            DESCRIPTION_ATTRIBUTE,
+            parameter_types,
+            validate_template,
+        )
+
+        validate_template(description, parameter_types(inspect.signature(func)))
+        setattr(func, DESCRIPTION_ATTRIBUTE, description)
+    qualified_name = f"{func.__module__}.{func.__name__}"
+    register(qualified_name, owner=func, is_contract=True, signature=func)(
+        _solve_with(func)
+    )
+    REGISTERED_CONTRACTS.add(qualified_name)
     return func
 
 
-def effect(name: str) -> EffectRelation:
-    """Create a relation over trusted calls.
+class RelationError(UnsupportedError):
+    """A relation names an effect, or a field, that does not exist.
 
-    ``name`` can be a marker from ``@deal.has(name)`` or a trusted function
-    name. Row fields are inferred from the trusted function's parameters.
+    Raised where the mistake is --- building the relation --- rather than left
+    to matter at solve time. Matching nothing is not a safe failure: a contract
+    over an empty relation is a conjunction of no clauses, which is ``True``,
+    so an unresolvable name would make its guarantees hold vacuously.
+
+    An :class:`UnsupportedError` so that a relation built inside a contract
+    helper, during solving, ends the proof as a refusal rather than escaping as
+    a traceback.
     """
 
-    return EffectRelation(name=name)
+
+#: Signatures of the trusted effects the proof in progress may address, as
+#: ``{effect name: parameter names}``, or ``None`` outside a proof (a contract
+#: module imported on its own has nothing to check against).
+_EFFECT_SIGNATURES: dict[str, tuple[str, ...]] | None = None
+
+#: The trusted layer's own files, whose relations are checked as they are
+#: built. See :func:`known_effects`.
+_CHECKED_FILES: Container[str] = ()
+
+#: The relations each source file has built, so the ones a cached contract
+#: module built during an earlier proof can be re-checked against this proof's
+#: layer. Import caching means :func:`effect` runs once per process, not once
+#: per proof --- but a relation built *inside* a contract helper is rebuilt on
+#: every call, so these are sets of an immutable value rather than a list: two
+#: proofs of the same helper add one entry, not one each. Grouped by file
+#: because that is how :func:`validate_relations` looks them up.
+_RELATIONS: dict[str, set[EffectRelation]] = {}
+
+
+@contextmanager
+def known_effects(
+    signatures: Mapping[str, tuple[str, ...]],
+    *,
+    files: Container[str] = (),
+) -> Iterator[None]:
+    """Check the relations of the layer being proved against ``signatures``.
+
+    ``files`` are the trusted layer's own source files. A relation built there
+    is checked the moment it is built, which is where the mistake is and what
+    gives a configuration error rather than a proof result.
+
+    A relation built anywhere else is not checked here, because a contract
+    module may legitimately import one from a layer that is not part of *this*
+    proof: ``stdlib:grep`` imports ``stdlib:filesystem``'s contracts for their
+    path rule, and proving a grep case does not put ``read_file`` in scope.
+    Such a relation is checked when it is used instead --- see
+    :meth:`EffectRelation.facts`.
+
+    The window is a module global. Public operations enter the shared trusted
+    layer coordinator before this context, serializing selection and restoring
+    the previous signatures for nested uses.
+    """
+
+    global _EFFECT_SIGNATURES, _CHECKED_FILES
+    previous, previous_files = _EFFECT_SIGNATURES, _CHECKED_FILES
+    _EFFECT_SIGNATURES, _CHECKED_FILES = dict(signatures), files
+    try:
+        yield
+    finally:
+        _EFFECT_SIGNATURES, _CHECKED_FILES = previous, previous_files
+
+
+def validate_relations(
+    signatures: Mapping[str, tuple[str, ...]],
+    *,
+    files: Iterable[str],
+) -> None:
+    """Re-check the relations built by ``files``, whenever they were built.
+
+    A contract module is imported once per process, so a second proof in the
+    same process (pytest, ``clauz3 test``, the approval service) never re-runs
+    its module-level :func:`effect` calls, and the window in
+    :func:`known_effects` would miss them.
+
+    Scoping is by source *file* rather than module name because two layers can
+    share a name: this repository has ``tools.gh.trusted.contracts`` under both
+    ``stdlib/gh`` and ``examples/gh-triage``. Python caches the first one
+    imported, so checking by name would test one layer's relations against the
+    other layer's effects.
+    """
+
+    for origin in files:
+        for relation in _RELATIONS.get(origin, frozenset()):
+            relation.check_names(signatures)
+
+
+def effect(*targets: str | Callable[..., object]) -> EffectRelation:
+    """Create a relation over the calls to one or more trusted functions.
+
+    Name the function itself where the contract can see it --- the import is
+    then checked by Python, mypy and your editor's rename::
+
+        from tools.email.trusted.effects import send_email
+
+        Email = effect(send_email)
+
+    A string names the same thing for a layer that cannot import its effects,
+    and is checked against the trusted layer when the proof loads it. Several
+    targets make one relation over all of them, ``effect(edit_file,
+    append_file)``, and no target at all is the relation over *every* trusted
+    call a program makes, which is how a contract says "this program has no
+    effects".
+
+    Row fields come from the parameters: ``send_email(addr, msg)`` gives
+    ``e.addr`` and ``e.msg``, and a relation over several effects offers the
+    fields they all share, since a predicate must hold of every fact it
+    matches.
+
+    A relation could once name a ``@deal.has`` marker instead, so
+    ``effect("read")`` matched whichever functions happened to carry the string
+    ``read``: a set the contract could not see, that a later effect (or an
+    unrelated layer installed alongside) could silently join or leave. Grouping
+    lives in the contract that depends on it now, and is checked.
+    """
+
+    names = tuple(
+        target if isinstance(target, str) else target.__name__ for target in targets
+    )
+    relation = EffectRelation(
+        names=names,
+        fields=_fields_for(names, targets),
+        origin=_defining_file(),
+    )
+    if _EFFECT_SIGNATURES is not None and relation.origin in _CHECKED_FILES:
+        relation.check_names(_EFFECT_SIGNATURES)
+    _RELATIONS.setdefault(relation.origin, set()).add(relation)
+    return relation
+
+
+def _fields_for(
+    names: tuple[str, ...],
+    targets: tuple[str | Callable[..., object], ...],
+) -> frozenset[str] | None:
+    """The fields a predicate over this relation may read, or ``None``.
+
+    ``None`` means "not known here": a relation named by strings, built outside
+    a proof, has no signature to read. The fields of a relation over several
+    effects are the ones they have in common, because a predicate is applied to
+    every matching fact.
+    """
+
+    if not names:
+        return None  # every effect; a predicate cannot assume a shared field
+    per_effect: list[frozenset[str]] = []
+    for name, target in zip(names, targets, strict=True):
+        if _EFFECT_SIGNATURES is not None and name in _EFFECT_SIGNATURES:
+            per_effect.append(frozenset(_EFFECT_SIGNATURES[name]))
+        elif callable(target):
+            per_effect.append(frozenset(inspect.signature(target).parameters))
+        else:
+            return None
+    return frozenset.intersection(*per_effect)
+
+
+def _defining_file() -> str:
+    """The source file that called :func:`effect`, for scoping re-validation."""
+
+    frame = inspect.currentframe()
+    caller = frame.f_back.f_back if frame and frame.f_back else None
+    if caller is None:  # pragma: no cover - CPython always gives us a frame
+        return ""
+    path = caller.f_globals.get("__file__")
+    return str(Path(path).resolve()) if path else ""
 
 
 def no_guarantees() -> ContractSpec:
@@ -59,36 +272,60 @@ def no_guarantees() -> ContractSpec:
 
 
 def _solve_with(func: F) -> Callable[..., BoolSort]:
-    def solve(*args: ProxySort, ctx: Any, **kwargs: ProxySort) -> BoolSort:
+    return _ContractSolver(func)
+
+
+class _ContractSolver:
+    """An exact marker for calls whose arguments are Python source literals."""
+
+    def __init__(self, func: Callable[..., object]) -> None:
+        self.func = func
+
+    def __call__(self, *args: object, ctx: Any, **kwargs: object) -> BoolSort:
+        func = self.func
         unwrapped_args = [_unwrap_proxy_arg(a) for a in args]
         unwrapped_kwargs = {k: _unwrap_proxy_arg(v) for k, v in kwargs.items()}
-        result = func(*unwrapped_args, **unwrapped_kwargs)
+        try:
+            result = func(*unwrapped_args, **unwrapped_kwargs)
+        except UnsupportedError:
+            raise
+        except Exception as exc:
+            # A trusted helper body is ordinary Python; a bad argument (an
+            # unknown column name, a type mismatch) raises an arbitrary
+            # exception. Surface it as a skipped proof rather than a traceback
+            # out of prove_text (#133).
+            raise UnsupportedError(
+                f"contract helper {func.__module__}.{func.__qualname__} raised "
+                f"{type(exc).__name__}: {exc} (a trusted-layer bug or a bad "
+                "guarantee argument, not an unsupported construct)"
+            ) from exc
         if not isinstance(result, ContractSpec):
             raise UnsupportedError("contract helper must return ContractSpec")
-        return result.solve(ctx=ctx)
-
-    return solve
+        try:
+            return result.solve(ctx=ctx)
+        except (UnsupportedError, z3.Z3Exception):
+            raise
+        except Exception as exc:
+            # Encoding faults (row fields, lambda compilation, substitution)
+            # arise here rather than in the helper body; contain them the
+            # same way so no proof ends in a traceback (#133).
+            raise UnsupportedError(
+                f"contract helper {func.__module__}.{func.__qualname__} could "
+                f"not be encoded: {type(exc).__name__}: {exc}"
+            ) from exc
 
 
 def _unwrap_proxy_arg(value: Any) -> Any:
-    """Unwrap a ProxySort to its underlying Python value for contract calls.
-
-    - RowClassSort → the wrapped Python class
-    - StrSort with a string literal expr → the Python str
-    - Other ProxySorts → passed through unchanged (contract will handle them)
-    """
-    import z3
-
+    """Never expose a symbolic object's Python truthiness to a builder."""
     from clauz3._vendor.deal_solver._proxies._row import RowClassSort
-    from clauz3._vendor.deal_solver._proxies._str import StrSort
 
+    if isinstance(value, ContractLiteralArgument):
+        return value.value
     if isinstance(value, RowClassSort):
         return value.schema
-
-    if isinstance(value, StrSort) and z3.is_string_value(value.expr):
-        return value.expr.as_string()
-
-    return value
+    raise UnsupportedError(
+        "contract helper arguments must be source literals or Row classes"
+    )
 
 
 class ContractSpec:
@@ -104,27 +341,74 @@ class NoGuaranteesSpec(ContractSpec):
 
 @dataclass(frozen=True)
 class EffectRelation:
-    name: str
+    #: The trusted functions this relation covers; empty means every one.
+    names: tuple[str, ...]
+    #: The fields a predicate may read, or ``None`` when they are not known
+    #: here (see :func:`_fields_for`).
+    fields: frozenset[str] | None = None
+    #: The source file that built this relation, for scoped re-validation.
+    origin: str = ""
+
+    def __post_init__(self) -> None:
+        # ``EffectRelation("send_email")`` would iterate the string, so the
+        # relation would cover eleven one-letter effects and match nothing.
+        # :func:`effect` never does this, but the class is reachable from a
+        # trusted layer (``stdlib:filesystem`` exports builders over it).
+        if isinstance(self.names, str):
+            raise RelationError(
+                f"effect names must be a tuple, not the string {self.names!r}; "
+                "use effect(...) to build a relation.",
+            )
+
+    def check_names(self, signatures: Mapping[str, tuple[str, ...]]) -> None:
+        """Refuse a name that is not a trusted effect of the layer being proved."""
+
+        unknown = [name for name in self.names if name not in signatures]
+        if not unknown:
+            return
+        raise RelationError(
+            f"effect({', '.join(repr(name) for name in self.names)}) in "
+            f"{self.origin or 'a contract module'} names "
+            f"{', '.join(repr(name) for name in unknown)}, which is not a "
+            f"trusted effect. Known effects: {sorted(signatures)!r}. "
+            "(A name that matches nothing would make every contract over this "
+            "relation hold vacuously. If it was a @deal.has marker, name the "
+            "function that carries it.)"
+        )
+
+    def _checked(self, predicate: Callable[[Any], Any]) -> LambdaSpec:
+        """Compile a predicate, refusing a field the matched facts cannot have."""
+
+        spec = LambdaSpec.from_callable(predicate)
+        if self.fields is None:
+            return spec
+        unknown = sorted(spec.fields() - self.fields)
+        if unknown:
+            covered = ", ".join(self.names)
+            raise RelationError(
+                f"predicate over effect({covered}) reads "
+                f"{', '.join(repr(field) for field in unknown)}, which is not "
+                f"a parameter of every effect it covers. Available fields: "
+                f"{sorted(self.fields)!r}."
+            )
+        return spec
 
     def all(self, predicate: Callable[[Any], Any]) -> ContractSpec:
-        return AllSpec(relation=self, predicate=LambdaSpec.from_callable(predicate))
+        return AllSpec(relation=self, predicate=self._checked(predicate))
 
     def where(self, predicate: Callable[[Any], Any]) -> FilteredRelation:
-        return FilteredRelation(
-            relation=self,
-            predicate=LambdaSpec.from_callable(predicate),
-        )
+        return FilteredRelation(relation=self, predicate=self._checked(predicate))
 
     def empty(self) -> ContractSpec:
         return EmptySpec(relation=self)
 
     def distinct(self, key: Callable[[Any], Any]) -> ContractSpec:
-        return DistinctSpec(relation=self, key=LambdaSpec.from_callable(key))
+        return DistinctSpec(relation=self, key=self._checked(key))
 
     def sum(self, selector: Callable[[Any], Any]) -> SumSpec:
         return SumSpec(
             relation=self,
-            selector=LambdaSpec.from_callable(selector),
+            selector=self._checked(selector),
             predicate=None,
         )
 
@@ -132,11 +416,16 @@ class EffectRelation:
         return SumSpec(relation=self, selector=None, predicate=None)
 
     def facts(self, ctx: Any) -> list[Any]:
-        return [
-            fact
-            for fact in ctx.facts
-            if self.name == fact.name or self.name in fact.markers
-        ]
+        # Checked on use, not only where it was built. A relation imported from
+        # a layer outside this proof's trusted roots -- ``stdlib:grep`` uses
+        # ``stdlib:filesystem``'s contracts that way -- passes through neither
+        # the window in ``known_effects`` nor ``validate_relations``, and
+        # neither does one built inside a contract helper while solving.
+        # Matching nothing is not a safe answer: it is what makes a contract
+        # hold vacuously, so a name that resolves to no effect is refused here.
+        if _EFFECT_SIGNATURES is not None:
+            self.check_names(_EFFECT_SIGNATURES)
+        return [fact for fact in ctx.facts if not self.names or fact.name in self.names]
 
 
 @dataclass(frozen=True)
@@ -147,7 +436,7 @@ class FilteredRelation:
     def all(self, predicate: Callable[[Any], Any]) -> ContractSpec:
         return AllSpec(
             relation=self.relation,
-            predicate=LambdaSpec.from_callable(predicate),
+            predicate=self.relation._checked(predicate),
             fact_filter=self.predicate,
         )
 
@@ -157,14 +446,14 @@ class FilteredRelation:
     def distinct(self, key: Callable[[Any], Any]) -> ContractSpec:
         return DistinctSpec(
             relation=self.relation,
-            key=LambdaSpec.from_callable(key),
+            key=self.relation._checked(key),
             fact_filter=self.predicate,
         )
 
     def sum(self, selector: Callable[[Any], Any]) -> SumSpec:
         return SumSpec(
             relation=self.relation,
-            selector=LambdaSpec.from_callable(selector),
+            selector=self.relation._checked(selector),
             predicate=self.predicate,
         )
 
@@ -176,12 +465,15 @@ class FilteredRelation:
         other: FilteredRelation,
         key: Callable[[Any], Any],
     ) -> ContractSpec:
+        # The key is read off facts from *both* sides, so it must name a field
+        # each of them has.
+        self.relation._checked(key)
         return SharedValueSpec(
             left_relation=self.relation,
             left_filter=self.predicate,
             right_relation=other.relation,
             right_filter=other.predicate,
-            key=LambdaSpec.from_callable(key),
+            key=other.relation._checked(key),
         )
 
 
@@ -270,28 +562,72 @@ def _distinct_pair_clause(
     key: LambdaSpec,
     ctx: Any,
 ) -> BoolSort:
-    """Cross-fact: ∀ qvars_left, qvars_right: bounds ∧ conds → key(left) ≠ key(right)."""  # noqa: E501
-    import z3
+    """Cross-fact: ∀ qvars_left, qvars_right: bounds ∧ conds → key(left) ≠ key(right).
 
-    left_key = key.evaluate(row=left.args, ctx=ctx)
-    right_key = key.evaluate(row=right.args, ctx=ctx)
-    body = or_expr(
-        left_cond.m_not(ctx=ctx),
-        right_cond.m_not(ctx=ctx),
-        left_key.m_ne(right_key, ctx=ctx),
-        ctx=ctx,
+    Each side's bound variables are renamed to fresh copies before quantifying.
+    Two facts emitted by the same loop body share the same index symbol; without
+    renaming, the clause would only compare the two call sites on the *same*
+    iteration and never ``left(i)`` against ``right(j)`` for ``i ≠ j`` (#126).
+    """
+    left_quantifiers = list(getattr(left, "quantifiers", ()))
+    right_quantifiers = list(getattr(right, "quantifiers", ()))
+    if not left_quantifiers and not right_quantifiers:
+        left_key = key.evaluate(row=left.args, ctx=ctx)
+        right_key = key.evaluate(row=right.args, ctx=ctx)
+        return or_expr(
+            left_cond.m_not(ctx=ctx),
+            right_cond.m_not(ctx=ctx),
+            left_key.m_ne(right_key, ctx=ctx),
+            ctx=ctx,
+        )
+
+    uid = next(_FRESH_COUNTER)
+    fresh_left = [z3.Int(f"{q.bound_var}_lhs_{uid}") for q in left_quantifiers]
+    fresh_right = [z3.Int(f"{q.bound_var}_rhs_{uid}") for q in right_quantifiers]
+    subs_left = list(
+        zip([q.bound_var for q in left_quantifiers], fresh_left, strict=True)
     )
-    quantifiers = list(getattr(left, "quantifiers", ())) + list(
-        getattr(right, "quantifiers", ())
+    subs_right = list(
+        zip([q.bound_var for q in right_quantifiers], fresh_right, strict=True)
     )
-    if not quantifiers:
-        return body
-    bound_vars = [q.bound_var for q in quantifiers]
-    bounds_parts = [q.bounds_expr() for q in quantifiers]
-    bounds = z3.And(*bounds_parts) if len(bounds_parts) > 1 else bounds_parts[0]
-    body_z3 = body.expr
-    wrapped = z3.ForAll(bound_vars, z3.Implies(bounds, body_z3))
+
+    # Only a quantified side needs renaming. Routing an unquantified fact
+    # through _substituted_proxy would reject arg proxies it cannot rewrap,
+    # refusing mixed pairs (one looped, one straight-line) for no reason.
+    args_left = _substituted_args(left.args, subs_left)
+    args_right = _substituted_args(right.args, subs_right)
+    cond_left = _substituted_proxy(left_cond, subs_left) if subs_left else left_cond
+    cond_right = (
+        _substituted_proxy(right_cond, subs_right) if subs_right else right_cond
+    )
+    left_key = key.evaluate(row=args_left, ctx=ctx)
+    right_key = key.evaluate(row=args_right, ctx=ctx)
+
+    # Bounds may mention enclosing indices too (e.g. an inner result length).
+    # Rename the whole bounds expression, not just this frame's index.
+    bounds = z3.And(
+        *[z3.substitute(q.bounds_expr(), subs_left) for q in left_quantifiers],
+        *[z3.substitute(q.bounds_expr(), subs_right) for q in right_quantifiers],
+    )
+    key_diff = left_key.m_ne(right_key, ctx=ctx)
+    body = z3.Implies(
+        z3.And(bounds, _z3_expr(cond_left), _z3_expr(cond_right)),
+        _z3_expr(key_diff),
+    )
+    wrapped = z3.ForAll(fresh_left + fresh_right, body)
     return types.bool(expr=wrapped)
+
+
+def _substituted_args(
+    args: dict[str, Any], subs: list[tuple[Any, Any]]
+) -> dict[str, Any]:
+    if not subs:
+        return dict(args)
+    return {k: _substituted_proxy(v, subs) for k, v in args.items()}
+
+
+def _z3_expr(value: Any) -> Any:
+    return value.expr if hasattr(value, "expr") else value
 
 
 def _distinct_same_fact_clause(
@@ -301,8 +637,6 @@ def _distinct_same_fact_clause(
 
     Substitutes the bound vars with fresh copies per side of the comparison.
     """
-    import z3
-
     fresh_left = [z3.Int(f"{q.bound_var}_lhs_{id(fact)}") for q in fact.quantifiers]
     fresh_right = [z3.Int(f"{q.bound_var}_rhs_{id(fact)}") for q in fact.quantifiers]
 
@@ -325,14 +659,8 @@ def _distinct_same_fact_clause(
         *[lv != rv for lv, rv in zip(fresh_left, fresh_right, strict=True)]
     )
     bounds = z3.And(
-        *[
-            z3.And(q.lower <= lv, lv < q.upper)
-            for q, lv in zip(fact.quantifiers, fresh_left, strict=True)
-        ],
-        *[
-            z3.And(q.lower <= rv, rv < q.upper)
-            for q, rv in zip(fact.quantifiers, fresh_right, strict=True)
-        ],
+        *[z3.substitute(q.bounds_expr(), subs_left) for q in fact.quantifiers],
+        *[z3.substitute(q.bounds_expr(), subs_right) for q in fact.quantifiers],
     )
     cond_left_z3 = cond_left.expr if hasattr(cond_left, "expr") else cond_left
     cond_right_z3 = cond_right.expr if hasattr(cond_right, "expr") else cond_right
@@ -357,21 +685,33 @@ def _substituted_proxy(value: Any, subs: list[tuple[Any, Any]]) -> Any:
     would silently drop their schema/subtypes, so we raise a pointing
     UnsupportedError instead.
     """
-    import z3
-
     from clauz3._vendor.deal_solver._proxies._row import RowSort
 
     if not hasattr(value, "expr"):
         return value
     new_expr = z3.substitute(value.expr, subs)
+    if new_expr.eq(value.expr):
+        # Nothing to rename: the value does not mention any bound variable.
+        # Returning it untouched sidesteps rebuilding proxies that cannot be
+        # rebuilt at all -- the untyped empty containers (``[]``, ``()``,
+        # ``{}``, ``set()``) raise from ``subtypes``/``evolve`` -- and any
+        # loop-invariant argument.
+        return value
 
     if isinstance(value, RowSort):
         return RowSort(schema=value.schema, expr=new_expr)
 
     proxy_type = type(value)
     try:
+        # Container proxies (list, set, dict, tuple) carry element subtypes and
+        # assert on them in their constructors; ``evolve`` rebuilds the proxy
+        # with that metadata intact. Scalars have no evolve and take the plain
+        # constructor.
+        evolve = getattr(value, "evolve", None)
+        if evolve is not None:
+            return evolve(expr=new_expr)
         return proxy_type(expr=new_expr)
-    except TypeError as exc:
+    except (TypeError, AssertionError, NotImplementedError, AttributeError) as exc:
         raise UnsupportedError(
             f"distinct over a quantified fact with arg type "
             f"{proxy_type.__name__!r} is not supported in v1 — "
@@ -423,9 +763,57 @@ class SumSpec:
                             "variable is not supported in v1; see "
                             "docs/todos/quantified-aggregates.md"
                         )
+                # A quantified fact stands for one call per loop index, so its
+                # contribution is `base` times the product of the loop trip
+                # counts. `cond` may mention the loops' bound variables (a call
+                # under `if row.consented:` inside the loop), and those stay
+                # *free* here: this is a term inside a contract formula, not a
+                # standalone assertion, so there is nowhere to bind them that
+                # would mean what we want.
+                #
+                # For counts and nonnegative constant selectors, leaving the
+                # indices free makes the term conservative in both
+                # directions. Every obligation is discharged by checking
+                # `given and not guarantee` unsatisfiable, so a free variable is
+                # read universally: the guarantee must hold for *every* value of
+                # each bound variable, in range or not. For an upper bound the
+                # solver picks an index making `cond` true, demanding the full
+                # product — an over-approximation of the real count. For a
+                # lower bound it picks an index making `cond` false, collapsing
+                # the term to zero, so the bound only discharges when it is
+                # already met without this fact. Neither direction can prove
+                # more than the truth.
+                #
+                # This assumes eval_for refuses loop-carried state: an
+                # iteration depends on its row and loop-invariant values, not
+                # values changed by previous iterations. Also preserve:
+                #   * each for-loop frame gets a fresh `z3.Int` (see
+                #     `_eval_stmt.eval_for`), so bound variables from different
+                #     loops cannot be conflated;
+                #   * the term is never wrapped in `ForAll`. Binding it would
+                #     turn the upper-bound case into `product` unconditionally
+                #     and, worse, the lower-bound case into a claim about a
+                #     universally quantified body — neither is the reading the
+                #     soundness argument above depends on.
+                # `docs/explanation/symbolic-iteration.md` documents the
+                # resulting precision boundary for contract authors.
                 product_z3: z3.ArithRef = z3.IntVal(1)
+                enclosing: list[Any] = []
+                dependent_bounds: list[z3.BoolRef] = []
                 for q in quantifiers:
+                    if _expr_uses_any_bound_var(
+                        q.upper, [outer.bound_var for outer in enclosing]
+                    ):
+                        # An inner result's length is constrained only for
+                        # reached outer iterations. Outside those bounds the
+                        # result function is deliberately unconstrained.
+                        dependent_bounds.extend(
+                            outer.bounds_expr() for outer in enclosing
+                        )
                     product_z3 = product_z3 * q.upper
+                    enclosing.append(q)
+                if dependent_bounds:
+                    cond = types.bool(z3.And(cond.expr, *dependent_bounds))
                 product: ProxySort = types.int(expr=product_z3)
                 multiplied = base.m_mul(product, ctx=ctx)
                 contrib = if_expr(cond, multiplied, zero, ctx=ctx)
@@ -514,8 +902,6 @@ def _wrap_with_quantifiers(
 
     Short-circuits when fact has no quantifiers (existing behavior preserved).
     """
-    import z3
-
     quantifiers = getattr(fact, "quantifiers", ())
     if not quantifiers:
         return body
@@ -525,6 +911,31 @@ def _wrap_with_quantifiers(
     bounds = z3.And(*bounds_parts) if len(bounds_parts) > 1 else bounds_parts[0]
     wrapped = z3.ForAll(bound_vars, z3.Implies(bounds, body_z3))
     return types.bool(wrapped)
+
+
+def _has_column_positions(code: CodeType) -> bool:
+    """Whether ``code`` carries any real column span in its location table."""
+    return any(
+        col is not None and end_col is not None and col != end_col
+        for _lineno, _end_lineno, col, end_col in code.co_positions()
+    )
+
+
+def _spans_within(code: CodeType, node: ast.Lambda) -> bool:
+    """Whether every instruction of ``code`` came from inside ``node``'s source.
+
+    ``co_positions`` also yields synthetic entries -- ``COPY_FREE_VARS`` has no
+    position at all, and ``RESUME``/``RETURN_VALUE`` carry a zero-width marker
+    at column 0 -- so only spans naming real source text are considered.
+    """
+    start = (node.lineno, node.col_offset)
+    end = (node.end_lineno, node.end_col_offset)
+    for lineno, end_lineno, col, end_col in code.co_positions():
+        if lineno is None or col is None or end_col is None or col == end_col:
+            continue
+        if not (start <= (lineno, col) and (end_lineno, end_col) <= end):
+            return False
+    return True
 
 
 @dataclass(frozen=True)
@@ -540,25 +951,63 @@ class LambdaSpec:
         # getsourcelines returns only the lambda's first physical line, silently
         # truncating multi-line bodies (e.g. a chained ``and``). Locating the
         # node in the full module by its first line number keeps the body whole.
-        all_lines, _ = inspect.findsource(func)
+        try:
+            all_lines, _ = inspect.findsource(func)
+        except (OSError, TypeError) as exc:
+            # ``exec``-defined, ``-c``, stdin, or ``.pyc``-only source. Not an
+            # UnsupportedError by itself, so it would escape prove() as a
+            # traceback (#167).
+            raise UnsupportedError(
+                "could not read the source of a relation lambda; predicates "
+                "must be lambdas defined in a file on disk"
+            ) from exc
         module = ast.parse("".join(all_lines))
-        firstlineno = func.__code__.co_firstlineno
+        code = func.__code__
         lambdas = [
             node
             for node in ast.walk(module)
-            if isinstance(node, ast.Lambda) and node.lineno == firstlineno
+            if isinstance(node, ast.Lambda) and node.lineno == code.co_firstlineno
         ]
-        if len(lambdas) > 1 and func.__code__.co_argcount:
-            first_arg = func.__code__.co_varnames[0]
-            narrowed = [
-                node
-                for node in lambdas
-                if node.args.args and node.args.args[0].arg == first_arg
-            ]
-            if narrowed:
-                lambdas = narrowed
         if not lambdas:
-            raise UnsupportedError("could not find lambda source")
+            # A ``def`` passed where a lambda is expected, or a file edited on
+            # disk since import. Distinct from ambiguity below (#167).
+            raise UnsupportedError(
+                "could not find lambda source on its line; relation predicates "
+                "must be lambdas (not def-defined functions), and the file on "
+                "disk must be the one that was imported"
+            )
+        if len(lambdas) > 1:
+            # Two lambdas can share a line -- ``rel.where(...).all(...)`` is the
+            # idiomatic one-liner -- so the line number alone does not identify
+            # a body. Every instruction the compiler emitted for this code
+            # object came from inside this lambda's own source span, so keep
+            # only the candidates that contain all of them.
+            if not _has_column_positions(code):
+                # Under ``-X no_debug_ranges`` / ``PYTHONNODEBUGRANGES`` the
+                # positions carry no columns, every candidate survives, and
+                # the refusal below would blame the contract (#167).
+                raise UnsupportedError(
+                    "cannot tell same-line lambdas apart: the code object has "
+                    "no column positions (usually -X no_debug_ranges or "
+                    "PYTHONNODEBUGRANGES, at run or compile time); run with "
+                    "column positions or put each lambda on its own line"
+                )
+            lambdas = [node for node in lambdas if _spans_within(code, node)]
+            if not lambdas:
+                # Every same-line candidate was rejected: the bytecode
+                # positions fit none of their spans. Not nesting, so say so.
+                raise UnsupportedError(
+                    "could not match a relation lambda's bytecode positions to "
+                    "any lambda on its source line; is the file on disk the "
+                    "one that was imported?"
+                )
+        if len(lambdas) != 1:
+            # Silently compiling a neighbouring lambda's body would mean a
+            # contract that reads correctly and proves something weaker.
+            raise UnsupportedError(
+                "could not locate lambda source unambiguously; a lambda nested "
+                "inside another lambda on the same line is not supported"
+            )
         lambda_node = lambdas[0]
         if len(lambda_node.args.args) != 1:
             raise UnsupportedError("effect lambdas must have exactly one argument")
@@ -570,13 +1019,41 @@ class LambdaSpec:
             env=env,
         )
 
+    def fields(self) -> frozenset[str]:
+        """Every ``e.<field>`` this predicate reads off a matched fact.
+
+        Attribute access on anything else --- a ``Row`` class\'s column
+        (``UserRow.email``), a module --- is not a field of the fact and is
+        left alone.
+        """
+
+        return frozenset(
+            node.attr
+            for node in ast.walk(self.body)
+            if isinstance(node, ast.Attribute)
+            and isinstance(node.value, ast.Name)
+            and node.value.id == self.arg_name
+        )
+
     def evaluate(self, *, row: dict[str, ProxySort], ctx: Any) -> ProxySort:
-        return _ExpressionCompiler(
+        # Relations are checked after the entry body has returned. Its exit
+        # state must not short-circuit a pure predicate. These predicates are
+        # encoded after the theorem's ordinary exception checks, so a possible
+        # new error must refuse here rather than append an unchecked exception.
+        predicate_ctx = ctx.make_child().evolve(returns=Layer(), exceptions=Layer())
+        result = _ExpressionCompiler(
             arg_name=self.arg_name,
             row=row,
             env=self.env,
-            ctx=ctx,
+            ctx=predicate_ctx,
         ).eval(self.body)
+        for exc in predicate_ctx.exceptions.layer:
+            if not z3.is_false(z3.simplify(exc.cond.expr)):
+                raise UnsupportedError("effect lambda may raise an exception", exc.name)
+        for expected in predicate_ctx.expected.layer:
+            if not z3.is_true(z3.simplify(expected.expr)):
+                raise UnsupportedError("effect lambda has an unchecked obligation")
+        return result
 
 
 @dataclass(frozen=True)
@@ -658,12 +1135,18 @@ class _ExpressionCompiler:
         raise UnsupportedError("unsupported comparison in effect lambda")
 
     def _eval_bool_op(self, node: ast.BoolOp) -> ProxySort:
-        values = [self.eval(value).m_bool(ctx=self.ctx) for value in node.values]
         if isinstance(node.op, ast.And):
-            return and_expr(*values, ctx=self.ctx)
-        if isinstance(node.op, ast.Or):
-            return or_expr(*values, ctx=self.ctx)
-        raise RuntimeError("unreachable")
+            op = "and"
+        elif isinstance(node.op, ast.Or):
+            op = "or"
+        else:
+            raise RuntimeError("unreachable")
+        return eval_boolean_operands(
+            op=op,
+            values=node.values,
+            evaluate=lambda value, ctx: replace(self, ctx=ctx).eval(value),
+            ctx=self.ctx,
+        )
 
     def _eval_bin_op(self, node: ast.BinOp) -> ProxySort:
         left = self.eval(node.left)
@@ -723,10 +1206,27 @@ def _as_proxy(value: Any, *, ctx: Any) -> Any:
         return types.bool.val(value, ctx=ctx)
     if isinstance(value, int):
         return types.int.val(value, ctx=ctx)
+    if isinstance(value, float):
+        return types.float.val(value, ctx=ctx)
     if isinstance(value, str):
         return types.str.val(value, ctx=ctx)
     if isinstance(value, list):
         return _list_value([_as_proxy(item, ctx=ctx) for item in value], ctx=ctx)
+    if isinstance(value, tuple):
+        if not value:
+            return UntypedVarTupleSort()
+        return types.tuple.val([_as_proxy(item, ctx=ctx) for item in value], ctx=ctx)
+    if isinstance(value, set):
+        if not value:
+            return UntypedSetSort()
+        return types.set.val([_as_proxy(item, ctx=ctx) for item in value], ctx=ctx)
+    if isinstance(value, dict):
+        result: DictSort = UntypedDictSort()
+        for key, item in value.items():
+            result = result.m_setitem(
+                key=_as_proxy(key, ctx=ctx), value=_as_proxy(item, ctx=ctx), ctx=ctx
+            )
+        return result
     raise UnsupportedError("unsupported contract literal", type(value).__name__)
 
 
@@ -736,8 +1236,6 @@ def _compare_column_ref(arg_proxy: Any, column_ref: ColumnRef, *, ctx: Any) -> B
 
     Returns BoolSort.val(True) on match, BoolSort.val(False) otherwise.
     """
-    import z3
-
     from clauz3._vendor.deal_solver._proxies._row import z3_datatype_for_row
 
     expr = arg_proxy.expr if hasattr(arg_proxy, "expr") else arg_proxy
@@ -785,8 +1283,6 @@ def _expr_uses_any_bound_var(proxy: Any, bound_vars: list[Any]) -> bool:
     >>> _expr_uses_any_bound_var(z3.IntVal(42), [i])
     False
     """
-    import z3
-
     expr = proxy.expr if hasattr(proxy, "expr") else proxy
     if not isinstance(expr, z3.ExprRef):
         return False

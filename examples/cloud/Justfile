@@ -1,0 +1,48 @@
+trusted := "tools/cloud/trusted"
+prove := "uv run clauz3 prove --trusted-root " + trusted
+
+test: lint cases
+
+lint:
+    uv run clauz3 lint {{trusted}}/effects.py
+
+cases: capped-deploy-pass cap-too-high-fail estimate-clamped-pass estimate-unclamped-fail total-caps-pass total-caps-fail remove-cap-fail capped-at-end-pass capped-at-end-fail only-services-fail cap-bounds-then-removed-pass cap-bounds-then-removed-fail zero-cap-precondition-fail
+
+capped-deploy-pass:
+    {{prove}} cases/capped_deploy_pass.py
+
+cap-too-high-fail:
+    if {{prove}} cases/cap_too_high_fail.py; then exit 1; fi
+
+estimate-clamped-pass:
+    {{prove}} cases/estimate_clamped_pass.py
+
+estimate-unclamped-fail:
+    if {{prove}} cases/estimate_unclamped_fail.py; then exit 1; fi
+
+total-caps-pass:
+    {{prove}} cases/total_caps_pass.py
+
+total-caps-fail:
+    if {{prove}} cases/total_caps_fail.py; then exit 1; fi
+
+remove-cap-fail:
+    if {{prove}} cases/remove_cap_fail.py; then exit 1; fi
+
+capped-at-end-pass:
+    {{prove}} cases/capped_at_end_pass.py
+
+capped-at-end-fail:
+    if {{prove}} cases/capped_at_end_fail.py; then exit 1; fi
+
+zero-cap-precondition-fail:
+    if {{prove}} cases/zero_cap_precondition_fail.py; then exit 1; fi
+
+only-services-fail:
+    if {{prove}} cases/only_services_fail.py; then exit 1; fi
+
+cap-bounds-then-removed-pass:
+    {{prove}} cases/cap_bounds_then_removed_pass.py
+
+cap-bounds-then-removed-fail:
+    if {{prove}} cases/cap_bounds_then_removed_fail.py; then exit 1; fi

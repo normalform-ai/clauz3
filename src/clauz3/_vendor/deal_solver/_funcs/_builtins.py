@@ -1,22 +1,44 @@
 from __future__ import annotations
 
+import builtins
+
 import z3
 
 from .._context import Context
 from .._exceptions import UnsupportedError
 from .._proxies import (
-    IntSort, ProxySort, StrSort, UntypedDictSort,
+    IntSort, NoneSort, ProxySort, StrSort, UntypedDictSort,
     UntypedListSort, UntypedSetSort, if_expr, random_name, types,
 )
 from ._registry import register
 
 
-@register('builtins.print')
-def builtins_ignore(*args, **kwargs) -> None:
-    return None
+def _print_signature(*objects):
+    pass
 
 
-@register('builtins.sum')
+def _one_argument(value, /):
+    pass
+
+
+def _optional_argument(iterable=(), /):
+    pass
+
+
+def _sum_signature(iterable, /):
+    pass
+
+
+def _min_max_signature(first, second=None, /):
+    pass
+
+
+@register('builtins.print', signature=_print_signature)
+def builtins_ignore(*args, **kwargs) -> NoneSort:
+    return NoneSort()
+
+
+@register('builtins.sum', signature=_sum_signature)
 def builtins_sum(items: ProxySort, ctx: Context, **kwargs) -> ProxySort:
     if not isinstance(items, (types.list, types.tuple)):
         raise UnsupportedError(f'cannot iterate over {items.type_name}')
@@ -38,7 +60,7 @@ def builtins_sum(items: ProxySort, ctx: Context, **kwargs) -> ProxySort:
 
 
 # TODO: support more than 2 explicit arguments.
-@register('builtins.min')
+@register('builtins.min', signature=_min_max_signature)
 def builtins_min(a: ProxySort, b: ProxySort | None = None, *, ctx: Context, **kwargs) -> ProxySort:
     if b is not None:
         return if_expr(a.m_lt(b, ctx=ctx), a, b, ctx=ctx)
@@ -51,14 +73,21 @@ def builtins_min(a: ProxySort, b: ProxySort | None = None, *, ctx: Context, **kw
         z3.IntSort(ctx=ctx.z3_ctx),
         items.sort().basis(),
     )
-    i = z3.Int(random_name('index'))
+    i = z3.Int(random_name('index'), ctx=ctx.z3_ctx)
     one = z3.IntVal(1, ctx=ctx.z3_ctx)
     zero = z3.IntVal(0, ctx=ctx.z3_ctx)
+    current = a.subtypes[0].wrap(items[i])
+    previous = a.subtypes[0].wrap(f(i - one))
+    smaller = (
+        current.m_lt(previous, ctx=ctx).expr
+        if isinstance(current, StrSort)
+        else items[i] < f(i - one)
+    )
     z3.RecAddDefinition(f, i, z3.If(
         i == zero,
         items[zero],
         z3.If(
-            items[i] < f(i - one),
+            smaller,
             items[i],
             f(i - one),
             ctx=ctx.z3_ctx,
@@ -68,7 +97,7 @@ def builtins_min(a: ProxySort, b: ProxySort | None = None, *, ctx: Context, **kw
     return a.subtypes[0].wrap(result)
 
 
-@register('builtins.max')
+@register('builtins.max', signature=_min_max_signature)
 def builtins_max(a: ProxySort, b: ProxySort | None = None, *, ctx: Context, **kwargs) -> ProxySort:
     if b is not None:
         return if_expr(a.m_gt(b, ctx=ctx), a, b, ctx=ctx)
@@ -84,11 +113,18 @@ def builtins_max(a: ProxySort, b: ProxySort | None = None, *, ctx: Context, **kw
     i = z3.Int(random_name('index'), ctx=ctx.z3_ctx)
     one = z3.IntVal(1, ctx=ctx.z3_ctx)
     zero = z3.IntVal(0, ctx=ctx.z3_ctx)
+    current = a.subtypes[0].wrap(items[i])
+    previous = a.subtypes[0].wrap(f(i - one))
+    larger = (
+        current.m_gt(previous, ctx=ctx).expr
+        if isinstance(current, StrSort)
+        else items[i] > f(i - one)
+    )
     z3.RecAddDefinition(f, i, z3.If(
         i == zero,
         items[zero],
         z3.If(
-            items[i] > f(i - one),
+            larger,
             items[i],
             f(i - one),
             ctx=ctx.z3_ctx,
@@ -99,7 +135,7 @@ def builtins_max(a: ProxySort, b: ProxySort | None = None, *, ctx: Context, **kw
     return a.subtypes[0].wrap(result)
 
 
-@register('builtins.ord')
+@register('builtins.ord', signature=builtins.ord)
 def builtins_ord(val: ProxySort, ctx: Context, **kwargs) -> IntSort:
     if not isinstance(val, StrSort):
         msg = 'ord() expected string of length 1, but {} found'
@@ -111,63 +147,63 @@ def builtins_ord(val: ProxySort, ctx: Context, **kwargs) -> IntSort:
         msg='ord() expected a character, but string of length N found',
         cond=val.m_len(ctx=ctx).m_ne(types.int.val(1, ctx=ctx), ctx=ctx),
     )
-    target = z3.String(random_name('ord_c'))
-    ctx.given.add(types.bool(target == val.expr))
-    return types.int(z3.StrToCode(target))
+    return types.int(z3.BV2Int(val.expr[0], is_signed=False))
 
 
-@register('builtins.abs')
+@register('builtins.abs', signature=builtins.abs)
 def builtins_abs(x: ProxySort, ctx: Context, **kwargs) -> ProxySort:
     return x.m_abs(ctx=ctx)
 
 
-@register('builtins.len')
+@register('builtins.len', signature=builtins.len)
 def builtins_len(items: ProxySort, ctx: Context, **kwargs) -> IntSort:
     return items.m_len(ctx=ctx)
 
 
-@register('builtins.int')
-def builtins_int(a: ProxySort, *, ctx: Context, **kwargs) -> ProxySort:
-    return a.m_int(ctx=ctx)
+@register('builtins.int', signature=_one_argument)
+def builtins_int(*args: ProxySort, ctx: Context, **kwargs) -> ProxySort:
+    if len(args) != 1 or kwargs:
+        raise UnsupportedError('int() requires one positional argument and no keywords')
+    return args[0].m_int(ctx=ctx)
 
 
-@register('builtins.float')
+@register('builtins.float', signature=_one_argument)
 def builtins_float(a: ProxySort, ctx: Context, **kwargs) -> ProxySort:
     return a.m_float(ctx=ctx)
 
 
-@register('builtins.str')
+@register('builtins.str', signature=_one_argument)
 def builtins_str(obj: ProxySort, ctx: Context, **kwargs) -> StrSort:
     return obj.m_str(ctx=ctx)
 
 
-@register('builtins.bool')
+@register('builtins.bool', signature=_one_argument)
 def builtins_bool(obj: ProxySort, ctx: Context, **kwargs) -> ProxySort:
     return obj.m_bool(ctx=ctx)
 
 
-@register('builtins.set')
-def builtins_set(iterable=None, **kwargs) -> ProxySort:
+@register('builtins.set', signature=_optional_argument)
+def builtins_set(iterable=None, *, ctx: Context, **kwargs) -> ProxySort:
     if iterable is not None:
         if isinstance(iterable, types.set):
-            return iterable
+            return ctx.ownership.fresh(iterable, ctx=ctx)
         raise UnsupportedError('unsupported argument for set()')
-    return UntypedSetSort()
+    return ctx.ownership.fresh(UntypedSetSort(), ctx=ctx)
 
 
-@register('builtins.list')
-def builtins_list(iterable=None, **kwargs) -> ProxySort:
+@register('builtins.list', signature=_optional_argument)
+def builtins_list(iterable=None, *, ctx: Context, **kwargs) -> ProxySort:
     if iterable is not None:
         if isinstance(iterable, types.list):
-            return iterable
+            return ctx.ownership.fresh(iterable, ctx=ctx)
         raise UnsupportedError('unsupported argument for list()')
-    return UntypedListSort()
+    return ctx.ownership.fresh(UntypedListSort(), ctx=ctx)
 
 
-@register('builtins.dict')
-def builtins_dict(iterable=None, **kwargs) -> ProxySort:
+@register('builtins.dict', signature=_optional_argument)
+def builtins_dict(iterable=None, *, ctx: Context, **kwargs) -> ProxySort:
     if iterable is not None:
         if isinstance(iterable, types.dict):
-            return iterable
+            return ctx.ownership.fresh(iterable, ctx=ctx)
         raise UnsupportedError('unsupported argument for dict()')
-    return UntypedDictSort()
+    return ctx.ownership.fresh(UntypedDictSort(), ctx=ctx)

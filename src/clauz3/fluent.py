@@ -11,7 +11,7 @@ declares its successor-state axiom with the :func:`effect` decorator::
 
     DoorLocked = fluent("door_locked", value=bool, initial=True)
 
-    @deal.has("trusted")
+    @clauz3.trusted
     @effect(lambda door: DoorLocked.set(door, False))
     def unlock_door(door: str) -> None: ...
 
@@ -45,6 +45,7 @@ import z3
 
 from clauz3._vendor.deal_solver._exceptions import UnsupportedError
 from clauz3._vendor.deal_solver._proxies import types
+from clauz3._vendor.deal_solver._strings import string_domain, string_sort, string_val
 from clauz3.spec import ContractSpec, LambdaSpec, _as_proxy
 
 # Value/key types a fluent may carry. These map directly onto Z3 sorts and the
@@ -52,7 +53,7 @@ from clauz3.spec import ContractSpec, LambdaSpec, _as_proxy
 _SORTS: dict[type, Callable[[], z3.SortRef]] = {
     bool: z3.BoolSort,
     int: z3.IntSort,
-    str: z3.StringSort,
+    str: string_sort,
 }
 
 
@@ -257,7 +258,10 @@ class FluentAllSpec(ContractSpec):
             row={"value": value_proxy, "key": key_proxy},
             ctx=ctx,
         ).m_bool(ctx=ctx)
-        return types.bool(expr=z3.ForAll([key_var], body.expr))
+        predicate = body.expr
+        if self.fluent.key_type is str:
+            predicate = z3.Implies(string_domain(key_var), predicate)
+        return types.bool(expr=z3.ForAll([key_var], predicate))
 
 
 @dataclass(frozen=True)
@@ -285,7 +289,7 @@ def _literal_z3(py_type: type, value: Any) -> z3.ExprRef:
     if py_type is int:
         return z3.IntVal(int(value))
     if py_type is str:
-        return z3.StringVal(str(value))
+        return string_val(str(value))
     raise UnsupportedError(f"unsupported fluent literal type {py_type!r}")
 
 

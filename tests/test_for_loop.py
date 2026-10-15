@@ -1,11 +1,13 @@
 import pytest
 import z3
 
+from clauz3._vendor.deal_solver import Conclusion
 from clauz3._vendor.deal_solver._context import Context
 from clauz3._vendor.deal_solver._context._layer import FactInfo
 from clauz3._vendor.deal_solver._context._quantifier import Quantifier
 from clauz3._vendor.deal_solver._eval_stmt import eval_stmt
 from clauz3._vendor.deal_solver._proxies._row import QueryResultSort
+from clauz3._vendor.deal_solver._strings import string_value
 from clauz3.prover import AgentTheorem
 from clauz3.row import Row
 
@@ -107,7 +109,6 @@ def test_for_loop_over_symbolic_range_raises() -> None:
     source = """
 import clauz3
 
-@clauz3.guarantee(lambda: True)
 def main() -> None:
     n = 5
     for x in range(n):
@@ -116,7 +117,7 @@ def main() -> None:
     from clauz3.prover import prove_text
 
     results = prove_text(source)
-    assert not all(r.ok for r in results)
+    assert [r.proof.conclusion for r in results] == [Conclusion.SKIP]
     error_str = " ".join(str(r.proof.error or "") for r in results)
     assert "range" in error_str.lower() or "unsupported" in error_str.lower()
 
@@ -132,7 +133,6 @@ def test_for_loop_over_literal_range_unrolls_to_concrete_facts() -> None:
         def record(i: int) -> None: ...
 
 
-        @clauz3.guarantee(lambda: True)
         def main() -> None:
             for i in range(3):
                 record(i)
@@ -156,7 +156,6 @@ def test_for_loop_over_literal_list_unrolls_to_concrete_facts() -> None:
         def send_email(addr: str, msg: str) -> None: ...
 
 
-        @clauz3.guarantee(lambda: True)
         def main() -> None:
             for addr in ["bob@example.com", "ann@example.com"]:
                 send_email(addr, "hi")
@@ -166,7 +165,7 @@ def test_for_loop_over_literal_list_unrolls_to_concrete_facts() -> None:
     emails = [fact for fact in facts if fact.name == "send_email"]
     assert len(emails) == 2
     assert all(fact.quantifiers == () for fact in emails)
-    assert [fact.args["addr"].expr.as_string() for fact in emails] == [
+    assert [string_value(fact.args["addr"].expr) for fact in emails] == [
         "bob@example.com",
         "ann@example.com",
     ]
@@ -195,7 +194,6 @@ def db_query(table: str) -> list[UserRow]: ...
 def send_email(addr: str, msg: str) -> None: ...
 
 
-@clauz3.guarantee(lambda: True)
 def main() -> None:
     for row in db_query("users"):
         send_email(row.email, "hi")
@@ -227,7 +225,6 @@ class UserRow(clauz3.Row):
 def db_query(table: str) -> list[UserRow]: ...
 
 
-@clauz3.guarantee(lambda: True)
 def main() -> None:
     for row in db_query("users"):
         {body}
@@ -235,7 +232,7 @@ def main() -> None:
     from clauz3.prover import prove_text
 
     results = prove_text(source)
-    assert not all(r.ok for r in results)
+    assert [r.proof.conclusion for r in results] == [Conclusion.SKIP]
     error_str = " ".join(str(r.proof.error or "") for r in results)
     assert body in error_str.lower() or "unsupported" in error_str.lower()
 
@@ -255,7 +252,6 @@ class UserRow(clauz3.Row):
 def db_query(table: str) -> list[UserRow]: ...
 
 
-@clauz3.guarantee(lambda: True)
 def main() -> None:
     for row in db_query("users"):
         return
@@ -263,6 +259,6 @@ def main() -> None:
     from clauz3.prover import prove_text
 
     results = prove_text(source)
-    assert not all(r.ok for r in results)
+    assert [r.proof.conclusion for r in results] == [Conclusion.SKIP]
     error_str = " ".join(str(r.proof.error or "") for r in results)
     assert "return" in error_str.lower() or "unsupported" in error_str.lower()

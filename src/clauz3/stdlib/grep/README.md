@@ -3,10 +3,10 @@
 A trusted `clauz3` layer that searches files for a substring — a real
 (non-mock) substitute for an agent's `ripgrep` tool.
 
-grep **builds on `filesystem`**. A grep call reads a file, so it carries the
-same `read` marker as `read_file`, and the filesystem read policies
-(`only_read_under`, `never_read_under`) apply to grep calls unchanged. grep
-adds its own search-specific contracts on top.
+grep **builds on `filesystem`**. A grep call reads a file, so
+`grep.only_read_under` / `grep.never_read_under` apply that layer's path rule
+to the grep effect itself. grep adds its own search-specific contracts on
+top.
 
 ## Install
 
@@ -31,7 +31,7 @@ Import with `from tools.grep.trusted.effects import grep`:
 
 - `grep(pattern: str, path: str) -> list[str]` — return the lines in `path`
   that contain the substring `pattern`. Precondition: both `pattern` and `path`
-  are non-empty. Recorded under the `read` marker.
+  are non-empty.
 
 ## Contracts
 

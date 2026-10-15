@@ -1,0 +1,55 @@
+# Runner commands. Default to `uv run` for the source-checkout dev flow;
+# `clauz3 test` overrides CLAUZ3 so the bundled suite also runs from an
+# installed wheel, where `uv` is absent.
+clauz3 := env_var_or_default("CLAUZ3", "uv run clauz3")
+python := env_var_or_default("PYTHON", "uv run python")
+
+trusted := "../tools/db/trusted"
+effects := trusted + "/effects.py"
+prove := clauz3 + " prove --trusted-root " + trusted + " --import-root .."
+
+test: lint setup-runtime-data cases runtime-smoke
+
+lint:
+    {{clauz3}} lint {{effects}}
+
+setup-runtime-data:
+    {{python}} setup_runtime_data.py
+
+runtime-smoke: setup-runtime-data
+    PYTHONPATH=.. {{python}} runtime_smoke.py
+
+cases: no-db-reads-pass no-db-reads-fail only-read-under-pass only-read-under-fail only-table-pass only-table-fail reads-at-most-pass reads-at-most-fail only-where-pass only-where-fail loop-rows-pass
+
+no-db-reads-pass:
+    {{prove}} cases/no_db_reads_pass.py
+
+no-db-reads-fail:
+    if {{prove}} cases/no_db_reads_fail.py; then exit 1; fi
+
+only-read-under-pass:
+    {{prove}} cases/only_read_under_pass.py
+
+only-read-under-fail:
+    if {{prove}} cases/only_read_under_fail.py; then exit 1; fi
+
+only-table-pass:
+    {{prove}} cases/only_table_pass.py
+
+only-table-fail:
+    if {{prove}} cases/only_table_fail.py; then exit 1; fi
+
+reads-at-most-pass:
+    {{prove}} cases/reads_at_most_pass.py
+
+reads-at-most-fail:
+    if {{prove}} cases/reads_at_most_fail.py; then exit 1; fi
+
+only-where-pass:
+    {{prove}} cases/only_where_pass.py
+
+only-where-fail:
+    if {{prove}} cases/only_where_fail.py; then exit 1; fi
+
+loop-rows-pass:
+    {{prove}} cases/loop_rows_pass.py

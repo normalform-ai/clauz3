@@ -27,13 +27,14 @@ without a corresponding design update.
 
 from pathlib import Path
 
+from clauz3._vendor.deal_solver import Conclusion
 from clauz3.prover import prove_path
 
 _EFFECTS_SRC = """\
 import deal
 
 
-@deal.pre(lambda to, dry_run: "@" in to, message="addr needs @")
+@deal.pre(lambda to, *, dry_run=True: "@" in to, message="addr needs @")
 @deal.has("trusted")
 def send(to: str, *, dry_run: bool = True) -> None:
     pass
@@ -85,7 +86,7 @@ def test_explicit_dry_run_true_proves(tmp_path: Path) -> None:
     )
     results = prove_path(case, trusted_roots=[trusted], import_roots=[root])
     assert len(results) == 1
-    assert results[0].ok is True
+    assert results[0].proof.conclusion is Conclusion.OK
 
 
 def test_explicit_dry_run_false_fails(tmp_path: Path) -> None:
@@ -98,7 +99,7 @@ def test_explicit_dry_run_false_fails(tmp_path: Path) -> None:
     )
     results = prove_path(case, trusted_roots=[trusted], import_roots=[root])
     assert len(results) == 1
-    assert results[0].ok is False
+    assert results[0].proof.conclusion is Conclusion.FAIL
 
 
 def test_default_kwarg_fails_closed(tmp_path: Path) -> None:
@@ -117,4 +118,4 @@ def test_default_kwarg_fails_closed(tmp_path: Path) -> None:
     )
     results = prove_path(case, trusted_roots=[trusted], import_roots=[root])
     assert len(results) == 1
-    assert results[0].ok is False
+    assert results[0].proof.conclusion is Conclusion.PARTIAL

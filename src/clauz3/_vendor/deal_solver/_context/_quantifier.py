@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import z3
 
 if typing.TYPE_CHECKING:
+    from .._proxies._list import TrustedStringListSort
     from .._proxies._row import QueryResultSort
 
 
@@ -15,7 +16,7 @@ class Quantifier:
     """One for-loop frame's binding."""
 
     bound_var: z3.ArithRef
-    source: "QueryResultSort"
+    source: "QueryResultSort | TrustedStringListSort"
     lower: z3.ArithRef
     upper: z3.ArithRef
 

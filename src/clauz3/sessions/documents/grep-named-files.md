@@ -1,0 +1,19 @@
+# Search two named files for a literal substring
+
+Requires the bundled `filesystem` and `grep` libraries. `grep` matches a literal
+substring, not a regex. This complete recipe searches exactly the two named
+files, not a directory tree. Each printed list contains all matching lines in
+that file. Adapt the literal paths and pattern to the actual request.
+
+```python
+import clauz3
+from tools.grep.trusted import contracts as search
+from tools.grep.trusted.effects import grep
+
+@clauz3.guarantee(search.only_read_under("./data/"))
+@clauz3.guarantee(search.only_pattern("hello"))
+@clauz3.guarantee(search.searches_at_most(2))
+def main() -> None:
+    for path in ["./data/input.txt", "./data/other.txt"]:
+        print(path, grep("hello", path))
+```

@@ -8,12 +8,14 @@ function, and the contract vocabulary covers two domain predicates:
 
 ## Trusted module
 
-The trusted effect is a stub with a non-negativity precondition. The
-prover lifts that precondition into a proof obligation at every call site.
+The trusted effect is a stub decorated with `@clauz3.trusted` and a
+`@clauz3.requires(...)` non-negativity precondition. The prover lifts that
+precondition into a proof obligation at every call site.
 
 {{ include_file("examples/bank/tools/bank/trusted/effects.py") }}
 
-Two contract helpers wrap the generic `effect("withdraw")` relation.
+Two contract helpers wrap `effect(withdraw)`, the relation for calls to the
+imported trusted function.
 
 {{ include_file("examples/bank/tools/bank/trusted/contracts.py") }}
 

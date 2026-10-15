@@ -7,6 +7,7 @@ import clauz3
 
 @clauz3.guarantee(bank.max_spend(5))
 def main(use_savings: bool) -> None:
+    """withdraw $5 from savings or checking"""
     if use_savings:
         withdraw("savings", 5)
     else:

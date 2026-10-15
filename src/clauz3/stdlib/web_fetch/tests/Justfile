@@ -1,8 +1,7 @@
 # Runner commands. Default to `uv run` for the source-checkout dev flow;
-# `clauz3 test` overrides CLAUZ3/DEAL so the bundled suite also runs from an
+# `clauz3 test` overrides CLAUZ3 so the bundled suite also runs from an
 # installed wheel, where `uv` is absent.
 clauz3 := env_var_or_default("CLAUZ3", "uv run clauz3")
-deal := env_var_or_default("DEAL", "uv run python -m deal")
 
 trusted := "../tools/web_fetch/trusted"
 effects := trusted + "/effects.py"
@@ -11,9 +10,9 @@ prove := clauz3 + " prove --trusted-root " + trusted + " --import-root .."
 test: lint cases
 
 lint:
-    {{deal}} lint {{effects}}
+    {{clauz3}} lint {{effects}}
 
-cases: only-fetch-under-pass only-fetch-under-fail never-fetch-under-pass never-fetch-under-fail https-only-pass https-only-fail no-fetches-pass no-fetches-fail fetches-at-most-pass fetches-at-most-fail no-url-contains-pass no-url-contains-fail url-length-at-most-pass url-length-at-most-fail
+cases: only-fetch-under-pass only-fetch-under-fail never-fetch-under-pass never-fetch-under-fail https-only-pass https-only-fail no-fetches-pass no-fetches-fail no-posts-pass no-posts-fail fetches-at-most-pass fetches-at-most-fail no-url-contains-pass no-url-contains-fail url-length-at-most-pass url-length-at-most-fail post-url-policy-pass post-url-policy-fail
 
 only-fetch-under-pass:
     {{prove}} cases/only_fetch_under_pass.py
@@ -39,6 +38,12 @@ no-fetches-pass:
 no-fetches-fail:
     if {{prove}} cases/no_fetches_fail.py; then exit 1; fi
 
+no-posts-pass:
+    {{prove}} cases/no_posts_pass.py
+
+no-posts-fail:
+    if {{prove}} cases/no_posts_fail.py; then exit 1; fi
+
 fetches-at-most-pass:
     {{prove}} cases/fetches_at_most_pass.py
 
@@ -56,3 +61,9 @@ url-length-at-most-pass:
 
 url-length-at-most-fail:
     if {{prove}} cases/url_length_at_most_fail.py; then exit 1; fi
+
+post-url-policy-pass:
+    {{prove}} cases/post_url_policy_pass.py
+
+post-url-policy-fail:
+    if {{prove}} cases/post_url_policy_fail.py; then exit 1; fi

@@ -1,8 +1,9 @@
-import deal
+import clauz3
+from clauz3._path_safety import has_no_parent_segments
 
 
-@deal.pre(lambda channel, text: len(text) > 0, message="text must be non-empty")
-@deal.has("send", "trusted")
+@clauz3.requires(lambda channel, text: len(text) > 0, message="text must be non-empty")
+@clauz3.trusted
 def send_message(channel: str, text: str) -> None:
     """Trusted text sender.
 
@@ -15,8 +16,12 @@ def send_message(channel: str, text: str) -> None:
     pass
 
 
-@deal.pre(lambda path, new_text: len(path) > 0, message="path must be non-empty")
-@deal.has("edit", "trusted")
+@clauz3.requires(
+    lambda path, new_text: has_no_parent_segments(path),
+    message="path must not contain parent-directory segments",
+)
+@clauz3.requires(lambda path, new_text: len(path) > 0, message="path must be non-empty")
+@clauz3.trusted
 def edit_file(path: str, new_text: str) -> None:
     """Trusted file editor.
 

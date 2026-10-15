@@ -22,12 +22,15 @@ from urllib.request import Request, urlopen
 
 import deal
 
+import clauz3
+
 DEFAULT_USER_AGENT = "clauz3-web-search/0.1"
 DEFAULT_TIMEOUT_SECONDS = 30
 
 
-@deal.pre(lambda query: len(query) > 0, message="query must be non-empty")
-@deal.has("net", "search", "global", "import", "trusted")
+@clauz3.requires(lambda query: len(query) > 0, message="query must be non-empty")
+@deal.has("network", "io", "global", "import")
+@clauz3.trusted
 def web_search(query: str) -> list[str]:
     """Search for ``query`` and return a list of result URLs as strings.
 

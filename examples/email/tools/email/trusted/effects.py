@@ -1,8 +1,9 @@
-import deal
+import clauz3
 
 
-@deal.pre(lambda addr, msg: "@" in addr, message='addr must contain "@"')
-@deal.has("trusted")
+@clauz3.requires(lambda addr, msg: "@" in addr, message='addr must contain "@"')
+@clauz3.trusted
+@clauz3.mock
 def send_email(addr: str, msg: str) -> None:
     """trusted email sender.
 

@@ -9,13 +9,14 @@ effects.
 
 ## Trusted module
 
-The trusted effect is just a stub function decorated with `@deal.has(...)`
-and a precondition.
+The trusted effect is a stub function decorated with `@clauz3.trusted`.
+Its `@clauz3.requires(...)` precondition is an obligation at every call site.
 
 {{ include_file("examples/email/tools/email/trusted/effects.py") }}
 
-The contract module defines the domain vocabulary on top of the generic
-`effect("send_email")` relation.
+The contract module defines the domain vocabulary on top of the
+`effect(send_email)` relation, passing the imported trusted function directly.
+The string form `effect("send_email")` also names this effect.
 
 {{ include_file("examples/email/tools/email/trusted/contracts.py") }}
 
@@ -26,6 +27,14 @@ Sending one email to an allow-listed address discharges
 
 {{ include_file("examples/email/cases/only_bob_pass.py") }}
 
+Of course, this case is trivial. The contract is somewhat superfluous here
+as it's easy for a person to see the one-line `main()` function and infer it
+only emails the one person. But it serves to illustrate the simplest case
+where a user need only read the contract and not the program.
+
+In a real world scenario, the agent may author a more complex program that
+is harder for a person to quickly reason over.
+
 ## A failing case
 
 The same guarantee with a non-allow-listed recipient is rejected by the
@@ -33,31 +42,31 @@ prover.
 
 {{ include_file("examples/email/cases/only_bob_fail.py") }}
 
-## The runtime layer (deal as a backstop)
+## The runtime layer
 
-The static prover is only the first layer. The `@deal.pre` on `send_email`
-(`addr` must contain `"@"`) is also a *runtime* contract. The two layers act on
-the same artifact at different times.
+The static prover is only the first layer. The `@clauz3.requires` on
+`send_email` (`addr` must contain `"@"`) is also a *runtime* check. The two
+layers act on the same artifact at different times.
 
 Statically, `precondition_fail.py` is rejected by the prover before anything
 runs, because it cannot discharge that precondition for the call below:
 
 {{ include_file("examples/email/cases/precondition_fail.py") }}
 
-The same precondition is what [deal](https://deal.readthedocs.io/) enforces at
-runtime. If the program is run outside a successful proof — a weak or
-`no_guarantees()` contract, or runtime-only mode — deal still raises on the bad
-call at the trusted boundary:
+Choosing `no_guarantees()` removes the email-effect guarantee; it does not
+remove preconditions. The prover still rejects a call whose address lacks
+`"@"`. The same precondition is also enforced at runtime, including when the
+trusted function is called directly without a proof:
 
 ```pycon
 >>> from tools.email.trusted.effects import send_email
 >>> send_email("bob@example.com", "hi")        # precondition holds: runs
 >>> send_email("not-an-email", "hi")           # precondition violated
-deal.PreContractError: addr must contain "@" (where addr='not-an-email', msg='hi')
+PreContractError: addr must contain "@" (where addr='not-an-email', msg='hi')
 ```
 
-Same check, different time: the prover discharges it ahead of execution, deal
-enforces it at execution. See
+Same check, different time: the prover discharges it ahead of execution, the
+boundary enforces it at execution. See
 [Concepts: static proof vs runtime](../explanation/concepts.md#static-proof-vs-runtime).
 
 ## All cases

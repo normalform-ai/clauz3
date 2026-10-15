@@ -8,6 +8,7 @@ from ._funcs import and_expr, if_expr, or_expr, random_name
 from ._int import IntSort
 from ._lambda import LambdaSort
 from ._list import ListSort, UntypedListSort
+from ._none import NoneSort
 from ._pattern import PatternSort
 from ._proxy import ProxySort
 from ._registry import types
@@ -36,6 +37,7 @@ __all__ = [
     'FuncSort',
     'IntSort',
     'ListSort',
+    'NoneSort',
     'PatternSort',
     'SetSort',
     'StrSort',

@@ -1,15 +1,20 @@
-"""Web-fetch URL policies built from generic trusted effect facts.
+"""Web-fetch URL and method policies built from generic trusted effect facts.
 
-Fetches are recorded under the ``net`` and ``fetch`` markers. These contracts
-let an agent state which URLs may be fetched, how many fetches may occur, and
-which substrings the URL itself must (not) contain — the last is the genuinely
-novel exfil guard a typical HTTP client cannot statically prove.
+``Fetch`` covers both HTTP effects, GET and POST; ``Post`` covers POST
+alone. These
+contracts let an agent state which URLs may be fetched, how many fetches may
+occur, whether POSTs are forbidden, and which substrings the URL itself must
+(not) contain — the last is the genuinely novel exfil guard a typical HTTP
+client cannot statically prove.
 """
+
+from tools.web_fetch.trusted.effects import fetch_url, post_url
 
 from clauz3.spec import ContractSpec, contract, effect
 from clauz3.spec import no_guarantees as core_no_guarantees
 
-Fetch = effect("fetch")
+Fetch = effect(fetch_url, post_url)
+Post = effect(post_url)
 
 
 @contract
@@ -20,8 +25,14 @@ def no_guarantees() -> ContractSpec:
 
 @contract
 def no_fetches() -> ContractSpec:
-    """Guarantee the program issues no HTTP fetches."""
+    """Guarantee the program issues no HTTP GETs or POSTs."""
     return Fetch.empty()
+
+
+@contract
+def no_posts() -> ContractSpec:
+    """Guarantee the program issues no HTTP POSTs."""
+    return Post.empty()
 
 
 @contract

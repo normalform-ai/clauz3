@@ -182,3 +182,49 @@ def test_resolve_with_sha_ref(upstream_repo: Path, isolated_cache: Path) -> None
     url = f"file://{upstream_repo}@{head_sha}"
     cached = resolve_remote_source(url)
     assert cached.name == head_sha
+
+
+def test_git_subprocesses_do_not_inherit_approval_authority(
+    upstream_repo: Path,
+    isolated_cache: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import json
+    import os
+    import shutil
+    import sys
+
+    real_git = shutil.which("git")
+    assert real_git
+    capture = tmp_path / "git-env.jsonl"
+    wrapper = tmp_path / "bin/git"
+    wrapper.parent.mkdir()
+    wrapper.write_text(
+        f"#!{sys.executable}\nimport json, os, sys\n"
+        f"with open({str(capture)!r}, 'a') as file:\n"
+        "    file.write(json.dumps(dict(os.environ)) + '\\n')\n"
+        f"os.execv({real_git!r}, [{real_git!r}, *sys.argv[1:]])\n"
+    )
+    wrapper.chmod(0o700)
+    monkeypatch.setenv("PATH", str(wrapper.parent) + os.pathsep + os.environ["PATH"])
+    private = (
+        "CLAUZ3_APPROVAL_SIGNING_KEY",
+        "CLAUZ3_APPROVAL_DECISION_TOKEN",
+        "CLAUZ3_APPROVAL_TOKEN",
+        "CLAUZ3_APPROVAL_FUTURE_SECRET",
+        "CLAUZ3_UI_CONFIG",
+        "CLAUZ3_RUN_STATUS_FILE",
+        "CLAUZ3_SESSION_LIFETIME_SOCKET",
+    )
+    for name in private:
+        monkeypatch.setenv(name, "private-service-value")
+    monkeypatch.setenv("SSH_AUTH_SOCK", "operator-git-auth")
+    cached = resolve_remote_source(upstream_repo.as_uri())
+    assert (cached / "tools/x/trusted/effects.py").exists()
+    environments = [json.loads(line) for line in capture.read_text().splitlines()]
+    assert len(environments) >= 3  # ls-remote, clone, checkout
+    for env in environments:
+        assert not any(name in env for name in private)
+        assert env["SSH_AUTH_SOCK"] == "operator-git-auth"
+        assert env["GIT_TERMINAL_PROMPT"] == "0"

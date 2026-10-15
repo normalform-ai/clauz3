@@ -1,0 +1,489 @@
+{
+  "classes": {
+    "Contract": {
+      "abstract": true,
+      "description": "A constraint on the reachable effects of a program."
+    },
+    "EditorAppendFile": {
+      "annotations": {
+        "python_symbol": "tools.editor.trusted.effects.append_file",
+        "source_sha256": "7bea35fd5723447e1df4f17b090622a166fa9e8179eb71b9f3b956831d48af5c"
+      },
+      "attributes": {
+        "path": {
+          "annotations": {
+            "python_parameter_kind": "POSITIONAL_OR_KEYWORD"
+          },
+          "description": "The path argument to tools.editor.trusted.effects.append_file.",
+          "range": "string",
+          "required": true,
+          "slot_uri": "cz:tools.editor.trusted.effects.append_file.path"
+        },
+        "text": {
+          "annotations": {
+            "python_parameter_kind": "POSITIONAL_OR_KEYWORD"
+          },
+          "description": "The text argument to tools.editor.trusted.effects.append_file.",
+          "range": "string",
+          "required": true,
+          "slot_uri": "cz:tools.editor.trusted.effects.append_file.text"
+        }
+      },
+      "class_uri": "cz:tools.editor.trusted.effects.append_file",
+      "description": "Append ``text`` to the UTF-8 contents of ``path``.\n\nCreates parent directories and the file as needed. Recorded under\nthe ``Edit`` relation, with field name ``text`` (not ``new_text``).",
+      "is_a": "EffectCall"
+    },
+    "EditorAppendLengthAtMost": {
+      "annotations": {
+        "cnl_template": "Every editor.append_file addition must have a character count of at most {max_chars}.",
+        "python_symbol": "tools.editor.trusted.contracts.append_length_at_most",
+        "renderer_version": 1,
+        "source_sha256": "21ea73c7d7273517ddf3deb637737a177a74334ddd8050e0f852f206cb7036bc"
+      },
+      "attributes": {
+        "max_chars": {
+          "annotations": {
+            "python_parameter_kind": "POSITIONAL_OR_KEYWORD"
+          },
+          "description": "The max_chars argument to tools.editor.trusted.contracts.append_length_at_most.",
+          "range": "integer",
+          "required": true,
+          "slot_uri": "cz:tools.editor.trusted.contracts.append_length_at_most.max_chars"
+        }
+      },
+      "class_uri": "cz:tools.editor.trusted.contracts.append_length_at_most",
+      "description": "Guarantee every ``append_file`` chunk is at most ``max_chars`` long.",
+      "is_a": "Contract"
+    },
+    "EditorEditFile": {
+      "annotations": {
+        "python_symbol": "tools.editor.trusted.effects.edit_file",
+        "source_sha256": "7bea35fd5723447e1df4f17b090622a166fa9e8179eb71b9f3b956831d48af5c"
+      },
+      "attributes": {
+        "new_text": {
+          "annotations": {
+            "python_parameter_kind": "POSITIONAL_OR_KEYWORD"
+          },
+          "description": "The new_text argument to tools.editor.trusted.effects.edit_file.",
+          "range": "string",
+          "required": true,
+          "slot_uri": "cz:tools.editor.trusted.effects.edit_file.new_text"
+        },
+        "path": {
+          "annotations": {
+            "python_parameter_kind": "POSITIONAL_OR_KEYWORD"
+          },
+          "description": "The path argument to tools.editor.trusted.effects.edit_file.",
+          "range": "string",
+          "required": true,
+          "slot_uri": "cz:tools.editor.trusted.effects.edit_file.path"
+        }
+      },
+      "class_uri": "cz:tools.editor.trusted.effects.edit_file",
+      "description": "Replace the UTF-8 contents of ``path`` with ``new_text``.\n\nCreates parent directories as needed; overwrites any existing file.\nCovered by the ``Edit`` relation, along with ``append_file``.",
+      "is_a": "EffectCall"
+    },
+    "EditorEditsAtMost": {
+      "annotations": {
+        "cnl_template": "Calls to editor.edit_file and editor.append_file are limited to {count} in total.",
+        "python_symbol": "tools.editor.trusted.contracts.edits_at_most",
+        "renderer_version": 1,
+        "source_sha256": "21ea73c7d7273517ddf3deb637737a177a74334ddd8050e0f852f206cb7036bc"
+      },
+      "attributes": {
+        "count": {
+          "annotations": {
+            "python_parameter_kind": "POSITIONAL_OR_KEYWORD"
+          },
+          "description": "The count argument to tools.editor.trusted.contracts.edits_at_most.",
+          "range": "integer",
+          "required": true,
+          "slot_uri": "cz:tools.editor.trusted.contracts.edits_at_most.count"
+        }
+      },
+      "class_uri": "cz:tools.editor.trusted.contracts.edits_at_most",
+      "description": "Guarantee at most ``count`` edits occur.",
+      "is_a": "Contract"
+    },
+    "EditorMustNotAppend": {
+      "annotations": {
+        "cnl_template": "No editor.append_file addition may contain {substring}.",
+        "python_symbol": "tools.editor.trusted.contracts.must_not_append",
+        "renderer_version": 1,
+        "source_sha256": "21ea73c7d7273517ddf3deb637737a177a74334ddd8050e0f852f206cb7036bc"
+      },
+      "attributes": {
+        "substring": {
+          "annotations": {
+            "python_parameter_kind": "POSITIONAL_OR_KEYWORD"
+          },
+          "description": "The substring argument to tools.editor.trusted.contracts.must_not_append.",
+          "range": "string",
+          "required": true,
+          "slot_uri": "cz:tools.editor.trusted.contracts.must_not_append.substring"
+        }
+      },
+      "class_uri": "cz:tools.editor.trusted.contracts.must_not_append",
+      "description": "Guarantee no append chunk contains ``substring``.",
+      "is_a": "Contract"
+    },
+    "EditorMustNotReplace": {
+      "annotations": {
+        "cnl_template": "No editor.edit_file replacement may contain {substring}.",
+        "python_symbol": "tools.editor.trusted.contracts.must_not_replace",
+        "renderer_version": 1,
+        "source_sha256": "21ea73c7d7273517ddf3deb637737a177a74334ddd8050e0f852f206cb7036bc"
+      },
+      "attributes": {
+        "substring": {
+          "annotations": {
+            "python_parameter_kind": "POSITIONAL_OR_KEYWORD"
+          },
+          "description": "The substring argument to tools.editor.trusted.contracts.must_not_replace.",
+          "range": "string",
+          "required": true,
+          "slot_uri": "cz:tools.editor.trusted.contracts.must_not_replace.substring"
+        }
+      },
+      "class_uri": "cz:tools.editor.trusted.contracts.must_not_replace",
+      "description": "Guarantee no full-replace contains ``substring`` (e.g. a banned token).\n\nUseful as a secrets / banned-content guard before content reaches disk.\nApplies to ``edit_file`` only; the append-side guard is ``must_not_append``.",
+      "is_a": "Contract"
+    },
+    "EditorNeverEditUnder": {
+      "annotations": {
+        "cnl_template": "No editor.edit_file or editor.append_file path may start with {prefix}.",
+        "python_symbol": "tools.editor.trusted.contracts.never_edit_under",
+        "renderer_version": 1,
+        "source_sha256": "21ea73c7d7273517ddf3deb637737a177a74334ddd8050e0f852f206cb7036bc"
+      },
+      "attributes": {
+        "prefix": {
+          "annotations": {
+            "python_parameter_kind": "POSITIONAL_OR_KEYWORD"
+          },
+          "description": "The prefix argument to tools.editor.trusted.contracts.never_edit_under.",
+          "range": "string",
+          "required": true,
+          "slot_uri": "cz:tools.editor.trusted.contracts.never_edit_under.prefix"
+        }
+      },
+      "class_uri": "cz:tools.editor.trusted.contracts.never_edit_under",
+      "description": "Guarantee no edit has a path under ``prefix``.",
+      "is_a": "Contract"
+    },
+    "EditorNoAppends": {
+      "annotations": {
+        "cnl_template": "No calls to editor.append_file are permitted.",
+        "python_symbol": "tools.editor.trusted.contracts.no_appends",
+        "renderer_version": 1,
+        "source_sha256": "21ea73c7d7273517ddf3deb637737a177a74334ddd8050e0f852f206cb7036bc"
+      },
+      "attributes": {},
+      "class_uri": "cz:tools.editor.trusted.contracts.no_appends",
+      "description": "Guarantee the program performs no appends.",
+      "is_a": "Contract"
+    },
+    "EditorNoEdits": {
+      "annotations": {
+        "cnl_template": "No calls to editor.edit_file or editor.append_file are permitted.",
+        "python_symbol": "tools.editor.trusted.contracts.no_edits",
+        "renderer_version": 1,
+        "source_sha256": "21ea73c7d7273517ddf3deb637737a177a74334ddd8050e0f852f206cb7036bc"
+      },
+      "attributes": {},
+      "class_uri": "cz:tools.editor.trusted.contracts.no_edits",
+      "description": "Guarantee the program performs no edits (replace or append).",
+      "is_a": "Contract"
+    },
+    "EditorNoGuarantees": {
+      "annotations": {
+        "cnl_template": "No restrictions are imposed on editor effects.",
+        "python_symbol": "tools.editor.trusted.contracts.no_guarantees",
+        "renderer_version": 1,
+        "source_sha256": "21ea73c7d7273517ddf3deb637737a177a74334ddd8050e0f852f206cb7036bc"
+      },
+      "attributes": {},
+      "class_uri": "cz:tools.editor.trusted.contracts.no_guarantees",
+      "description": "Make no guarantees about editor effects.",
+      "is_a": "Contract"
+    },
+    "EditorOnlyEditUnder": {
+      "annotations": {
+        "cnl_template": "Every editor.edit_file or editor.append_file path must start with {root}.",
+        "python_symbol": "tools.editor.trusted.contracts.only_edit_under",
+        "renderer_version": 1,
+        "source_sha256": "21ea73c7d7273517ddf3deb637737a177a74334ddd8050e0f852f206cb7036bc"
+      },
+      "attributes": {
+        "root": {
+          "annotations": {
+            "python_parameter_kind": "POSITIONAL_OR_KEYWORD"
+          },
+          "description": "The root argument to tools.editor.trusted.contracts.only_edit_under.",
+          "range": "string",
+          "required": true,
+          "slot_uri": "cz:tools.editor.trusted.contracts.only_edit_under.root"
+        }
+      },
+      "class_uri": "cz:tools.editor.trusted.contracts.only_edit_under",
+      "description": "Guarantee every edit (replace or append) has a path under ``root``.",
+      "is_a": "Contract"
+    },
+    "EditorReplaceLengthAtMost": {
+      "annotations": {
+        "cnl_template": "Every editor.edit_file replacement must have a character count of at most {max_chars}.",
+        "python_symbol": "tools.editor.trusted.contracts.replace_length_at_most",
+        "renderer_version": 1,
+        "source_sha256": "21ea73c7d7273517ddf3deb637737a177a74334ddd8050e0f852f206cb7036bc"
+      },
+      "attributes": {
+        "max_chars": {
+          "annotations": {
+            "python_parameter_kind": "POSITIONAL_OR_KEYWORD"
+          },
+          "description": "The max_chars argument to tools.editor.trusted.contracts.replace_length_at_most.",
+          "range": "integer",
+          "required": true,
+          "slot_uri": "cz:tools.editor.trusted.contracts.replace_length_at_most.max_chars"
+        }
+      },
+      "class_uri": "cz:tools.editor.trusted.contracts.replace_length_at_most",
+      "description": "Guarantee every ``edit_file`` replacement is at most ``max_chars`` long.\n\nBounds full-content replacements; ``append_file`` is unaffected and uses\n``append_length_at_most`` for the corresponding bound.",
+      "is_a": "Contract"
+    },
+    "EffectCall": {
+      "abstract": true,
+      "description": "An individual trusted call event."
+    },
+    "FilesystemNeverReadUnder": {
+      "annotations": {
+        "cnl_template": "No filesystem.read_file or filesystem.read_lines path may start with {prefix}.",
+        "python_symbol": "tools.filesystem.trusted.contracts.never_read_under",
+        "renderer_version": 1,
+        "source_sha256": "0bce8b0d608d7f81f659c16500e568721d04093c2cd033d4bde376aba916330c"
+      },
+      "attributes": {
+        "prefix": {
+          "annotations": {
+            "python_parameter_kind": "POSITIONAL_OR_KEYWORD"
+          },
+          "description": "The prefix argument to tools.filesystem.trusted.contracts.never_read_under.",
+          "range": "string",
+          "required": true,
+          "slot_uri": "cz:tools.filesystem.trusted.contracts.never_read_under.prefix"
+        }
+      },
+      "class_uri": "cz:tools.filesystem.trusted.contracts.never_read_under",
+      "description": "Guarantee no ``read_file``/``read_lines`` path is under ``prefix``.\n\nA read through another layer is that layer's to state:\n``grep.never_read_under``, ``find.never_read_under``,\n``db.never_read_under``.",
+      "is_a": "Contract"
+    },
+    "FilesystemNeverWriteUnder": {
+      "annotations": {
+        "cnl_template": "No filesystem.write_file path may start with {prefix}.",
+        "python_symbol": "tools.filesystem.trusted.contracts.never_write_under",
+        "renderer_version": 1,
+        "source_sha256": "0bce8b0d608d7f81f659c16500e568721d04093c2cd033d4bde376aba916330c"
+      },
+      "attributes": {
+        "prefix": {
+          "annotations": {
+            "python_parameter_kind": "POSITIONAL_OR_KEYWORD"
+          },
+          "description": "The prefix argument to tools.filesystem.trusted.contracts.never_write_under.",
+          "range": "string",
+          "required": true,
+          "slot_uri": "cz:tools.filesystem.trusted.contracts.never_write_under.prefix"
+        }
+      },
+      "class_uri": "cz:tools.filesystem.trusted.contracts.never_write_under",
+      "description": "Guarantee no ``write_file`` call has a path under ``prefix``.\n\nA write through another layer is that layer's to state:\n``coreutils.never_create_under``, ``editor.never_edit_under``,\n``rsync.never_dest_under``.",
+      "is_a": "Contract"
+    },
+    "FilesystemNoGuarantees": {
+      "annotations": {
+        "cnl_template": "No restrictions are imposed on filesystem effects.",
+        "python_symbol": "tools.filesystem.trusted.contracts.no_guarantees",
+        "renderer_version": 1,
+        "source_sha256": "0bce8b0d608d7f81f659c16500e568721d04093c2cd033d4bde376aba916330c"
+      },
+      "attributes": {},
+      "class_uri": "cz:tools.filesystem.trusted.contracts.no_guarantees",
+      "description": "Make no guarantees about filesystem effects.",
+      "is_a": "Contract"
+    },
+    "FilesystemNoReads": {
+      "annotations": {
+        "cnl_template": "No calls to filesystem.read_file or filesystem.read_lines are permitted.",
+        "python_symbol": "tools.filesystem.trusted.contracts.no_reads",
+        "renderer_version": 1,
+        "source_sha256": "0bce8b0d608d7f81f659c16500e568721d04093c2cd033d4bde376aba916330c"
+      },
+      "attributes": {},
+      "class_uri": "cz:tools.filesystem.trusted.contracts.no_reads",
+      "description": "Guarantee neither ``read_file`` nor ``read_lines`` is called.\n\nThis layer's read effects only. Reading through another\nlayer is that layer's to state: ``grep.searches_at_most(0)``,\n``find.searches_at_most(0)``, ``db.no_db_reads()``, ``env.no_env_reads()``.",
+      "is_a": "Contract"
+    },
+    "FilesystemOnlyReadUnder": {
+      "annotations": {
+        "cnl_template": "Every filesystem.read_file or filesystem.read_lines path must start with {root}.",
+        "python_symbol": "tools.filesystem.trusted.contracts.only_read_under",
+        "renderer_version": 1,
+        "source_sha256": "0bce8b0d608d7f81f659c16500e568721d04093c2cd033d4bde376aba916330c"
+      },
+      "attributes": {
+        "root": {
+          "annotations": {
+            "python_parameter_kind": "POSITIONAL_OR_KEYWORD"
+          },
+          "description": "The root argument to tools.filesystem.trusted.contracts.only_read_under.",
+          "range": "string",
+          "required": true,
+          "slot_uri": "cz:tools.filesystem.trusted.contracts.only_read_under.root"
+        }
+      },
+      "class_uri": "cz:tools.filesystem.trusted.contracts.only_read_under",
+      "description": "Guarantee every ``read_file``/``read_lines`` path starts with ``root``.\n\nThis is a literal string-prefix check, not resolved directory containment\nor an exact-file check. For example, ``test.md`` also matches ``test.md.bak``.\n\nA read through another layer is that layer's to state:\n``grep.only_read_under``, ``find.only_read_under``, ``db.only_read_under``.",
+      "is_a": "Contract"
+    },
+    "FilesystemOnlyWriteUnder": {
+      "annotations": {
+        "cnl_template": "Every filesystem.write_file path must start with {root}.",
+        "python_symbol": "tools.filesystem.trusted.contracts.only_write_under",
+        "renderer_version": 1,
+        "source_sha256": "0bce8b0d608d7f81f659c16500e568721d04093c2cd033d4bde376aba916330c"
+      },
+      "attributes": {
+        "root": {
+          "annotations": {
+            "python_parameter_kind": "POSITIONAL_OR_KEYWORD"
+          },
+          "description": "The root argument to tools.filesystem.trusted.contracts.only_write_under.",
+          "range": "string",
+          "required": true,
+          "slot_uri": "cz:tools.filesystem.trusted.contracts.only_write_under.root"
+        }
+      },
+      "class_uri": "cz:tools.filesystem.trusted.contracts.only_write_under",
+      "description": "Guarantee every ``write_file`` call has a path under ``root``.\n\nA write through another layer is that layer's to state:\n``coreutils.only_create_under``, ``editor.only_edit_under``,\n``rsync.only_dest_under``.",
+      "is_a": "Contract"
+    },
+    "FilesystemReadFile": {
+      "annotations": {
+        "python_symbol": "tools.filesystem.trusted.effects.read_file",
+        "source_sha256": "51754f27e63ee306ad8286eeb9b124bc8c079c6d81bc6e61fff5e83426972bca"
+      },
+      "attributes": {
+        "path": {
+          "annotations": {
+            "python_parameter_kind": "POSITIONAL_OR_KEYWORD"
+          },
+          "description": "The path argument to tools.filesystem.trusted.effects.read_file.",
+          "range": "string",
+          "required": true,
+          "slot_uri": "cz:tools.filesystem.trusted.effects.read_file.path"
+        }
+      },
+      "class_uri": "cz:tools.filesystem.trusted.effects.read_file",
+      "description": "Read and return the UTF-8 text contents of ``path``.",
+      "is_a": "EffectCall"
+    },
+    "FilesystemReadLines": {
+      "annotations": {
+        "python_symbol": "tools.filesystem.trusted.effects.read_lines",
+        "source_sha256": "51754f27e63ee306ad8286eeb9b124bc8c079c6d81bc6e61fff5e83426972bca"
+      },
+      "attributes": {
+        "path": {
+          "annotations": {
+            "python_parameter_kind": "POSITIONAL_OR_KEYWORD"
+          },
+          "description": "The path argument to tools.filesystem.trusted.effects.read_lines.",
+          "range": "string",
+          "required": true,
+          "slot_uri": "cz:tools.filesystem.trusted.effects.read_lines.path"
+        }
+      },
+      "class_uri": "cz:tools.filesystem.trusted.effects.read_lines",
+      "description": "Read UTF-8 logical lines without terminators, using str.splitlines.\n\nEmpty files return []; blank lines are retained; a final unterminated\nline counts. This is not wc -l, which counts LF bytes. Decode and I/O\nerrors propagate, as with read_file.",
+      "is_a": "EffectCall"
+    },
+    "FilesystemReadOnly": {
+      "annotations": {
+        "cnl_template": "No calls to filesystem.write_file are permitted.",
+        "python_symbol": "tools.filesystem.trusted.contracts.read_only",
+        "renderer_version": 1,
+        "source_sha256": "0bce8b0d608d7f81f659c16500e568721d04093c2cd033d4bde376aba916330c"
+      },
+      "attributes": {},
+      "class_uri": "cz:tools.filesystem.trusted.contracts.read_only",
+      "description": "Guarantee ``write_file`` is never called.\n\nThis layer's write effect, and only that one. A program can still write\nthrough another layer --- ``coreutils.make_dir``, ``editor.edit_file``,\n``rsync.rsync`` --- and each states its own: ``coreutils.no_creates()``,\n``editor.no_edits()``, ``rsync.no_syncs()``.",
+      "is_a": "Contract"
+    },
+    "FilesystemWriteFile": {
+      "annotations": {
+        "python_symbol": "tools.filesystem.trusted.effects.write_file",
+        "source_sha256": "51754f27e63ee306ad8286eeb9b124bc8c079c6d81bc6e61fff5e83426972bca"
+      },
+      "attributes": {
+        "content": {
+          "annotations": {
+            "python_parameter_kind": "POSITIONAL_OR_KEYWORD"
+          },
+          "description": "The content argument to tools.filesystem.trusted.effects.write_file.",
+          "range": "string",
+          "required": true,
+          "slot_uri": "cz:tools.filesystem.trusted.effects.write_file.content"
+        },
+        "path": {
+          "annotations": {
+            "python_parameter_kind": "POSITIONAL_OR_KEYWORD"
+          },
+          "description": "The path argument to tools.filesystem.trusted.effects.write_file.",
+          "range": "string",
+          "required": true,
+          "slot_uri": "cz:tools.filesystem.trusted.effects.write_file.path"
+        }
+      },
+      "class_uri": "cz:tools.filesystem.trusted.effects.write_file",
+      "description": "Write ``content`` to ``path`` as UTF-8 text, creating parent dirs.",
+      "is_a": "EffectCall"
+    },
+    "FilesystemWritesAtMost": {
+      "annotations": {
+        "cnl_template": "Calls to filesystem.write_file are limited to {count} in total.",
+        "python_symbol": "tools.filesystem.trusted.contracts.writes_at_most",
+        "renderer_version": 1,
+        "source_sha256": "0bce8b0d608d7f81f659c16500e568721d04093c2cd033d4bde376aba916330c"
+      },
+      "attributes": {
+        "count": {
+          "annotations": {
+            "python_parameter_kind": "POSITIONAL_OR_KEYWORD"
+          },
+          "description": "The count argument to tools.filesystem.trusted.contracts.writes_at_most.",
+          "range": "integer",
+          "required": true,
+          "slot_uri": "cz:tools.filesystem.trusted.contracts.writes_at_most.count"
+        }
+      },
+      "class_uri": "cz:tools.filesystem.trusted.contracts.writes_at_most",
+      "description": "Guarantee at most ``count`` ``write_file`` calls occur.\n\nOther layers count their own: ``coreutils.creates_at_most``,\n``editor.edits_at_most``, ``rsync.syncs_at_most``.",
+      "is_a": "Contract"
+    }
+  },
+  "default_prefix": "cz",
+  "default_range": "string",
+  "description": "Generated from trusted Python definitions. Classes describe contract invocations and effect calls; exports do not establish program safety.",
+  "id": "https://normalform-ai.github.io/clauz3/schema/contracts/v1",
+  "imports": [
+    "linkml:types"
+  ],
+  "name": "clauz3_contracts",
+  "prefixes": {
+    "cz": "https://normalform-ai.github.io/clauz3/schema/contracts/v1/",
+    "linkml": "https://w3id.org/linkml/"
+  },
+  "title": "clauz3 filesystem and editor contract catalog",
+  "version": "1"
+}

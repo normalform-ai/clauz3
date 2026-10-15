@@ -1,0 +1,51 @@
+# Runner commands. Default to `uv run` for the source-checkout dev flow;
+# `clauz3 test` overrides CLAUZ3 so the bundled suite also runs from an
+# installed wheel, where `uv` is absent.
+clauz3 := env_var_or_default("CLAUZ3", "uv run clauz3")
+
+trusted := "../tools/rsync/trusted"
+effects := trusted + "/effects.py"
+prove := clauz3 + " prove --trusted-root " + trusted + " --import-root .."
+
+test: lint cases
+
+lint:
+    {{clauz3}} lint {{effects}}
+
+cases: only-dest-under-pass only-dest-under-fail never-dest-under-pass never-dest-under-fail only-src-under-pass only-src-under-fail no-delete-pass no-delete-fail no-syncs-pass no-syncs-fail syncs-at-most-pass syncs-at-most-fail
+
+only-dest-under-pass:
+    {{prove}} cases/only_dest_under_pass.py
+
+only-dest-under-fail:
+    if {{prove}} cases/only_dest_under_fail.py; then exit 1; fi
+
+never-dest-under-pass:
+    {{prove}} cases/never_dest_under_pass.py
+
+never-dest-under-fail:
+    if {{prove}} cases/never_dest_under_fail.py; then exit 1; fi
+
+only-src-under-pass:
+    {{prove}} cases/only_src_under_pass.py
+
+only-src-under-fail:
+    if {{prove}} cases/only_src_under_fail.py; then exit 1; fi
+
+no-delete-pass:
+    {{prove}} cases/no_delete_pass.py
+
+no-delete-fail:
+    if {{prove}} cases/no_delete_fail.py; then exit 1; fi
+
+no-syncs-pass:
+    {{prove}} cases/no_syncs_pass.py
+
+no-syncs-fail:
+    if {{prove}} cases/no_syncs_fail.py; then exit 1; fi
+
+syncs-at-most-pass:
+    {{prove}} cases/syncs_at_most_pass.py
+
+syncs-at-most-fail:
+    if {{prove}} cases/syncs_at_most_fail.py; then exit 1; fi

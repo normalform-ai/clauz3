@@ -3,11 +3,13 @@
 Includes contracts for both the database query effects and the email effects.
 """
 
+from tools.db.trusted.effects import db_query, send_email
+
 from clauz3.spec import ContractSpec, contract, effect
 from clauz3.spec import no_guarantees as core_no_guarantees
 
-Email = effect("send_email")
-DB = effect("db_query")
+Email = effect(send_email)
+DB = effect(db_query)
 
 
 # ── Email contracts ───────────────────────────────────────────────────────────

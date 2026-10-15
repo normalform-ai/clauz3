@@ -4,7 +4,7 @@
 read-only inspection plus the ``clauz3`` CLI, so every side-effecting tool call
 is mediated by the prover rather than ad-hoc shell or Python execution.
 
-It is the configuration counterpart to :mod:`clauz3.install`, which copies
+It is the configuration counterpart to :mod:`clauz3.libraries.install`, which copies
 trusted tool layers. The two are meant to converge on a single ``uv sync``-style
 command that ensures a repo is fully set up: permissions configured and tools
 installed. Re-running ``config`` is therefore idempotent — it merges the

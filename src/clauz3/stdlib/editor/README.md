@@ -21,18 +21,17 @@ clauz3 install stdlib:editor
 Import with `from tools.editor.trusted.effects import edit_file, append_file`:
 
 - `edit_file(path: str, new_text: str) -> None` — overwrite a UTF-8 file.
-  Precondition: `path` is non-empty. Recorded under the `edit` and `write`
-  markers.
+  Precondition: `path` is non-empty.
 - `append_file(path: str, text: str) -> None` — append UTF-8 text.
-  Precondition: `path` is non-empty. Recorded under the `edit` and `write`
-  markers.
+  Precondition: `path` is non-empty.
 
 Both create parent directories as needed.
 
-Because both effects also carry the `write` marker, filesystem write policies
-from `stdlib:filesystem` (e.g. `only_write_under`, `writes_at_most`) also
-apply to edits — installing both layers gives you stacked enforcement
-without redeclaring constraints.
+Edits are governed by this layer's own path policies (`only_edit_under`,
+`never_edit_under`, `edits_at_most`). They were once also covered by
+`filesystem.only_write_under`, through a `write` marker both layers declared;
+an effect is addressed by name now, so state `ed.only_edit_under(...)` for
+edits and `fs.only_write_under(...)` for file writes.
 
 ## Contracts
 

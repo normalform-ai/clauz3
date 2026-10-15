@@ -5,24 +5,48 @@
 
 # ClauZ3
 
-Static contracts for agent-authored Python.
+Verifiable contracts for agent-authored Python.
 
-ClauZ3 experiments with a different permission surface for agents: the agent
-writes a small Python program, attaches a contract describing its trusted side
-effects, and a static prover checks the contract before anything runs.
+## Try it
 
-The contract is the thing the user should be asked to accept. The program is
-still available for inspection, but a user should not have to read every branch
-to answer questions like:
+Start with [mock email](quickstarts/mock-email.md): ask an agent to send a
+message, review its proved guarantees, and approve a sender that does nothing.
+Then try [real file work](quickstarts/real-files.md): install a library,
+approve a file write, inspect the result, and count its lines.
+
+Both quickstarts use the browser workspace for chat and inline approvals,
+with a terminal alternative. The explanation and reference guides below
+describe how the workflow works.
+
+## Why guarantees?
+
+Today an agent that wants to act in the world either asks you to click
+"Allow" on every tool call, or gets a blanket grant like "may use email".
+ClauZ3 asks once, and asks a better question:
+
+> This program will email only `bob@example.com`, at most once. **Approve?**
+
+The agent writes a small Python program and attaches guarantees about its side
+effects. A Z3-backed prover checks those guarantees against *every* branch of
+the program before anything runs. You approve the guarantees; the program runs
+only after that, all or nothing.
+
+The guarantees are the thing the user is asked to accept. The program is still
+available for inspection, but a user should not have to read every branch to
+answer questions like:
 
 - Will this email anyone other than Bob?
 - Will this email the same person twice?
-- Will this withdraw more than $5 total?
+- Will this spend more than $500 in total?
 - Will this write outside a sandbox?
 
-## In one picture
+New here? [How ClauZ3 compares](explanation/comparison.md) sets it against
+permission prompts, sandboxes, guardrails, and runtime policy monitors on one
+page.
 
-A run, end to end: the user asks for a bill to be paid (capped); the agent
+## Example
+
+The user asks for a bill to be paid (capped); the agent
 writes a program that looks up the outstanding balance and pays
 `min(balance, $500)`; ClauZ3 proves the spend stays under the cap on *every*
 branch and that only the named account is touched; the user approves the
@@ -38,8 +62,8 @@ Projects split into two layers:
 
 - **Trusted roots** such as `tools/email/trusted/`: small audited modules
   containing side-effecting functions and reusable domain contracts. The prover
-  trusts their signatures, `@deal.has(...)` markers, `@deal.pre(...)`
-  preconditions, and `@contract` helper definitions.
+  trusts their signatures, `@clauz3.trusted` effect declarations,
+  `@clauz3.requires(...)` preconditions, and `@contract` helper definitions.
 - **Agent-authored code**: ordinary Python that imports trusted functions and
   adds `@clauz3.guarantee(...)` decorators to the function being proved.
 
@@ -48,8 +72,11 @@ query as relations.
 
 ## Where to go next
 
-- [Background and related work](explanation/background.md) — motivation
-  and FORGE comparison.
+- [How ClauZ3 compares](explanation/comparison.md) — one-page comparison with
+  permission prompts, sandboxes, guardrails, and policy monitors.
+- [Background and related work](explanation/background.md) — the long-form
+  comparison with proof-carrying code, CaMeL, FORGE, Guardians, Dogwood,
+  and neuro-formal verification.
 - [Effect specs](reference/effect-specs.md) — the relation algebra over
   trusted-call facts and its current primitives.
 - [Coverage policies](reference/coverage-policies.md) — how a trusted layer
@@ -84,10 +111,10 @@ prover, see the
 ClauZ3 layers on two upstream projects and would not exist without them:
 
 - **[deal](https://deal.readthedocs.io/)** — the Python runtime contract
-  engine whose `@deal.pre`, `@deal.post`, and `@deal.has` decorators define
-  the trusted-layer vocabulary. ClauZ3 reads the same decorators and
-  discharges them statically; in runtime-only mode, deal enforces them at
-  execution.
+  engine `@clauz3.requires` / `@clauz3.ensures` are built on, so every
+  condition a trusted layer states is also enforced at execution. A layer can
+  use deal directly to bound what its own *bodies* may do; see
+  [Extra runtime enforcement with deal](how-to/deal.md).
 - **[Z3](https://github.com/Z3Prover/z3)** — Microsoft Research's SMT solver,
   the back-end the prover compiles every guarantee into. The vendored
   `deal-solver` machinery is what bridges Python AST and Z3 constraints.

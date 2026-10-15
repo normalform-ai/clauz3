@@ -5,11 +5,12 @@ import math
 import z3
 
 from .._context import Context
+from .._exceptions import UnsupportedError
 from .._proxies import BoolSort, FloatSort, ProxySort, and_expr, if_expr, types
 from ._registry import FUNCTIONS, register
 
 
-@register('math.isclose')
+@register('math.isclose', signature=math.isclose)
 def math_isclose(
     left: ProxySort, right: ProxySort,
     rel_tol=None, abs_tol=None,
@@ -58,7 +59,7 @@ def math_isclose(
     )
 
 
-@register('math.isinf')
+@register('math.isinf', signature=math.isinf)
 def math_isinf(x, ctx: Context, **kwargs) -> BoolSort:
     if not isinstance(x, types.float):
         return BoolSort.val(False)
@@ -67,7 +68,7 @@ def math_isinf(x, ctx: Context, **kwargs) -> BoolSort:
     return BoolSort(z3.fpIsInf(x.expr))
 
 
-@register('math.isnan')
+@register('math.isnan', signature=math.isnan)
 def math_isnan(x, ctx: Context, **kwargs) -> BoolSort:
     if not isinstance(x, types.float):
         return BoolSort.val(False)
@@ -76,7 +77,7 @@ def math_isnan(x, ctx: Context, **kwargs) -> BoolSort:
     return BoolSort(expr=z3.fpIsNaN(x.expr, ctx=ctx.z3_ctx))
 
 
-@register('math.sin')
+@register('math.sin', signature=math.sin)
 def math_sin(x: ProxySort, ctx: Context, **kwargs) -> ProxySort:
     """Taylor's Series of sin x
     """
@@ -103,18 +104,8 @@ def math_sin(x: ProxySort, ctx: Context, **kwargs) -> ProxySort:
     return result
 
 
-@register('math.trunc')
+@register('math.trunc', signature=math.trunc)
 def math_trunc(x: ProxySort, ctx: Context, **kwargs) -> ProxySort:
-    if not isinstance(x, types.float):
-        return x.m_int(ctx=ctx)
-    return if_expr(
-        x.m_int(ctx=ctx).m_float(ctx=ctx).m_eq(x, ctx=ctx),
-        x.m_int(ctx=ctx),
-        if_expr(
-            x.m_gt(types.float.val(0, ctx=ctx), ctx=ctx),
-            x.m_int(ctx=ctx),
-            x.m_int(ctx=ctx).m_add(types.int.val(1, ctx=ctx), ctx=ctx),
-            ctx=ctx,
-        ),
-        ctx=ctx,
-    )
+    if not isinstance(x, (types.int, types.bool, types.float)):
+        raise UnsupportedError('math.trunc requires an int, bool, or float')
+    return x.m_int(ctx=ctx)

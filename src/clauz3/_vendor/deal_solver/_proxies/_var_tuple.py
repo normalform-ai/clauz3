@@ -5,6 +5,7 @@ import typing
 import z3
 
 from .._exceptions import UnsupportedError
+from .._strings import is_string_expr
 from ._funcs import random_name
 from ._proxy import ProxySort
 from ._registry import types
@@ -31,7 +32,7 @@ class VarTupleSort(ProxySort):
     def __init__(self, expr, subtypes=()) -> None:
         assert len(subtypes) == 1
         assert z3.is_seq(expr)
-        assert not z3.is_string(expr)
+        assert not is_string_expr(expr)
         self.expr = expr
         self.subtypes = subtypes
 
@@ -62,6 +63,8 @@ class VarTupleSort(ProxySort):
 
     @classmethod
     def val(cls: type[T], values: list[ProxySort], ctx: Context) -> T:
+        from ._list import reject_iteration_source_embedding
+        reject_iteration_source_embedding(*values)
         items = cls.make_empty_expr(sort=values[0].expr.sort())
         for value in values:
             if not value.factory.match(values[0].factory):
@@ -155,6 +158,13 @@ class VarTupleSort(ProxySort):
             msg = msg.format(s=self.type_name, o=other.type_name)
             ctx.add_exception(TypeError, msg)
             return self
+        from ._list import contains_iteration_source
+        if any(
+            contains_iteration_source(subtype)
+            for operand in (self, other)
+            for subtype in operand.factory.subtypes
+        ):
+            raise UnsupportedError('concatenating containers of trusted string-list returns')
         return self.evolve(expr=self.expr + other.expr)
 
     @methods.add(name='__mul__')

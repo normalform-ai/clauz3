@@ -29,9 +29,16 @@ class HandlersRegistry(typing.Generic[T]):
     def __call__(self, node: AstNode, ctx: Context) -> T:
         node_type = type(node)
         handler = self._handlers.get(node_type)
-        if handler is None:
-            raise UnsupportedError('unsupported ast node', node_type.__name__)
-        result = handler(node, ctx)
+        try:
+            if handler is None:
+                raise UnsupportedError('unsupported ast node', node_type.__name__)
+            result = handler(node, ctx)
+        except UnsupportedError as exc:
+            # Keep the innermost offending expression, rather than an outer
+            # assignment/if/function whose evaluation merely propagated it.
+            if not hasattr(exc, 'source_node'):
+                exc.source_node = node
+            raise
         if result is not None:
             assert isinstance(result, ProxySort)
         return result

@@ -1,11 +1,10 @@
 trusted := "tools/home/trusted"
-effects := trusted + "/effects.py"
 prove := "uv run clauz3 prove --trusted-root " + trusted
 
 test: lint cases
 
 lint:
-    uv run python -m deal lint {{effects}}
+    uv run clauz3 lint {{trusted}}/effects.py
 
 cases: temp-range-pass temp-range-fail only-unlock-doors-pass only-unlock-doors-fail never-unlock-front-door-pass never-unlock-front-door-fail grocery-budget-pass grocery-budget-fail away-mode-pass grocery-qty-precondition-fail home-no-guarantees-pass locked-at-end-pass locked-at-end-fail
 

@@ -34,8 +34,7 @@ backend configured.
 Import with `from tools.web_search.trusted.effects import web_search`:
 
 - `web_search(query: str) -> list[str]` — return a list of result URLs.
-  Precondition: `query` is non-empty. Recorded under the `net` and `search`
-  markers.
+  Precondition: `query` is non-empty.
 
 ## Contracts
 

@@ -35,6 +35,7 @@ class ListSort(VarTupleSort):
 
     @methods.add(name='append', pure=False)
     def r_append(self, item: ProxySort, ctx: Context) -> ListSort:
+        reject_iteration_source_embedding(item)
         if not self.subtypes[0].match(item.factory):
             msg = 'element has type {}, expected {}'
             msg = msg.format(item.type_name, self.subtypes[0].type_name)
@@ -44,7 +45,15 @@ class ListSort(VarTupleSort):
 
     @methods.add(name='extend', pure=False)
     def r_extend(self, other: ProxySort, ctx: Context) -> ProxySort:
-        return self.m_add(other, ctx=ctx)
+        result = self.m_add(other, ctx=ctx)
+        if result is other:
+            # Empty-list addition can reuse its argument's immutable snapshot.
+            # extend copies those elements into the receiver: its new proxy
+            # must remain distinct before ownership is transferred to it.
+            if isinstance(result, UntypedListSort):
+                return UntypedListSort()
+            return result.evolve()
+        return result
 
     @methods.add(name='__eq__')
     def m_eq(self, other: ProxySort, ctx: Context) -> BoolSort:
@@ -64,6 +73,55 @@ class ListSort(VarTupleSort):
     def unsupported(self, *args, **kwargs):
         msg = 'unsupported attribute for type {}'.format(self.type_name)
         raise UnsupportedError(msg)
+
+
+class TrustedStringListSort(ListSort):
+    """An unmodified trusted list[str] return, eligible for symbolic iteration.
+
+    Only materializing a trusted return sets iteration_origin. Type factories
+    may reconstruct this class for nested elements, but must not grant those
+    elements iteration eligibility. Retaining the class still makes mutation
+    gates conservatively reject possible aliases of a trusted return.
+    """
+
+    methods = ListSort.methods.copy()
+
+    def __init__(self, expr, subtypes=(), *, iteration_origin=None):
+        super().__init__(expr=expr, subtypes=subtypes)
+        self.iteration_origin = iteration_origin
+
+    @methods.add(name='__eq__')
+    def m_eq(self, other, ctx):
+        # Provenance does not change Python equality with an ordinary list.
+        return ListSort(expr=self.expr, subtypes=self.subtypes).m_eq(other, ctx=ctx)
+
+    def evolve(self, **kwargs):
+        params = dict(expr=self.expr, subtypes=self.subtypes)
+        params.update(kwargs)
+        return ListSort(**params)
+
+    def at(self, index, *, ctx):
+        # The quantifier's bounds establish that this element exists.
+        return self.subtypes[0].wrap(self.expr[index])
+
+
+def contains_iteration_source(factory):
+    return issubclass(factory.type, TrustedStringListSort) or any(
+        contains_iteration_source(subtype) for subtype in factory.subtypes
+    )
+
+
+def reject_iteration_source_embedding(*values):
+    # Container factories model element types, not object identity. A mixed
+    # container could erase the read-only marker and expose a mutable alias.
+    if any(
+        isinstance(value, (types.list, types.tuple, types.dict, types.set))
+        and contains_iteration_source(value.factory)
+        for value in values
+    ):
+        raise UnsupportedError(
+            'embedding trusted string-list returns in containers is not supported'
+        )
 
 
 class UntypedListSort(ListSort):
@@ -130,7 +188,7 @@ class UntypedListSort(ListSort):
     def r_append(self, item: ProxySort, ctx: Context) -> ListSort:
         return ListSort.val([item], ctx=ctx)
 
-    @methods.add(name='__add__', pure=False)
+    @methods.add(name='__add__')
     def m_add(self, other: ProxySort, ctx: Context) -> ProxySort:
         if not isinstance(other, types.list):
             msg = 'can only concatenate {s} (not "{o}") to {s}'

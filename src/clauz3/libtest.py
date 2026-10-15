@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from importlib.resources import as_file
 from pathlib import Path
 
-from clauz3.install import (
+from clauz3.libraries.install import (
     _stdlib_hint,
     _stdlib_name,
     _stdlib_root,
@@ -81,16 +81,23 @@ def run_lib_tests(
 def _recipe_env() -> dict[str, str]:
     """Environment for the ``just`` subprocess.
 
-    The bundled Justfiles read the ``clauz3``/``deal`` runner commands from
-    ``CLAUZ3``/``DEAL``, defaulting to ``uv run`` for the source-checkout dev
-    flow. Point them at the interpreter that is running ``clauz3 test`` so the
-    suite also works from an installed wheel, where ``uv`` may be absent.
+    The bundled Justfiles read the ``clauz3`` runner command from ``CLAUZ3``,
+    defaulting to ``uv run`` for the source-checkout dev flow. Point it at the
+    interpreter that is running ``clauz3 test`` so the suite also works from an
+    installed wheel, where ``uv`` may be absent.
+
+    ``DEAL`` is still exported for a layer whose Justfile predates
+    ``clauz3 lint`` and shells out to deal's linter directly. That still works,
+    and reports less: ``clauz3 lint`` runs deal's rules a second time over a
+    copy in which the contracts deal reads only in its own spelling ---
+    ``@clauz3.requires``, an aliased ``@d.has`` --- are spelled that way.
     """
 
     return {
         **os.environ,
         "CLAUZ3": f"{sys.executable} -m clauz3",
         "DEAL": f"{sys.executable} -m deal",
+        "PYTHON": sys.executable,
     }
 
 

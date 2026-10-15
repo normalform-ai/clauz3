@@ -61,7 +61,7 @@ parameter. The default is `True` (no-op). To actually fire an effect, the
 agent must pass `dry_run=False` explicitly.
 
 ```python
-@deal.pre(lambda to, subject, body, dry_run: "@" in to)
+@deal.pre(lambda to, subject, body, *, dry_run=True: "@" in to)
 @deal.has("net", "send", "global", "import", "trusted")
 @effect(...)  # fluent: SentTo[to] = True
 def send_email(
@@ -204,7 +204,7 @@ from clauz3.fluent import effect, fluent
 SentTo = fluent("sent_to", key=str, value=bool, initial=False)
 
 
-@deal.pre(lambda to, subject, body, dry_run: "@" in to)
+@deal.pre(lambda to, subject, body, *, dry_run=True: "@" in to)
 @deal.has("net", "send", "global", "import", "trusted")
 @effect(lambda to, subject, body, dry_run: SentTo.set(to, True))
 def send_email(

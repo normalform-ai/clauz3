@@ -7,24 +7,49 @@ from textwrap import dedent
 import astroid
 import z3
 
+from clauz3.diagnostics import proof as proof_monitor
+
 from ._annotations import ann2type
 from ._cached_property import cached_property
 from ._context import Context
-from ._eval_contracts import Contract, eval_contracts
+from ._counterexamples import sequence_counterexample
+from ._domains import add_value_domain
+from ._eval_contracts import Contract, Contracts, eval_contracts
 from ._eval_expr import eval_expr
-from ._eval_stmt import eval_stmt
+from ._eval_stmt import eval_func
 from ._exceptions import ProveError, UnsupportedError
 from ._model import Model
-from ._proxies import BoolSort, and_expr
+from ._proxies import BoolSort
 
 
 DEFAULT_TIMEOUT = 5.0
+MAX_ASSUMPTION_CHECK_TIMEOUT = 1.0
+MAX_QUANTIFIER_SCAN_NODES = 100_000
+
+
+def _has_quantifier(expr: z3.ExprRef) -> bool:
+    """Inspect a Z3 DAG once per node, with a fail-closed work bound."""
+    pending = [expr]
+    seen: set[int] = set()
+    while pending:
+        current = pending.pop()
+        node_id = current.get_id()
+        if node_id in seen:
+            continue
+        seen.add(node_id)
+        if len(seen) > MAX_QUANTIFIER_SCAN_NODES:
+            raise UnsupportedError('assumption expression is too large to inspect')
+        if z3.is_quantifier(current):
+            return True
+        pending.extend(current.children())
+    return False
 
 
 class Conclusion(enum.Enum):
     OK = 'proved!'
     PARTIAL = 'partially proved'
     SKIP = 'skipped'
+    VACUOUS = 'vacuous'
     FAIL = 'failed'
 
 
@@ -38,7 +63,7 @@ class Proof(typing.NamedTuple):
     def color(self) -> str:
         if self.conclusion == Conclusion.OK:
             return 'green'
-        if self.conclusion == Conclusion.FAIL:
+        if self.conclusion in {Conclusion.FAIL, Conclusion.VACUOUS}:
             return 'red'
         return 'yellow'
 
@@ -57,6 +82,7 @@ class Proof(typing.NamedTuple):
 class Constraint(typing.NamedTuple):
     condition: BoolSort
     description: str
+    details: dict[str, object] | None = None
 
 
 class Theorem:
@@ -130,6 +156,7 @@ class Theorem:
         ctx = ctx.evolve(z3_ctx=self._z3_context)
         for name, value in self.arguments.items():
             ctx.scope.set(name=name, value=value)
+            add_value_domain(value, ctx=ctx)
         return ctx
 
     @cached_property
@@ -145,16 +172,50 @@ class Theorem:
             result[arg.name] = sort
         return result
 
+    @cached_property
+    def _contracts(self) -> Contracts:
+        # eval_func, not eval_stmt: #102 split the nested-declaration handler
+        # off from body execution. Cached so the body is evaluated once — both
+        # `assumptions` and `constraints` need it, and a second pass would
+        # record every effect twice.
+        try:
+            eval_func(node=self._func, ctx=self._context)
+        except UnsupportedError as exc:
+            exc.phase = 'program body'
+            node = getattr(exc, 'source_node', None)
+            if node is not None:
+                location = proof_monitor.location(node)
+                position = (f"at line {location['line']}:" if 'line' in location
+                            else f"in {location['source_kind']}:")
+                try:
+                    expression = node.as_string()[:300]
+                except (ValueError, RecursionError):
+                    # Diagnostic rendering must not replace the refusal with
+                    # a crash (e.g. an integer beyond Python's repr limit).
+                    expression = type(node).__name__
+                exc.args += (position, expression)
+            raise
+        try:
+            return eval_contracts(func=self._func, ctx=self._context, completed=True)
+        except UnsupportedError as exc:
+            exc.phase = 'function contract'
+            raise
+
+    @cached_property
+    def assumptions(self) -> BoolSort:
+        # Build this from the same frozen terms checked by
+        # ``_check_assumptions``. Guarantee evaluation may add helper-local
+        # facts to the context; allowing those later facts to change the
+        # antecedent would make a guarantee able to justify itself.
+        return BoolSort(expr=z3.And(*self._assumption_terms))
+
     @property
     def constraints(self) -> typing.Iterator[Constraint]:
-        eval_stmt(node=self._func, ctx=self._context)
-        contracts = eval_contracts(func=self._func, ctx=self._context)
-
-        given = and_expr(
-            *contracts.pre,
-            *self._context.given,
-            ctx=self._context,
-        )
+        # Evaluation populates exceptions and assertions as a side effect.
+        # Materialize it before inspecting either layer so direct consumers of
+        # this public iterator cannot accidentally receive an empty theorem.
+        contracts = self._contracts
+        assumptions = self.assumptions
         for exc in self._context.exceptions:
             if exc.names & contracts.raises:
                 continue
@@ -164,15 +225,16 @@ class Theorem:
             yield Constraint(
                 description=descr,
                 condition=self._imply(
-                    given=given,
+                    given=assumptions,
                     expected=exc.cond,
                 ),
             )
         for constraint in self._context.expected:
             yield Constraint(
                 description='assertion',
+                details=proof_monitor.details(constraint.expr),
                 condition=self._imply(
-                    given=given,
+                    given=assumptions,
                     expected=constraint.m_not(ctx=self._context),
                 ),
             )
@@ -180,25 +242,44 @@ class Theorem:
             yield Constraint(
                 description='post-condition',
                 condition=self._imply(
-                    given=given,
+                    given=assumptions,
                     expected=constraint.m_not(ctx=self._context),
                 ),
             )
-        for guarantee in self.get_guarantees(self._func):
-            constraint = eval_expr(node=guarantee, ctx=self._context).m_bool(ctx=self._context)
-            yield Constraint(
-                description='guarantee',
-                condition=self._imply(
-                    given=given,
-                    expected=constraint.m_not(ctx=self._context),
-                ),
-            )
+        try:
+            for guarantee in self.get_guarantees(self._func):
+                value = eval_expr(node=guarantee, ctx=self._context)
+                # Do NOT fall back to `m_bool`. `ProxySort.m_bool` defaults to
+                # true, so a guarantee that evaluates to a function, a string or
+                # an integer would discharge itself and report `proved!`. Only a
+                # proposition can be a guarantee.
+                if not isinstance(value, BoolSort):
+                    raise UnsupportedError(
+                        'guarantee is not a boolean expression:',
+                        guarantee.as_string(),
+                    )
+                constraint = value.m_bool(ctx=self._context)
+                yield Constraint(
+                    description='guarantee',
+                    details=(
+                        {**proof_monitor.location(guarantee), 'predicate': guarantee.as_string()[:300]}
+                        if proof_monitor.active() else None
+                    ),
+                    condition=self._imply(
+                        given=assumptions,
+                        expected=constraint.m_not(ctx=self._context),
+                    ),
+                )
+        except UnsupportedError as exc:
+            exc.phase = 'guarantee expression'
+            raise
 
     def _imply(self, given: BoolSort, expected: BoolSort) -> BoolSort:
-        expr = z3.And(
-            given.expr,
-            z3.Implies(given.expr, expected.expr, ctx=self._z3_context),
-        )
+        # A & (A => E) is A & E. Normalize the local bad-path condition before
+        # attaching unrelated quantified domains; guarded indexing often
+        # reduces to False through arithmetic normalization alone.
+        local = z3.simplify(expected.expr, arith_lhs=True)
+        expr = local if z3.is_false(local) else z3.And(given.expr, local)
         return BoolSort(expr=expr)
 
     def prove(self) -> Proof:
@@ -214,18 +295,36 @@ class Theorem:
 
         proofs = []
         try:
+            assumptions_proof = self._check_assumptions()
+            if assumptions_proof is not None:
+                return assumptions_proof
+
             for constraint in self.constraints:
                 solver = z3.Solver(ctx=self._z3_context)
-                solver.set('timeout', int(self._timeout * 1000))
+                timeout_ms = proof_monitor.solver_timeout_ms(int(self._timeout * 1000))
+                solver.set('timeout', timeout_ms)
                 solver.add(constraint.condition.expr)
-                proof = self._prove(solver=solver, descr=constraint.description)
+                proof_monitor.checking(constraint.description, constraint.details)
+                proof = self._prove(solver=solver, descr=constraint.description, timeout=timeout_ms / 1000)
+                proof_monitor.result(proof.conclusion.value, str(proof))
+                if proof_monitor.active() and proof.conclusion != Conclusion.OK:
+                    return proof
                 if proof.conclusion == Conclusion.FAIL:
                     return proof
                 proofs.append(proof)
         except UnsupportedError as exc:
             proofs.append(Proof(
                 conclusion=Conclusion.SKIP,
-                description='unsupported guarantee expression',
+                description='unsupported ' + getattr(exc, 'phase', 'proof construction'),
+                error=exc,
+                example=None,
+            ))
+        except z3.Z3Exception as exc:
+            # Sort mismatches and similar encoding faults are prover
+            # limitations, not proofs; report them the same way (#133).
+            proofs.append(Proof(
+                conclusion=Conclusion.SKIP,
+                description='solver rejected the encoding',
                 error=exc,
                 example=None,
             ))
@@ -238,8 +337,93 @@ class Theorem:
             ))
         return self._select_proof(proofs=proofs)
 
+    @cached_property
+    def _assumption_terms(self) -> list[z3.BoolRef]:
+        return [
+            term.m_bool(ctx=self._context).expr
+            for term in (*self._contracts.pre, *self._context.given)
+        ]
+
+    def _check_assumptions(self) -> Proof | None:
+        """Reject a proof whose assumptions cannot hold, when that is provable.
+
+        Every constraint is discharged as ``given -> expected``, so assumptions
+        that cannot hold make each one vacuously valid and the whole theorem a
+        no-op. ``VACUOUS`` is therefore returned only when unsatisfiability is
+        *established*. If the quantifier-free check is undecided, the theorem
+        fails closed with ``SKIP`` rather than allowing a possibly-vacuous
+        obligation to report ``OK``.
+
+        Check the quantifier-free subset first: it can establish a contradiction
+        cheaply without quantified witnesses from set/list models. Then check
+        the full frozen assumptions under the same short timeout. A value's
+        quantified domain axiom can contradict an otherwise satisfiable trusted
+        postcondition, even though the domain axiom alone is satisfiable.
+
+        The full check only establishes vacuity on ``unsat``. Its ``unknown``
+        result does not establish a contradiction and leaves ordinary obligation
+        checking unchanged; otherwise satisfiable quantified set witnesses
+        could prevent every such program from proving.
+        """
+        terms = self._assumption_terms
+        if not terms:
+            return None
+        domain_ids = {term.expr.get_id() for term in self._context.pure_domains}
+        if all(z3.is_true(term) or term.get_id() in domain_ids for term in terms):
+            return None
+        # Plain pre/postconditions can contradict generated domains. Their
+        # presence requires the full check even without user quantifiers.
+        quantified = [_has_quantifier(term) for term in terms]
+        plain_terms = [
+            term
+            for term, has_quantifier in zip(terms, quantified, strict=True)
+            if not has_quantifier
+        ]
+
+        solver = z3.Solver(ctx=self._z3_context)
+        timeout = min(self._timeout, MAX_ASSUMPTION_CHECK_TIMEOUT)
+        solver.set('timeout', proof_monitor.solver_timeout_ms(int(timeout * 1000)))
+        if plain_terms:
+            solver.add(z3.And(*plain_terms))
+            result = solver.check()
+            if result == z3.unknown:
+                return Proof(
+                    conclusion=Conclusion.SKIP,
+                    description='failed to check assumptions',
+                    error=ProveError(solver.reason_unknown()),
+                    example=None,
+                )
+            if result == z3.unsat:
+                return self._vacuous_proof()
+
+        if not any(quantified):
+            return None
+        # Retain the plain conjuncts in this solver and add every remaining
+        # frozen term, so this second query includes the complete antecedent.
+        solver.add(*[
+            term
+            for term, has_quantifier in zip(terms, quantified, strict=True)
+            if has_quantifier
+        ])
+        if proof_monitor.active():
+            solver.set('timeout', proof_monitor.solver_timeout_ms(int(timeout * 1000)))
+        if solver.check() != z3.unsat:
+            return None
+        return self._vacuous_proof()
+
     @staticmethod
-    def _prove(solver: z3.Solver, descr: str) -> Proof:
+    def _vacuous_proof() -> Proof:
+        return Proof(
+            conclusion=Conclusion.VACUOUS,
+            description='assumptions are contradictory',
+            error=None,
+            example=None,
+        )
+
+    @staticmethod
+    def _prove(
+        solver: z3.Solver, descr: str, timeout: float = DEFAULT_TIMEOUT,
+    ) -> Proof:
         result = solver.check()
         if result == z3.unsat:
             return Proof(
@@ -249,6 +433,17 @@ class Theorem:
                 example=None,
             )
         if result == z3.unknown:
+            model = sequence_counterexample(
+                list(solver.assertions()),
+                timeout_ms=proof_monitor.solver_timeout_ms(int(min(timeout, 1.0) * 1000)),
+            )
+            if model is not None:
+                return Proof(
+                    conclusion=Conclusion.FAIL,
+                    description=descr,
+                    error=None,
+                    example=Model(model),
+                )
             return Proof(
                 conclusion=Conclusion.SKIP,
                 description=descr,

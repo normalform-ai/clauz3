@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Clauz3 · Workspace</title>
+    <link rel="stylesheet" href="/ui/assets/workspace.css" />
+    <link rel="stylesheet" href="/ui/approval-assets/profile.css" />
+  </head>
+  <body>
+    <aside class="sidebar">
+      <a class="brand" href="/ui"><span class="brand-mark">c₃</span> clauz3</a>
+      <div class="eyebrow">WORKSPACE</div>
+      <h2 id="project-name">Your project</h2>
+      <p id="project-path" class="path"></p>
+      <button id="new" class="new-button" disabled>＋ New conversation</button>
+      <nav>
+        <a class="selected" href="/ui">◉ Conversation</a
+        ><a href="/ui/profile">≡ Approval profile &amp; history</a
+        ><a href="/ui/libraries">▦ Libraries</a
+        ><a href="/api/chat/transcript" download>↓ Export conversation</a>
+      </nav>
+      <section class="conversation-history" aria-label="Conversation history">
+        <div class="eyebrow">CONVERSATIONS</div>
+        <input
+          id="history-search"
+          type="search"
+          aria-label="Search conversations"
+          placeholder="Search conversations…"
+        />
+        <ul id="conversation-list"></ul>
+      </section>
+      <div class="sidebar-bottom">
+        <span class="shield">✓</span>
+        <div>
+          Proof before execution
+          <p class="muted">Your approval controls effects.</p>
+        </div>
+      </div>
+    </aside>
+    <main>
+      <section id="chat-view">
+        <header>
+          <div>
+            <div class="eyebrow">CONVERSATION</div>
+            <h1 id="conversation-title">New conversation</h1>
+          </div>
+          <div class="header-actions">
+            <span id="model" class="model">Claude</span>
+            <button
+              id="files-toggle"
+              aria-expanded="false"
+              aria-controls="files-panel"
+            >
+              ▤ Files
+            </button>
+          </div>
+        </header>
+        <div class="status-bar">
+          <span class="dot"></span
+          ><span id="status" role="status">Connecting…</span
+          ><span
+            id="approvals-paused"
+            class="paused-pill"
+            title="Libraries were added after this conversation started, so every action needs your approval."
+            hidden
+            >Automatic approvals paused</span
+          ><button
+            id="stop"
+            title="End this conversation and stop its workers"
+            disabled
+          >
+            Stop
+          </button>
+        </div>
+        <p id="notice" role="alert" hidden></p>
+        <div id="resume-recovery" hidden>
+          <button id="libraries-continue" hidden>
+            Continue with current libraries
+          </button>
+          <button id="resume-new">Start new conversation</button>
+          <details>
+            <summary>Technical details</summary>
+            <pre id="resume-detail"></pre>
+          </details>
+        </div>
+        <div id="conversation" role="log" aria-label="Conversation">
+          <section id="welcome">
+            <div class="welcome-mark">c₃</div>
+            <h2>What would you like to do?</h2>
+            <div class="suggestions">
+              <button>What tools are available in this project?</button
+              ><button>
+                Help me plan a task using the selected libraries.
+              </button>
+            </div>
+          </section>
+        </div>
+        <form id="composer">
+          <div id="conversation-libraries" class="library-chips">
+            <ul id="libraries" aria-label="This conversation's libraries"></ul>
+            <button
+              type="button"
+              id="library-menu-toggle"
+              aria-expanded="false"
+              aria-controls="library-menu"
+            >
+              ＋ Libraries
+            </button>
+          </div>
+          <div id="library-menu" hidden>
+            <ul id="library-menu-list"></ul>
+            <div id="library-confirm" hidden>
+              <p id="library-confirm-title"></p>
+              <p>
+                Earlier messages may include text from files or web pages
+                Claude read. To keep that text from steering new or changed
+                tools, automatic approvals are paused for the rest of this
+                conversation, so you approve each action yourself. New
+                conversations aren't affected.
+              </p>
+              <button type="button" id="library-confirm-new" class="link-button">
+                Start a new conversation with these libraries instead
+              </button>
+            </div>
+            <div class="library-menu-actions">
+              <a href="/ui/libraries">Manage libraries →</a
+              ><button type="button" id="library-menu-cancel">Cancel</button
+              ><button type="button" id="library-menu-apply">Apply</button>
+            </div>
+          </div>
+          <label for="prompt">Message Claude</label
+          ><textarea
+            id="prompt"
+            rows="3"
+            maxlength="20000"
+            placeholder="Describe what you want to do…"
+            disabled
+          ></textarea>
+          <div class="composer-bottom">
+            <span>Enter to send · Shift+Enter for a new line</span
+            ><button id="send" type="submit" disabled>Send ↑</button>
+          </div>
+        </form>
+      </section>
+      <!-- APPROVALS -->
+      <section id="libraries-view" hidden>
+        <header>
+          <h1>Libraries</h1>
+          <button id="libraries-refresh">↻ Refresh</button>
+        </header>
+        <p class="view-intro">
+          Install libraries into this project and choose which ones new
+          conversations start with. Change a conversation's own libraries from
+          the message box.
+        </p>
+        <div class="library-filters">
+          <label class="profile-search"
+            >Search libraries
+            <input
+              id="library-search"
+              type="search"
+              placeholder="Search by name or description…"
+            />
+          </label>
+          <div role="group" aria-label="Show">
+            <button id="library-filter-all" aria-pressed="true">All</button
+            ><button id="library-filter-installed" aria-pressed="false">
+              Installed
+            </button>
+          </div>
+        </div>
+        <p id="libraries-status" role="status"></p>
+        <div id="library-list"></div>
+      </section>
+    </main>
+    <aside id="files-panel" aria-label="Workspace files" hidden>
+      <div class="files-heading">
+        <div>
+          <div class="eyebrow">WORKSPACE</div>
+          <h2>Files</h2>
+        </div>
+        <button id="files-close" aria-label="Close files">×</button>
+      </div>
+      <div class="files-toolbar">
+        <label><input type="checkbox" id="files-hidden" /> Hidden files</label>
+        <button id="files-refresh" aria-label="Refresh files">↻ Refresh</button>
+      </div>
+      <nav id="files-breadcrumbs" aria-label="File path"></nav>
+      <p id="files-status" role="status"></p>
+      <ul id="files-list" aria-label="Files and folders"></ul>
+      <div id="file-preview" hidden>
+        <div class="preview-heading">
+          <span id="file-size"></span
+          ><button id="file-reference">Add path to message</button>
+        </div>
+        <p id="file-preview-note"></p>
+        <pre id="file-content" tabindex="0" aria-label="File contents"></pre>
+      </div>
+      <p
+        class="files-footnote"
+        title="Paths stay inside this workspace. Symbolic links are not opened."
+      >
+        Read-only
+      </p>
+    </aside>
+    <dialog id="library-review" aria-labelledby="library-review-title">
+      <div class="files-heading">
+        <h2 id="library-review-title">Review library</h2>
+        <button id="library-review-close" aria-label="Close library review">
+          ×
+        </button>
+      </div>
+      <div id="library-review-content"></div>
+      <p id="library-review-status" role="status"></p>
+      <div class="library-review-actions">
+        <button id="library-review-cancel">Cancel</button
+        ><button id="library-review-apply" hidden>Install library</button>
+      </div>
+    </dialog>
+    <script src="/ui/approval-assets/guarantees.js" defer></script>
+    <script src="/ui/assets/markdown.js" defer></script>
+    <script src="/ui/assets/workspace.js" defer></script>
+    <script src="/ui/assets/libraries.js" defer></script>
+    <script src="/ui/assets/files.js" defer></script>
+    <script src="/ui/approval-assets/profile.js" defer></script>
+  </body>
+</html>

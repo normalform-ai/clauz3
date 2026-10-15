@@ -4,8 +4,10 @@ import pytest
 import z3
 
 from clauz3._vendor.deal_solver._context import Context
+from clauz3._vendor.deal_solver._exceptions import UnsupportedError
 from clauz3._vendor.deal_solver._proxies import StrSort
 from clauz3._vendor.deal_solver._proxies._row import RowSort, z3_datatype_for_row
+from clauz3._vendor.deal_solver._strings import string_sort, string_val
 from clauz3.prover import prove_text
 from clauz3.row import ColumnRef, Row
 
@@ -83,8 +85,8 @@ def test_z3_datatype_field_sorts_match_annotations() -> None:
     name_sort = dt.accessor(0, 0).range()
     email_sort = dt.accessor(0, 1).range()
     consented_sort = dt.accessor(0, 2).range()
-    assert name_sort == z3.StringSort()
-    assert email_sort == z3.StringSort()
+    assert name_sort == string_sort()
+    assert email_sort == string_sort()
     assert consented_sort == z3.BoolSort()
 
 
@@ -92,16 +94,14 @@ def test_z3_datatype_for_row_rejects_unsupported_field_type() -> None:
     class _NotARow:
         __annotations__ = {"x": list}
 
-    with pytest.raises(TypeError, match="unsupported field type"):
+    with pytest.raises(UnsupportedError, match="unsupported field type"):
         z3_datatype_for_row(_NotARow)
 
 
 def test_row_sort_field_returns_typed_proxy(ctx_factory: Callable[[], Context]) -> None:
     ctx = ctx_factory()
     dt = z3_datatype_for_row(UserRow)
-    bob = dt.constructor(0)(
-        z3.StringVal("Bob"), z3.StringVal("bob@x"), z3.BoolVal(True)
-    )
+    bob = dt.constructor(0)(string_val("Bob"), string_val("bob@x"), z3.BoolVal(True))
     row = RowSort(schema=UserRow, expr=bob)
     email = row.field("email", ctx=ctx)
     assert isinstance(email, StrSort)
@@ -110,11 +110,9 @@ def test_row_sort_field_returns_typed_proxy(ctx_factory: Callable[[], Context]) 
 def test_row_sort_rejects_unknown_field(ctx_factory: Callable[[], Context]) -> None:
     ctx = ctx_factory()
     dt = z3_datatype_for_row(UserRow)
-    bob = dt.constructor(0)(
-        z3.StringVal("Bob"), z3.StringVal("bob@x"), z3.BoolVal(True)
-    )
+    bob = dt.constructor(0)(string_val("Bob"), string_val("bob@x"), z3.BoolVal(True))
     row = RowSort(schema=UserRow, expr=bob)
-    with pytest.raises(AttributeError, match="unknown field"):
+    with pytest.raises(UnsupportedError, match="unknown field"):
         row.field("address", ctx=ctx)
 
 
@@ -206,7 +204,6 @@ class UserRow(clauz3.Row):
 def db_query(table: str) -> list[UserRow]: ...
 
 
-@clauz3.guarantee(lambda: True)
 def main() -> None:
     rows = db_query("users")
     first = rows[0]   # forces indexing on rows
@@ -214,3 +211,82 @@ def main() -> None:
 """
     results = prove_text(source)
     assert all(r.ok for r in results), [r.proof.error for r in results]
+
+
+def test_generic_trusted_reader_uses_schema_argument_for_row_type() -> None:
+    """A trusted ``list[T]`` reader can be typed from a Row schema argument."""
+    source = """
+from typing import TypeVar
+
+import deal
+import clauz3
+
+
+RowT = TypeVar("RowT", bound=clauz3.Row)
+
+
+class UserRow(clauz3.Row):
+    name: str
+    email: str
+    consented: bool
+
+
+@deal.has("db_read")
+@deal.post(lambda result: len(result) <= 100)
+def read_rows(
+    schema: type[RowT],
+    path: str,
+    table: str,
+    where: dict[str, object],
+) -> list[RowT]: ...
+
+
+def main() -> None:
+    rows = read_rows(UserRow, "/repo/data", "users", {"consented": True})
+    first = rows[0]
+    _ = first.email
+"""
+    results = prove_text(source)
+    assert all(r.ok for r in results), [r.proof.error for r in results]
+
+
+def test_row_rejects_class_level_field_default_even_with_explicit_slots() -> None:
+    """A field default must be refused, not silently accepted via __slots__.
+
+    With the default ``__slots__`` Python already rejects the conflict; with
+    an explicit ``__slots__ = ()`` the class used to be created and was then
+    unusable (instances could not be built). A schema field must describe
+    instance storage rather than a concrete class value.
+    """
+    with pytest.raises(TypeError, match="class-level defaults.*email"):
+
+        class _Defaulted(Row):
+            __slots__ = ()
+            email: str = "x"
+
+
+def test_row_rejects_field_default_inherited_from_a_base() -> None:
+    """A value on a base class must not satisfy a subclass's annotated field."""
+
+    class _Base(Row):
+        __slots__ = ()
+        email = "a@x"
+
+    with pytest.raises(TypeError, match="inherited.*email"):
+
+        class _Derived(_Base):
+            email: str
+
+
+def test_row_subclass_may_redeclare_an_inherited_field() -> None:
+    """A base's slot descriptor is storage, not a class-level default."""
+
+    class _Base(Row):
+        email: str
+
+    class _Derived(_Base):
+        email: str
+        role: str
+
+    assert _Derived.__annotations__ == {"email": str, "role": str}
+    assert _Derived(email="a@x", role="admin").role == "admin"

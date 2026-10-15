@@ -20,8 +20,7 @@ clauz3 install stdlib:env
 Import with `from tools.env.trusted.effects import read_env`:
 
 - `read_env(name: str) -> str` — return env var `name`, or the empty
-  string if unset. Precondition: `name` is non-empty. Recorded under the
-  `read` and `env` markers.
+  string if unset. Precondition: `name` is non-empty.
 
 ## Contracts
 

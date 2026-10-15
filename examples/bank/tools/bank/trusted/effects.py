@@ -1,8 +1,11 @@
-import deal
+import clauz3
 
 
-@deal.pre(lambda account, amount: amount >= 0, message="amount must be non-negative")
-@deal.has("trusted")
+@clauz3.requires(
+    lambda account, amount: amount >= 0, message="amount must be non-negative"
+)
+@clauz3.trusted
+@clauz3.mock
 def withdraw(account: str, amount: int) -> None:
     """MOCK trusted withdrawal.
 
@@ -11,8 +14,9 @@ def withdraw(account: str, amount: int) -> None:
     pass
 
 
-@deal.post(lambda result: result >= 0, message="balance must be non-negative")
-@deal.has("bank_read")
+@clauz3.ensures(lambda result: result >= 0, message="balance must be non-negative")
+@clauz3.trusted
+@clauz3.mock
 def balance(account: str) -> int:
     """MOCK trusted balance lookup (amount outstanding on an account).
 

@@ -1,0 +1,54 @@
+<section id="approvals-view" hidden>
+  <header>
+    <div>
+      <div class="eyebrow">APPROVALS</div>
+      <h1>Approval profile &amp; history</h1>
+    </div>
+    <button id="profile-refresh">↻ Refresh</button>
+  </header>
+  <div class="profile-stats">
+    <div><strong id="rules-count">—</strong><span>Active rules</span></div>
+    <div>
+      <strong id="decisions-count">—</strong><span>Past decisions</span>
+    </div>
+    <div>
+      <strong id="automatic-count">—</strong><span>Automatic decisions</span>
+    </div>
+  </div>
+  <div class="profile-tabs" role="tablist" aria-label="Approval views">
+    <button
+      id="rules-tab"
+      role="tab"
+      aria-selected="true"
+      aria-controls="profile-cards"
+    >
+      Remembered rules
+    </button>
+    <button
+      id="decisions-tab"
+      role="tab"
+      aria-selected="false"
+      aria-controls="profile-cards"
+      tabindex="-1"
+    >
+      Decision history
+    </button>
+  </div>
+  <label class="profile-search"
+    >Search
+    <input
+      id="profile-search"
+      type="search"
+      placeholder="Find a contract or decision…"
+  /></label>
+  <p id="profile-result" role="status"></p>
+  <div id="profile-cards" role="tabpanel" aria-labelledby="rules-tab"></div>
+  <details class="profile-explanation">
+    <summary>How rules apply</summary>
+    <p>
+      Rules apply to matching verified contracts and trusted code in this
+      project. Rejections take priority. Disabling a rule changes future
+      decisions; it does not undo completed actions.
+    </p>
+  </details>
+</section>
