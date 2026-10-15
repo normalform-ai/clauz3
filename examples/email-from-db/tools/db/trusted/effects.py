@@ -1,15 +1,16 @@
-import deal
 from tools.db.trusted.schemas import UserRow
 
+import clauz3
 
-@deal.has("trusted")
+
+@clauz3.trusted
 def send_email(addr: str, msg: str) -> None:
     """MOCK trusted email sender."""
     pass
 
 
-@deal.has("db_read")
-@deal.post(lambda result: len(result) <= 100)
+@clauz3.trusted
+@clauz3.ensures(lambda result: len(result) <= 100)
 def db_query(table: str, where: dict[str, object] | None = None) -> list[UserRow]:
     """Trusted DB query returning at most 100 UserRows.
 

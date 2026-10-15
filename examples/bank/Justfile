@@ -1,12 +1,11 @@
 
 trusted := "tools/bank/trusted"
-effects := trusted + "/effects.py"
 prove := "uv run clauz3 prove --trusted-root " + trusted
 
 test: lint cases
 
 lint:
-    uv run python -m deal lint {{effects}}
+    uv run clauz3 lint {{trusted}}/effects.py
 
 cases: max-spend-pass max-spend-fail max-spend-branch-pass for-loop-sum-pass for-loop-sum-fail only-account-pass only-account-fail negative-amount-fail pay-bill-capped-pass pay-bill-uncapped-fail pay-bill-cap-too-tight-fail
 

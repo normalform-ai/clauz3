@@ -15,12 +15,14 @@ The sequence-content guards ride on the same z3.Contains primitive used by
 biosecurity policy can attach to before submission, rather than after.
 """
 
+from tools.lims.trusted.effects import order_oligo, pipette, submit_protocol
+
 from clauz3.spec import ContractSpec, contract, effect
 from clauz3.spec import no_guarantees as core_no_guarantees
 
-Pipette = effect("pipette")
-Protocol = effect("submit_protocol")
-Oligo = effect("order_oligo")
+Pipette = effect(pipette)
+Protocol = effect(submit_protocol)
+Oligo = effect(order_oligo)
 
 
 @contract

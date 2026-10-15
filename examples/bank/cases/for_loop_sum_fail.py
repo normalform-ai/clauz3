@@ -7,5 +7,6 @@ import clauz3
 
 @clauz3.guarantee(bank.max_spend(40))
 def main() -> None:
+    """withdraw in 5 increments, $10 each time"""
     for _ in range(5):
         withdraw("checking", 10)

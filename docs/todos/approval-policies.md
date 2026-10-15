@@ -5,11 +5,12 @@ waiting for a human, and why that is safe — including for a block list.
 
 ## Status
 
-Implemented. `clauz3 approval-service --policy <file.json>` loads a policy; each
-incoming request is evaluated against it before a human is asked. A matching
-rule resolves the request immediately as `auto_approved` (with a receipt) or
+Implemented. `clauz3 approval-service --policy <file.json>` loads a policy and
+requires explicit trusted/import root configuration. Requests must select that
+operator-authorized layer before evaluation can import Python. A matching rule
+resolves the request immediately as `auto_approved` (with a receipt) or
 `auto_rejected`; with no match the request stays pending exactly as before.
-Evaluation lives in `clauz3.approval_policy`; the service wires it into
+Evaluation lives in `clauz3.approvals.policy`; the service wires it into
 `POST /requests`.
 
 This is the "Policy Interaction" step sketched in
@@ -30,6 +31,15 @@ ones that genuinely need a human. The policy is held by the **approval
 service** — not the trusted root and not the agent-invoked CLI — which keeps the
 decision outside the agent-controlled execution path, the core invariant of the
 approval design.
+
+The operator also controls the service's authorized layers. Each layer is a
+complete ordered pair of trusted roots and import roots; a request can select
+one of those pairs but cannot authorize its own code. Authorization happens
+before imports or reuse of a recorded approval, including rules with no
+clauses. Unknown selections receive HTTP 403. The operator must protect the
+selected files and their dependencies from requester modification. See
+[Authorize a layer](../how-to/approval-service.md#authorize-a-layer-for-automatic-decisions)
+for CLI and Python configuration.
 
 This is distinct from the TLE's coverage policy
 ([coverage-policies.md](../reference/coverage-policies.md)). Coverage says what
@@ -133,9 +143,10 @@ and shown on the detail page, so a pass is still auditable.
 ## Trying it
 
 The fastest loop is `clauz3 policy-check`, which reports the decision a policy
-would make for a program without starting a service or executing anything — the
-policy admin's authoring tool. The `examples/email` Justfile exercises all three
-outcomes against `approval-policy.json`:
+would make for a program without starting a service or executing the submitted
+program. This policy-admin tool authorizes its locally selected roots and
+imports trusted modules to perform the checks. The `examples/email` Justfile
+exercises all three outcomes against `approval-policy.json`:
 
 ```bash
 cd examples/email
@@ -150,20 +161,35 @@ clauz3 policy-check --policy approval-policy.json \
   --expect ask cases/policy_ask.py                # not blocked, not allow-listed
 ```
 
-`just policy` runs these. In the live flow the same decision is reached by
-starting `clauz3 approval-service --policy approval-policy.json` and pointing
-`clauz3 run` at it: an auto-approved program gets an `auto-…` receipt and never
-appears as a pending request, an auto-rejected one is denied, and anything in
-between is sent to the user.
+`just policy` runs these. In the live flow, start the service with the same roots:
+
+```bash
+clauz3 approval-service --policy approval-policy.json \
+  --trusted-root tools/email/trusted --import-root .
+```
+
+Point `clauz3 run --trusted-root tools/email/trusted --import-root .` at that
+service. An auto-approved program gets an `auto-…` receipt and never appears as a
+pending request, an auto-rejected one is denied, and anything in between is sent
+to the user.
 
 ## Limitations and future work
 
+The [persistent approval profiles proposal](persistent-approval-profiles.md)
+describes remembered UI decisions, user-wide storage shared by ephemeral
+sessions, context binding, historical curation, and checks on profile edits.
+Those features are proposed, not part of the implementation described above.
+
 - **The service re-proves.** Each rule is one prover call against the program
-  using the trusted/import roots from the request. Those roots must be reachable
-  from where the service runs (true for the localhost flow). Re-proving is
-  serialized with a lock because the prover mutates global import state, and it
-  reloads trusted modules per call. A shared prover context and clause-set
-  caching are future work.
+  using an operator-authorized trusted/import root pair selected by the request.
+  Those roots must be reachable from where the service runs (true for the
+  localhost flow). The service CLI configures one pair; Python hosts can register
+  several `ApprovedLayer` instances. Re-proving is
+  serialized with a shared layer-selection lock because the prover uses global
+  import state. All rules in a request select one verified layer; unchanged
+  modules retain identity across requests, including projects with colliding
+  names. Clause-set caching remains future work. Approval HTTP waits release
+  the selection lock, and runtime resumes the verified image afterward.
 - **Entailment is per-program, single-request.** A clause like `at_most(10)`
   bounds one program; the service keeps no ledger across requests, so it cannot
   enforce "at most 10 emails to bob *per day* across many runs." Cross-request

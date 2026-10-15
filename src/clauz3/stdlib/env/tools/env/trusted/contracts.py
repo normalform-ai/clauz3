@@ -1,6 +1,6 @@
 """Environment-variable read policies built from generic trusted effect facts.
 
-Env reads carry the ``read`` and ``env`` markers. These contracts let an
+These contracts let an
 agent state which environment variables it may inspect — the canonical
 credential-exfil guard for any program that touches API keys or other
 secrets via ``os.environ``.
@@ -12,10 +12,12 @@ otherwise. Use ``no_env_reads()`` when the program should not touch the
 environment at all.
 """
 
+from tools.env.trusted.effects import read_env
+
 from clauz3.spec import ContractSpec, contract, effect
 from clauz3.spec import no_guarantees as core_no_guarantees
 
-EnvRead = effect("read_env")
+EnvRead = effect(read_env)
 
 
 @contract

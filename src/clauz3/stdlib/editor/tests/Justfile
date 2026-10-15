@@ -1,8 +1,7 @@
 # Runner commands. Default to `uv run` for the source-checkout dev flow;
-# `clauz3 test` overrides CLAUZ3/DEAL so the bundled suite also runs from an
+# `clauz3 test` overrides CLAUZ3 so the bundled suite also runs from an
 # installed wheel, where `uv` is absent.
 clauz3 := env_var_or_default("CLAUZ3", "uv run clauz3")
-deal := env_var_or_default("DEAL", "uv run python -m deal")
 
 trusted := "../tools/editor/trusted"
 effects := trusted + "/effects.py"
@@ -11,7 +10,7 @@ prove := clauz3 + " prove --trusted-root " + trusted + " --import-root .."
 test: lint cases
 
 lint:
-    {{deal}} lint {{effects}}
+    {{clauz3}} lint {{effects}}
 
 cases: only-edit-under-pass only-edit-under-fail never-edit-under-pass never-edit-under-fail no-edits-pass no-edits-fail edits-at-most-pass edits-at-most-fail must-not-replace-pass must-not-replace-fail replace-length-at-most-pass replace-length-at-most-fail
 

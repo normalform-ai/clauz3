@@ -43,7 +43,7 @@ configuration is needed — dropping a `policy.py` into a trusted root is enough
 
 Because policies live in the trusted root, only the TLE can write them. Agent
 code is forbidden from declaring its own obligations, exactly as it is forbidden
-from writing `@deal.has`, `@contract`, or `@clauz3.solver`.
+from writing `@clauz3.trusted`, `@contract`, or `@clauz3.solver`.
 
 ## `recommended` vs `required`
 
@@ -61,10 +61,57 @@ mentioned it.
 
 ## How "used" is determined
 
-A domain counts as **used** when the program contains a call to its `when_used`
-function. This is a static, AST-level over-approximation: a `send_email` call in
-a dead branch still counts. For a *warning*, over-approximation is the safe
-direction — it errs toward telling the user more, not less.
+A domain counts as **used** when the selected entry or a helper it calls
+contains a call to its `when_used` function. Required-contract injection and
+approval coverage use the same call analysis, including custom entry targets.
+This remains a static over-approximation: a `send_email` call in a dead branch
+still counts. Merely defining an unused function or class does not contribute
+calls.
+
+Import aliases resolve in the scope of each call. Both module imports and local
+imports in called helpers are supported; an import in an unused function or
+class cannot rename the entry's calls or remove a required obligation. Simple
+callable aliases such as `deliver = send_email; deliver(...)` and called nested
+helpers are followed too. Duplicate module helpers use the final binding;
+duplicate definitions of the selected entry are refused.
+
+Imported ordinary helpers are followed through their source files under the
+configured import roots, including aliases and relative re-exports. A trusted
+effect stops this traversal at its declared boundary; its implementation is
+not part of the agent's symbolic call graph. Merely placing an ordinary helper
+under a trusted root does not make it a boundary.
+
+Call discovery reads source without executing imports and keeps its module
+cache local to that analysis. It does not search ambient `sys.path`. Missing
+source, unresolved exports, wildcard imports, and source requiring attribute
+assignment inference use the conservative fallback below. This can activate
+unrelated policies, including for external library helpers whose source is
+outside the configured roots.
+
+Vetted, modelled `math` and `re` calls (and known `math` scalar constants) do
+not activate unrelated policies when their loaded module has a verified
+standard-library origin. Configured source modules with those names take
+precedence, and unsupported or unverified modules keep the conservative
+fallback. Import permission alone does not establish that a callable is pure;
+frameworks and arbitrary library callbacks receive no blanket exemption.
+
+For a callable reassigned inside a function, the analysis retains its possible
+local bindings. This conservatively covers later loop iterations and calls
+through closures, and can trigger a policy even when one binding is never used.
+
+When lexical lookup cannot determine a call target, every domain policy under
+the supplied trusted roots is considered used. This includes calls through
+callback parameters, returned functions, subscripts, and conditional callees.
+All required contracts are then conjoined into the proof, and approval coverage
+reports every potentially used domain. A dynamically selected pure function
+can therefore trigger obligations for unrelated domains; this conservative
+fallback prevents an unresolved callable from silently removing an obligation.
+Known callable values are also followed when passed as arguments, returned,
+or stored in containers. This keeps an escaping nested function's effects in
+the analysis even when an imported helper makes the eventual call.
+Resolved builtin constructors such as `str()` and `range()` do not trigger the
+fallback. A callback or agent-defined class with the same name still requires
+conservative analysis; the binding, rather than its spelling, determines this.
 
 ## Coverage statuses
 
@@ -79,8 +126,18 @@ import alias back to the trusted package):
 | `silent_gap` | the domain is used, but the agent stated **no** guarantee about it |
 | `required_gap` | a required contract is missing |
 
+Direct callers can select an entry with `target="task"`; the default is `main`.
+Pass `import_roots` and `trusted_roots` to `compute_coverage()` (or
+`transitive_calls()`) to resolve imported helpers and trusted boundaries.
+Without those roots, imported callees use the conservative fallback. The CLI
+and runner supply the same roots for required proofs and approval coverage.
+If that module-level function is absent, `compute_coverage()` raises `ValueError`
+instead of returning a report that suggests no domain is used.
+
 Alias resolution is what stops a false `silent_gap` when the agent used a real
-but unlisted contract such as `emails.only(...)`.
+but unlisted contract such as `emails.only(...)`. Guarantee names resolve
+through module imports, including renamed contract helpers; local imports in
+function or class bodies cannot change which domain an entry guarantee covers.
 
 The report is attached to the approval request under a `coverage` key, alongside
 `guarantees` and `proofs`. The approval service renders it as a **Coverage**
@@ -119,6 +176,16 @@ name that is non-nullary or not a registered `@contract` raises a
   the UI means "we enforced it for you and it held" (a violation would have been
   rejected earlier). A future label could distinguish *auto-enforced* from
   *missing*.
-- **Key policies on function names, not markers.** A marker like `@deal.has(...)`
-  can match facts with non-uniform shapes; keying `when_used` on the trusted
-  function name keeps the activation signal robust.
+- **`when_used` names trusted effects.** It could once name a `@deal.has`
+  marker, resolving to whichever functions carried the string — facts with
+  non-uniform shapes, and a set the policy could not see. A token that names no
+  trusted effect is now a configuration error, so a typo (or a marker) fails
+  closed instead of quietly disabling enforcement. So is a token that is both
+  an effect's name and a marker other effects carry, since it used to reach
+  them all and now reaches one: name every effect the policy covers.
+
+  This is checked for every policy, `recommended`-only ones included. What such
+  a policy loses is quieter than a dropped obligation and no less serious — it
+  stops matching, so its domain leaves the coverage report altogether instead
+  of showing up there as a `silent_gap`, and the person approving the run is
+  never told the program touched it.

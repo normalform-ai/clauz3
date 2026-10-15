@@ -1,15 +1,14 @@
 
 trusted := "tools/email/trusted"
-effects := trusted + "/effects.py"
 prove := "uv run clauz3 prove --trusted-root " + trusted
 policy-check := "uv run clauz3 policy-check --policy approval-policy.json --trusted-root " + trusted + " --import-root ."
 
 test: lint cases policy
 
 lint:
-    uv run python -m deal lint {{effects}}
+    uv run clauz3 lint {{trusted}}/effects.py
 
-cases: only-bob-pass only-bob-fail none-pass none-fail no-guarantees-pass helper-pass helper-fail precondition-fail dead-branch-pass unique-recipients-pass unique-recipients-fail unique-recipients-branch-pass nobody-emailed-twice-fail at-most-two-pass at-most-two-fail bob-at-most-two-pass bob-at-most-two-fail bob-at-most-two-branch-pass content-length-pass content-length-fail content-length-branch-pass same-content-pass same-content-fail same-content-branch-pass
+cases: only-bob-pass only-bob-fail alias-import-pass alias-import-fail aliased-guarantee-name-fail none-pass none-fail no-guarantees-pass helper-pass helper-fail precondition-fail dead-branch-pass unique-recipients-pass unique-recipients-fail unique-recipients-branch-pass nobody-emailed-twice-fail at-most-two-pass at-most-two-fail bob-at-most-two-pass bob-at-most-two-fail bob-at-most-two-branch-pass content-length-pass content-length-fail bob-gets-x-one-line-fail content-length-branch-pass same-content-pass same-content-fail same-content-branch-pass aug-assign-skip aug-assign-rewritten-fail
 
 policy: policy-auto-pass policy-auto-reject policy-ask
 
@@ -27,6 +26,17 @@ only-bob-pass:
 
 only-bob-fail:
     if {{prove}} cases/only_bob_fail.py; then exit 1; fi
+
+alias-import-pass:
+    {{prove}} cases/alias_import_pass.py
+
+# Issue #129: the guarantee is spelled through an import alias. Before the fix
+# the decorator was dropped and this printed "proved!".
+alias-import-fail:
+    if {{prove}} cases/alias_import_fail.py; then exit 1; fi
+
+aliased-guarantee-name-fail:
+    if {{prove}} cases/aliased_guarantee_name_fail.py; then exit 1; fi
 
 none-pass:
     {{prove}} cases/none_pass.py
@@ -94,6 +104,16 @@ same-content-fail:
 same-content-branch-pass:
     {{prove}} cases/same_content_branch_pass.py
 
+bob-gets-x-one-line-fail:
+    if {{prove}} cases/bob_gets_x_one_line_fail.py; then exit 1; fi
+
 case1: only-bob-pass
 
 case1-fail: only-bob-fail
+
+# Distinguish unsupported syntax from a refuted guarantee.
+aug-assign-skip:
+    out=$({{prove}} cases/aug_assign_skip.py 2>&1); status=$?; echo "$out"; test $status -ne 0 && echo "$out" | grep -qF "main: skipped unsupported program body"
+
+aug-assign-rewritten-fail:
+    out=$({{prove}} cases/aug_assign_rewritten_fail.py 2>&1); status=$?; echo "$out"; test $status -ne 0 && echo "$out" | grep -qF "main: failed guarantee"

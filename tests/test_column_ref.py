@@ -6,37 +6,38 @@ from pathlib import Path
 
 import z3
 
+from clauz3._vendor.deal_solver import Conclusion
 from clauz3.prover import prove_path
 
 EXAMPLE = Path(__file__).parent.parent / "examples" / "email-from-db"
 DB_TRUSTED = EXAMPLE / "tools" / "db" / "trusted"
 
 
-def _prove_case(case_name: str) -> bool:
+def _conclusions(case_name: str) -> list[Conclusion]:
     results = prove_path(
         EXAMPLE / "cases" / case_name,
         trusted_roots=[DB_TRUSTED],
         import_roots=[EXAMPLE],
     )
-    return all(r.ok for r in results)
+    return [r.proof.conclusion for r in results]
 
 
 def test_addresses_from_passes_when_addr_came_from_column() -> None:
     """The headline: for-loop sends from UserRow.email → contract holds."""
-    assert _prove_case("newsletter_pass.py")
+    assert _conclusions("newsletter_pass.py") == [Conclusion.OK]
 
 
 def test_addresses_from_fails_when_addr_is_literal() -> None:
-    assert not _prove_case("literal_address_fail.py")
+    assert _conclusions("literal_address_fail.py") == [Conclusion.FAIL]
 
 
 def test_addresses_from_fails_when_addr_from_wrong_column() -> None:
-    assert not _prove_case("wrong_column_fail.py")
+    assert _conclusions("wrong_column_fail.py") == [Conclusion.FAIL]
 
 
 def test_addresses_from_fails_on_mixed_source() -> None:
     """Literal send + loop sends — fails because the literal fact violates."""
-    assert not _prove_case("mixed_source_fail.py")
+    assert _conclusions("mixed_source_fail.py") == [Conclusion.FAIL]
 
 
 def test_compare_column_ref_returns_false_for_non_array_arg() -> None:

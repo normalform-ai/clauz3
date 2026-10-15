@@ -1,8 +1,13 @@
-import deal
+import clauz3
+from clauz3._path_safety import url_has_no_parent_segments
 
 
-@deal.pre(lambda url: len(url) > 0, message="url must be non-empty")
-@deal.has("http", "trusted")
+@clauz3.requires(
+    lambda url: url_has_no_parent_segments(url),
+    message="url must not contain parent-directory segments",
+)
+@clauz3.requires(lambda url: len(url) > 0, message="url must be non-empty")
+@clauz3.trusted
 def http_get(url: str) -> str:
     """Trusted HTTP GET.
 
@@ -15,8 +20,12 @@ def http_get(url: str) -> str:
     return ""
 
 
-@deal.pre(lambda url, body: len(url) > 0, message="url must be non-empty")
-@deal.has("http", "trusted")
+@clauz3.requires(
+    lambda url, body: url_has_no_parent_segments(url),
+    message="url must not contain parent-directory segments",
+)
+@clauz3.requires(lambda url, body: len(url) > 0, message="url must be non-empty")
+@clauz3.trusted
 def http_post(url: str, body: str) -> None:
     """Trusted HTTP POST.
 

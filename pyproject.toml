@@ -5,10 +5,13 @@ description = "Static contract experiments for agent-authored Python"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "astroid>=4.1.2",
+    "astroid>=4.1.2,<4.2",
+    "cryptography>=42",
     "deal>=4.24.6",
     "fastapi>=0.136.3",
+    "mcp>=1.0,<2",
     "uvicorn>=0.48.0",
+    "websockets>=14,<17",
     "z3-solver>=4.16.0.0",
 ]
 
@@ -21,11 +24,18 @@ Issues = "https://github.com/normalform-ai/clauz3/issues"
 [project.scripts]
 clauz3 = "clauz3.cli:main"
 
+[project.optional-dependencies]
+mcp = [
+    "mcp>=1.0,<2",
+]
+
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",
+    "mcp>=1.0,<2",
     "mypy>=1.15.0",
     "pytest>=8.3.0",
+    "pytest-xdist>=3.6",
     "ruff>=0.11.0",
 ]
 docs = [
@@ -45,6 +55,10 @@ packages = ["src/clauz3"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+addopts = "-m 'not differential_corpus'"
+markers = [
+    "differential_corpus: slow, isolated soundness sweep over the complete corpus",
+]
 filterwarnings = [
     "ignore::DeprecationWarning",
 ]
@@ -67,4 +81,8 @@ exclude = "(src/clauz3/_vendor|src/clauz3/stdlib|tests/fixtures/.*/cases/.*)"
 
 [[tool.mypy.overrides]]
 module = ["astroid.*", "deal.*", "z3"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["mcp", "mcp.*"]
 ignore_missing_imports = true

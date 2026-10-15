@@ -61,6 +61,8 @@ class SetSort(ProxySort):
 
     @classmethod
     def val(cls, values: list[ProxySort], ctx: Context) -> SetSort:
+        from ._list import reject_iteration_source_embedding
+        reject_iteration_source_embedding(*values)
         assert values  # there is no literal for empty set
         items = cls.make_empty_expr(sort=values[0].expr.sort())
         for value in values:
@@ -70,6 +72,8 @@ class SetSort(ProxySort):
 
     @methods.add(name='add', pure=False)
     def r_add(self, item: ProxySort, ctx: Context) -> SetSort:
+        from ._list import reject_iteration_source_embedding
+        reject_iteration_source_embedding(item)
         return self.evolve(
             expr=z3.SetAdd(s=self.expr, e=item.expr),
         )
@@ -87,6 +91,11 @@ class SetSort(ProxySort):
     @methods.add(name='__contains__')
     def m_contains(self, item: ProxySort, ctx: Context) -> BoolSort:
         return types.bool(expr=z3.IsMember(e=item.expr, s=self.expr))
+
+    @methods.add(name='__bool__')
+    def m_bool(self, ctx: Context) -> BoolSort:
+        empty = self.make_empty_expr(self.expr.domain())
+        return types.bool(expr=self.expr != empty)
 
     @methods.add(name='__pos__')
     def m_pos(self, ctx: Context) -> SetSort:
@@ -259,6 +268,10 @@ class UntypedSetSort(SetSort):
     @property
     def expr(self):
         return z3.EmptySet(self.sort())
+
+    @methods.add(name='__bool__')
+    def m_bool(self, ctx: Context) -> BoolSort:
+        return types.bool.val(False, ctx=ctx)
 
     @methods.add(name='add', pure=False)
     def r_add(self, item: ProxySort, ctx: Context) -> SetSort:

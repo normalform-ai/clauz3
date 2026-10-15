@@ -1,9 +1,10 @@
 import threading
 import time
 
+import pytest
 from fastapi.testclient import TestClient
 
-from clauz3.approval_service import create_approval_app
+from clauz3.approvals.service import create_approval_app
 
 
 def test_approval_service_waits_for_user_approval() -> None:
@@ -85,7 +86,8 @@ def test_approval_service_ui_lists_and_shows_requests() -> None:
     empty = client.get("/")
     assert empty.status_code == 200
     assert "No approval requests yet." in empty.text
-    assert "POST /requests" in empty.text
+    assert "Awaiting approval" in empty.text
+    assert "REST API" not in empty.text
 
     thread = threading.Thread(
         target=lambda: client.post(
@@ -117,7 +119,7 @@ def test_approval_service_ui_lists_and_shows_requests() -> None:
     assert detail.status_code == 200
     assert "emails.none()" in detail.text
     assert "main: proved! guarantee" in detail.text
-    assert "Pending user decision." in detail.text
+    assert "Awaiting approval" in detail.text
     assert "Reject contract" in detail.text
     assert "Show source" in detail.text
 
@@ -130,8 +132,11 @@ def test_approval_service_ui_lists_and_shows_requests() -> None:
     assert not thread.is_alive()
 
     decided = client.get("/ui/requests/clr_ui")
-    assert "approved_once" in decided.text
-    assert "local-clr_ui" in decided.text
+    assert (
+        '<div class="decision-summary"><p><strong>Approved once</strong>'
+        in decided.text
+    )
+    assert "<summary>Approval receipt</summary><pre>local-clr_ui</pre>" in decided.text
 
 
 def test_approval_service_ui_rows_endpoint_reflects_live_requests() -> None:
@@ -286,3 +291,68 @@ def _wait_for_record(client: TestClient, request_id: str) -> None:
             return
         time.sleep(0.01)
     raise AssertionError(f"request {request_id} was not recorded")
+
+
+def test_cards_show_review_and_isolate_actions() -> None:
+    from clauz3.approvals.service import _render_index, _render_rows
+
+    records: dict[str, dict[str, object]] = {
+        "pending": {
+            "request_id": "pending",
+            "target": "write_note",
+            "guarantees": ["files.writes_at_most(1)"],
+            "program": '<script>alert("untrusted")</script>',
+        },
+        "approved": {
+            "request_id": "approved",
+            "approval": {"decision": "auto_approved", "feedback": "Approved by policy"},
+        },
+        "rejected": {
+            "request_id": "rejected",
+            "approval": {"decision": "request_more", "feedback": "Narrow the scope"},
+        },
+    }
+    page = _render_index(records=records, order=list(records))
+    assert "files.writes_at_most(1)" in page
+    assert 'data-decision="approved_once"' in page
+    assert page.count('data-decision="approved_once"') == 1
+    assert 'data-status="approved"' in page
+    assert 'data-status="denied"' in page
+    assert page.count('role="tab"') == 3
+    assert '<script>alert("untrusted")</script>' not in page
+    assert "&lt;script&gt;" in page
+    # Fragments contain only escaped markup; one delegated handler belongs to
+    # the page, so cards arriving through polling behave like initial cards.
+    fragment = _render_rows(records=records, order=list(records))
+    assert "<script>" not in fragment
+    assert 'id="feedback"' not in fragment
+    assert 'data-request-id="pending"' in fragment
+    assert "Approved by policy" in fragment
+    assert "Narrow the scope" in fragment
+
+
+@pytest.mark.parametrize(
+    ("decision", "label"),
+    [
+        ("approved_once", "Approved once"),
+        ("approved_remember", "Approved and remembered"),
+        ("auto_approved", "Approved automatically"),
+        ("auto_rejected", "Rejected automatically"),
+        ("request_more", "More information requested"),
+        ("rejected_contract", "Contract rejected"),
+        ("rejected", "Rejected"),
+    ],
+)
+def test_decision_summary_shows_kind_note_and_receipt(
+    decision: str, label: str
+) -> None:
+    from clauz3.approvals.service import _render_approval_block
+
+    block = _render_approval_block(
+        approval={"decision": decision, "feedback": "<note>", "receipt": "<receipt>"}
+    )
+    assert f"<strong>{label}</strong>" in block
+    assert '<p class="decision-note">&lt;note&gt;</p>' in block
+    assert '<details data-panel="receipt">' in block
+    assert "<pre>&lt;receipt&gt;</pre>" in block
+    assert " open" not in block

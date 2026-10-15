@@ -1,9 +1,11 @@
 """Email-specific predicates built from generic trusted effect facts."""
 
+from tools.email.trusted.effects import send_email
+
 from clauz3.spec import ContractSpec, contract, effect
 from clauz3.spec import no_guarantees as core_no_guarantees
 
-Email = effect("send_email")
+Email = effect(send_email)
 
 
 @contract
@@ -54,3 +56,16 @@ def same_content(left_addr: str, right_addr: str) -> ContractSpec:
     left_emails = Email.where(lambda e: e.addr == left_addr)
     right_emails = Email.where(lambda e: e.addr == right_addr)
     return left_emails.shares_value(right_emails, lambda e: e.msg)
+
+
+@contract
+def bob_gets_x() -> ContractSpec:
+    """Bob only ever receives the message "x".
+
+    Deliberately written on one line: two relation lambdas sharing a physical
+    line used to compile to the same body (gh-125), so this is the fixture for
+    the end-to-end regression in ``tests/test_email_prover.py``.
+    """
+    # fmt: off
+    return Email.where(lambda e: e.addr == "bob@example.com").all(lambda e: e.msg == "x")  # noqa: E501
+    # fmt: on

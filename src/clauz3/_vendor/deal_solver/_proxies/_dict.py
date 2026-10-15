@@ -94,6 +94,8 @@ class DictSort(ProxySort):
 
     @methods.add(name='__setitem__', pure=False)
     def m_setitem(self, key: ProxySort, value: ProxySort, ctx: Context) -> DictSort:
+        from ._list import reject_iteration_source_embedding
+        reject_iteration_source_embedding(key, value)
         if not self.subtypes[0].match(key.factory):
             raise UnsupportedError('key has type {}, expected {}'.format(
                 key.type_name,
@@ -108,7 +110,7 @@ class DictSort(ProxySort):
         expr = z3.Update(self.expr, key.expr, item)
         return self.evolve(expr=expr)
 
-    @methods.add(name='__getitem__', pure=False)
+    @methods.add(name='__getitem__')
     def m_getitem(self, key: ProxySort, ctx: Context) -> ProxySort:
         if not self.subtypes[0].match(key.factory):
             ctx.add_exception(exc=KeyError)
@@ -123,6 +125,8 @@ class DictSort(ProxySort):
 
     @methods.add(name='get')
     def r_get(self, key: ProxySort, default: ProxySort, *, ctx: Context) -> ProxySort:
+        from ._list import reject_iteration_source_embedding
+        reject_iteration_source_embedding(key, default)
         item = z3.Select(self.expr, key.expr)
         expr = z3.If(
             self.item_sort.exists(item),
@@ -228,7 +232,7 @@ class UntypedDictSort(DictSort):
         dict_val = DictSort.make_empty(key, value)
         return dict_val.m_setitem(key=key, value=value, ctx=ctx)
 
-    @methods.add(name='__getitem__', pure=False)
+    @methods.add(name='__getitem__')
     def m_getitem(self, key: ProxySort, ctx: Context) -> ProxySort:
         ctx.add_exception(KeyError, '')
         return self

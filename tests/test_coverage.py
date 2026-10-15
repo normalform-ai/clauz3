@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from clauz3.policy import (
     DomainPolicy,
     compute_coverage,
@@ -77,6 +79,55 @@ def main() -> None:
     pass
 """
     assert compute_coverage(source=source, guarantees=[], policies=[EMAIL_POLICY]) == []
+
+
+def test_missing_default_target_is_not_reported_as_an_unused_domain() -> None:
+    source = _source().replace("def main()", "def task()")
+    with pytest.raises(ValueError, match=r"target 'main'.*module-level") as exc_info:
+        compute_coverage(source=source, guarantees=[], policies=[EMAIL_POLICY])
+    assert "target=" in str(exc_info.value)
+
+
+def test_missing_explicit_target_is_refused() -> None:
+    with pytest.raises(ValueError, match=r"target 'missing'.*module-level"):
+        compute_coverage(
+            source=_source(),
+            guarantees=[],
+            policies=[EMAIL_POLICY],
+            target="missing",
+        )
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "class task:\n    pass\n",
+        "class Ops:\n    def task() -> None:\n        send_email()\n",
+        "def outer() -> None:\n    def task() -> None:\n        send_email()\n",
+    ],
+    ids=["class", "method", "nested-function"],
+)
+def test_target_must_be_a_module_level_function(source: str) -> None:
+    with pytest.raises(ValueError, match=r"target 'task'.*module-level"):
+        compute_coverage(
+            source=source, guarantees=[], policies=[EMAIL_POLICY], target="task"
+        )
+
+
+def test_explicit_custom_target_preserves_guarantee_domain_resolution() -> None:
+    guarantees = ["emails.only(['bob@example.com'])", "emails.unique_recipients()"]
+    source = _source(*guarantees).replace("def main()", "def task()")
+    report = compute_coverage(
+        source=source, guarantees=guarantees, policies=[EMAIL_POLICY], target="task"
+    )
+    assert report == [
+        {
+            "domain": "email",
+            "status": "covered",
+            "missing_required": [],
+            "missing_recommended": [],
+        }
+    ]
 
 
 def test_required_gap_takes_precedence() -> None:

@@ -17,12 +17,31 @@ how the agent was talked into writing that program. A manipulated agent can
 still propose a program with a weak — but honest — contract. The point is that
 the weakness is visible before you approve, not that the agent cannot be fooled.
 
+What a discharged contract *does* give you is a bound that survives a
+manipulated agent: the proof covers every branch, so untrusted content steering
+which branch runs cannot push the program past the effects the contract allows.
+That bound is conditional on the trusted layer being honest about its effects —
+a stub that under-declares voids it, as with any other guarantee here (see
+[below](#what-if-a-trusted-stub-is-wrong-or-lies) and the
+[environment contract](background.md#environment-contract)).
+The system that attacks the injection problem head-on, by tracking provenance on
+every value, is CaMeL — see [background § CaMeL](background.md#camel) for how the
+two compare, and
+[Defend against malicious repos](../how-to/malware-repo-defense.md) for the
+data-flow contracts that come closest here.
+
 ### Does it sandbox the code or stop it doing arbitrary things?
 
-Only within the modelled trusted layer. The prover reasons about declared
-trusted effects and their preconditions; anything outside that layer is neither
-modelled nor constrained. `clauz3` is not a sandbox or OS-level isolation, and
-is not a substitute for one.
+`clauz3` is not a sandbox or OS-level isolation and is not a substitute for
+one. Within its trust model, though, the agent cannot route around the
+trusted layer: untrusted source is checked against a positive import
+allowlist before the prover or runner accept it, so `import os` (or
+`subprocess`, `socket`, `pickle`, `requests`, …) is rejected. The expected
+route for those capabilities is a trusted effect, where their preconditions
+become proof obligations. See
+[Concepts → Static proof vs runtime](concepts.md#static-proof-vs-runtime)
+and the
+[import allowlist reference](../reference/python-subset.md#import-allowlist).
 
 ### Is the agent trusted?
 
@@ -55,21 +74,26 @@ promises nothing, but it has to say so out loud.
 
 ### Is this static or runtime?
 
-Both — it is a two-layer system. The *default* layer is **static**: the whole
-program is accepted or rejected before any trusted effect runs, which avoids
+Both — it is a two-layer system. `clauz3 run` first requires a **static**
+proof: the whole program is accepted or rejected before any trusted effect runs, which avoids
 partial side effects mid-transaction. Underneath it, the trusted layer's
-[deal](https://deal.readthedocs.io/) contracts — `@deal.pre`, `@deal.post`,
-`@deal.has` — are enforced at **runtime** on every call. The static prover
-discharges those obligations *ahead* of execution; deal enforces the same
-checks *at* execution. So when a contract is weak, unproven, or the program
-runs in runtime-only mode, deal is still on guard at the trusted boundary.
+conditions — `@clauz3.requires`, `@clauz3.ensures` — are enforced at
+**runtime** on every call. The prover checks call-site preconditions and
+assumes trusted postconditions; runtime checks enforce them when the function
+runs. `no_guarantees()` leaves effects unconstrained, but still requires those
+preconditions to hold. Direct calls outside `clauz3 run` also retain the
+runtime checks.
+
+A trusted layer can add a further runtime layer about its *own bodies* —
+which side effects each one may have — with
+[deal](../how-to/deal.md), which is also what `clauz3 lint` checks.
 
 The piece that genuinely is *not* implemented yet is binding the **approval
 receipt** into that runtime boundary, so a trusted effect could refuse to run
 without a valid receipt (see the README "Status" section). The earlier claim
-that "there is no runtime enforcement" was wrong: deal's contract enforcement
-is real and live. See [Concepts](concepts.md#static-proof-vs-runtime) for how
-the two layers relate and [the email example](../examples/email.md#the-runtime-layer-deal-as-a-backstop)
+that "there is no runtime enforcement" was wrong: the contract enforcement is
+real and live. See [Concepts](concepts.md#static-proof-vs-runtime) for how the
+two layers relate and [the email example](../examples/email.md#the-runtime-layer)
 for the runtime layer in action.
 
 ### How is this different from runtime guardrails or policy monitors?
@@ -77,16 +101,19 @@ for the runtime layer in action.
 Policy monitors intercept individual actions during execution and decide each
 one against a policy; `clauz3` proves the whole program up front, so it can
 reject before the first effect rather than blocking the second one
-mid-transaction. This is *not* the same as the deal runtime layer above: deal
+mid-transaction. This is *not* the same as the runtime layer above: that
 enforces fixed preconditions at the trusted boundary, it does not evaluate a
 policy over the agent's actions. Static proof and policy monitors are
-complementary, not rivals. See [background](background.md#forge).
+complementary, not rivals. See [How ClauZ3 compares](comparison.md) for a
+one-page table, and [background](background.md#forge) for the detail.
 
 ### Is it production-ready?
 
-No. The prover vendors and extends `deal-solver`, the contract language is
-deliberately small, and runtime approval and receipts are design notes only. See
-the README "Status" section for current limitations.
+No. The prover vendors and extends `deal-solver` and the contract language is
+deliberately small. `clauz3 run` does require a signed approval receipt before
+executing, but trusted effects do not yet check that receipt themselves, and
+`run` is not a hardened sandbox. See the README "Status" section for current
+limitations.
 
 ### What language does it support?
 

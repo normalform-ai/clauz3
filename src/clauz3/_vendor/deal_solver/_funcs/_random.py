@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import random
+
 import z3
 
 from .._context import Context
@@ -7,7 +9,11 @@ from .._proxies import ProxySort, random_name, types
 from ._registry import register
 
 
-@register('random.Random.randint')
+def _randrange_signature(start, stop):
+    pass
+
+
+@register('random.Random.randint', signature=random.randint)
 def random_randint(a: ProxySort, b: ProxySort, ctx: Context, **kwargs):
     result = types.int(z3.Int(random_name('randint')))
     ctx.given.add(result.m_ge(a, ctx=ctx))
@@ -15,7 +21,7 @@ def random_randint(a: ProxySort, b: ProxySort, ctx: Context, **kwargs):
     return result
 
 
-@register('random.Random.randrange')
+@register('random.Random.randrange', signature=_randrange_signature)
 def random_randrange(start: ProxySort, stop: ProxySort, ctx: Context, **kwargs):
     result = types.int(z3.Int(random_name('randrange')))
     ctx.given.add(result.m_ge(start, ctx=ctx))
@@ -23,7 +29,7 @@ def random_randrange(start: ProxySort, stop: ProxySort, ctx: Context, **kwargs):
     return result
 
 
-@register('random.Random.choice')
+@register('random.Random.choice', signature=random.choice)
 def random_choice(seq: ProxySort, ctx: Context, **kwargs):
     zero = types.int.val(0, ctx=ctx)
     one = types.int.val(1, ctx=ctx)

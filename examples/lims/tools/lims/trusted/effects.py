@@ -1,11 +1,11 @@
-import deal
+import clauz3
 
 
-@deal.pre(
+@clauz3.requires(
     lambda plate, well, volume_ul, reagent: 0 < volume_ul <= 200,
     message="volume_ul must be in (0, 200]",
 )
-@deal.has("trusted")
+@clauz3.trusted
 def pipette(plate: str, well: str, volume_ul: int, reagent: str) -> None:
     """MOCK trusted pipette action.
 
@@ -16,11 +16,11 @@ def pipette(plate: str, well: str, volume_ul: int, reagent: str) -> None:
     pass
 
 
-@deal.pre(
+@clauz3.requires(
     lambda instrument, plate, hours: 0 < hours <= 24,
     message="hours must be in (0, 24]",
 )
-@deal.has("trusted")
+@clauz3.trusted
 def submit_protocol(instrument: str, plate: str, hours: int) -> None:
     """MOCK trusted instrument submission.
 
@@ -31,11 +31,11 @@ def submit_protocol(instrument: str, plate: str, hours: int) -> None:
     pass
 
 
-@deal.pre(
+@clauz3.requires(
     lambda seq, copies: 0 < copies <= 1000,
     message="copies must be in (0, 1000]",
 )
-@deal.has("trusted")
+@clauz3.trusted
 def order_oligo(seq: str, copies: int) -> None:
     """MOCK trusted oligo order.
 

@@ -1,0 +1,26 @@
+
+trusted := "tools/gh/trusted"
+prove := "uv run clauz3 prove --trusted-root " + trusted
+
+test: lint cases
+
+lint:
+    uv run clauz3 lint {{trusted}}/effects.py
+
+cases: trusted-pass injected-link-fail untrusted-author-fail smuggled-download-fail
+
+# Legit triage: download only member-posted release assets. Proves.
+trusted-pass:
+    {{prove}} cases/triage_trusted_pass.py
+
+# Injected literal URL is not a queried comment's column: proof fails.
+injected-link-fail:
+    if {{prove}} cases/injected_link_fail.py; then exit 1; fi
+
+# URLs do come from comments, but the query wasn't members-only: proof fails.
+untrusted-author-fail:
+    if {{prove}} cases/untrusted_author_fail.py; then exit 1; fi
+
+# One extra download not sourced from any comment: proof fails.
+smuggled-download-fail:
+    if {{prove}} cases/smuggled_download_fail.py; then exit 1; fi

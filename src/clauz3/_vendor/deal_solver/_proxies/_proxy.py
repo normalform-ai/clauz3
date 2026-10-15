@@ -60,7 +60,7 @@ class ProxySort:
         method = self.methods.get(name)
         if method is None:
             msg = "'{}' object has no attribute '{}'"
-            msg = msg.format(self.type_name, name)
+            msg = msg.format(getattr(self, 'type_name', type(self).__name__), name)
             ctx.add_exception(AttributeError, msg)
             return self
         result = method.with_obj(self)
@@ -72,8 +72,14 @@ class ProxySort:
     def m_bool(self, ctx: Context) -> BoolSort:
         """bool(self)
         """
-        from ._registry import types
-        return types.bool.val(True, ctx=ctx)
+        # An absent truth model cannot justify discarding a branch. In
+        # particular, Python containers may be empty even when their proxy
+        # has no concrete length available.
+        raise UnsupportedError(
+            'unsupported truth conversion for {}'.format(
+                getattr(self, 'type_name', type(self).__name__),
+            ),
+        )
 
     @methods.add(name='__abs__')
     def m_abs(self, ctx: Context) -> ProxySort:

@@ -166,3 +166,7 @@ Expected good behavior:
 - If `clauz3` is not installed on `PATH`, use the wrapper shown above.
 - The current trusted email function is still a mock; approval receipts are
   required by `clauz3 run` but not yet verified inside trusted wrappers.
+- Proof cases never execute trusted bodies, so a real layer that returns
+  quietly on an unknown identifier passes every proof and does nothing at run
+  time. Exercise that path against the real backend; see
+  [Avoid vacuous proofs](vacuous-proofs.md#test-it-at-run-time).

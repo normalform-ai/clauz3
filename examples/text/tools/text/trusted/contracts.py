@@ -16,11 +16,13 @@ The length checks compile to ``z3.Length``, the substring checks to
 relation-lambda support in ``clauz3.spec``.
 """
 
+from tools.text.trusted.effects import edit_file, send_message
+
 from clauz3.spec import ContractSpec, contract, effect
 from clauz3.spec import no_guarantees as core_no_guarantees
 
-Message = effect("send_message")
-Edit = effect("edit_file")
+Message = effect(send_message)
+Edit = effect(edit_file)
 
 
 @contract

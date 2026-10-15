@@ -1,19 +1,20 @@
 """HTTP request policies built from generic trusted effect facts.
 
-Both ``http_get`` and ``http_post`` carry deal's shared ``http`` marker (see
-``effects.py``), so a single ``http`` relation ranges over every request the
-program makes, regardless of method. ``http_post`` additionally matches its own
-function-name relation, which lets a contract speak about POSTs specifically.
+``Request = effect(http_get, http_post)`` explicitly groups the two trusted
+request functions, regardless of method. ``Post = effect(http_post)`` selects
+only POST calls, which lets a contract constrain them separately.
 
 The url-prefix check compiles to ``z3.PrefixOf`` via the relation-lambda
 ``str.startswith`` support in ``clauz3.spec``.
 """
 
+from tools.http.trusted.effects import http_get, http_post
+
 from clauz3.spec import ContractSpec, contract, effect
 from clauz3.spec import no_guarantees as core_no_guarantees
 
-Request = effect("http")
-Post = effect("http_post")
+Request = effect(http_get, http_post)
+Post = effect(http_post)
 
 
 @contract

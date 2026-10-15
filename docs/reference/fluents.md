@@ -43,17 +43,17 @@ decorator. The builder's parameters mirror the trusted function's parameters,
 and it returns one or more `SomeFluent.set(key, value)` assignments:
 
 ```python
-import deal
+import clauz3
 
 
-@deal.pre(lambda door: len(door) > 0)
-@deal.has("trusted")
+@clauz3.requires(lambda door: len(door) > 0)
+@clauz3.trusted
 @effect(lambda door: DoorLocked.set(door, False))
 def unlock_door(door: str) -> None: ...
 
 
-@deal.pre(lambda door: len(door) > 0)
-@deal.has("trusted")
+@clauz3.requires(lambda door: len(door) > 0)
+@clauz3.trusted
 @effect(lambda door: DoorLocked.set(door, True))
 def lock_door(door: str) -> None: ...
 ```
@@ -65,7 +65,7 @@ final state. Because the axiom lives in the *trusted* layer, the trusted layer
 the agent cannot lie about having re-locked the door.
 
 `@effect` is a trusted-layer construct and is rejected in agent-authored entry
-files, exactly like `@deal.has` and `@contract`.
+files, exactly like `@clauz3.trusted` and `@contract`.
 
 ## Contracts over the final state
 

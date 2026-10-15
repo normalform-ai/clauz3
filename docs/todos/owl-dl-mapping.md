@@ -5,6 +5,10 @@
 Design todo. This explores whether the effect-contract formalism can be mapped
 to description logics such as OWL, or at least documented using DL notation.
 
+The [LinkML contract-description exploration](contract-descriptions.md) adds a
+runnable schema/export spike and separates contract instances, effect events,
+and the execution classes a semantic OWL translation would describe.
+
 ## Motivation
 
 Current `clauz3` contracts are relation constraints over a finite set of

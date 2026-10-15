@@ -1,3 +1,4 @@
+.claude/worktrees
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
@@ -9,3 +10,4 @@ dist/
 *.py[cod]
 site/
 .superpowers/
+src/clauz3/stdlib/db/tests/runtime-data/

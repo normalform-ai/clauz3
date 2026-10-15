@@ -28,16 +28,17 @@ permission request) cares about:
 
 ## Trusted module
 
-The trusted effects are stubs decorated with `@deal.has(...)` and a
-non-empty precondition. The prover lifts each precondition into a proof
-obligation at every call site.
+The trusted effects are stubs decorated with `@clauz3.trusted` and
+`@clauz3.requires(...)` preconditions on message text and file paths. The
+prover lifts each precondition into a proof obligation at every call site.
 
 {{ include_file("examples/text/tools/text/trusted/effects.py") }}
 
-The contract module builds the string vocabulary on top of the generic
-`effect("send_message")` and `effect("edit_file")` relations. Note that the
-length and substring checks live inside ordinary lambdas — the same relation
-language used elsewhere, just exercising its string operators.
+The contract module builds the string vocabulary on top of
+`effect(send_message)` and `effect(edit_file)`, using the imported trusted
+functions. The length and substring checks live inside ordinary lambdas —
+the same relation language used elsewhere, just exercising its string
+operators.
 
 {{ include_file("examples/text/tools/text/trusted/contracts.py") }}
 

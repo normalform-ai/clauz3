@@ -1,0 +1,18 @@
+clauz3 := env_var_or_default("CLAUZ3", "uv run clauz3")
+trusted := "../tools/text/trusted"
+prove := clauz3 + " prove --trusted-root " + trusted + " --import-root .. --import-root ../../filesystem"
+
+test: lint cases
+
+lint:
+    {{clauz3}} lint {{trusted}}/effects.py
+
+cases:
+    {{prove}} cases/only_read_under_pass.py
+    if {{prove}} cases/only_read_under_fail.py; then exit 1; fi
+    {{prove}} cases/never_read_under_pass.py
+    if {{prove}} cases/never_read_under_fail.py; then exit 1; fi
+    {{prove}} cases/reads_at_most_pass.py
+    if {{prove}} cases/reads_at_most_fail.py; then exit 1; fi
+    if {{prove}} cases/positive_line_fail.py; then exit 1; fi
+    if {{prove}} cases/parent_path_fail.py; then exit 1; fi

@@ -16,6 +16,7 @@ from pathlib import Path
 
 import pytest
 
+from clauz3._vendor.deal_solver import Conclusion
 from clauz3.prover import prove_path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,20 +25,22 @@ LIMS_TRUSTED = LIMS_ROOT / "tools/lims/trusted"
 
 
 @pytest.mark.parametrize(
-    ("case_name", "ok"),
+    ("case_name", "conclusion"),
     [
         # 50 satisfies 0 < volume_ul <= 200
-        ("only_plate_pass.py", True),
+        ("only_plate_pass.py", Conclusion.OK),
         # 500 violates the chained precondition's upper bound; the test
         # is the regression: before the fix this incorrectly proved.
-        ("pipette_volume_precondition_fail.py", False),
+        ("pipette_volume_precondition_fail.py", Conclusion.FAIL),
     ],
 )
-def test_chained_precondition_via_lims_example(case_name: str, ok: bool) -> None:
+def test_chained_precondition_via_lims_example(
+    case_name: str, conclusion: Conclusion
+) -> None:
     case = LIMS_ROOT / "cases" / case_name
     results = prove_path(case, trusted_roots=[LIMS_TRUSTED], import_roots=[LIMS_ROOT])
     assert len(results) == 1
-    assert results[0].ok is ok
+    assert results[0].proof.conclusion is conclusion
 
 
 def test_chained_comparison_in_agent_assert(tmp_path: Path) -> None:
@@ -59,7 +62,7 @@ def test_chained_comparison_in_agent_assert(tmp_path: Path) -> None:
     assert len(results) == 1
     # Before the fix, the assert reduced to `0 < x` and proved. After the fix,
     # the upper bound `x <= 200` is also enforced and the assertion fails.
-    assert results[0].ok is False
+    assert results[0].proof.conclusion is Conclusion.FAIL
 
 
 def test_single_comparator_unchanged(tmp_path: Path) -> None:
@@ -79,4 +82,4 @@ def test_single_comparator_unchanged(tmp_path: Path) -> None:
     )
     results = prove_path(case, trusted_roots=[LIMS_TRUSTED], import_roots=[LIMS_ROOT])
     assert len(results) == 1
-    assert results[0].ok is True
+    assert results[0].proof.conclusion is Conclusion.OK

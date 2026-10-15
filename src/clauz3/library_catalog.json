@@ -1,0 +1,162 @@
+[
+  {
+    "source": "stdlib:coreutils",
+    "description": "Create, copy, move, delete and chmod files and directories.",
+    "domains": [
+      "coreutils"
+    ],
+    "dependencies": [],
+    "requirements": []
+  },
+  {
+    "source": "stdlib:db",
+    "description": "Read typed rows from DuckDB, CSV and Parquet databases.",
+    "domains": [
+      "db"
+    ],
+    "dependencies": [],
+    "requirements": [
+      "Python package duckdb"
+    ]
+  },
+  {
+    "source": "stdlib:editor",
+    "description": "Edit and append text files with path and content contracts.",
+    "domains": [
+      "editor"
+    ],
+    "dependencies": [],
+    "requirements": []
+  },
+  {
+    "source": "stdlib:env",
+    "description": "Read environment variables with name-based contracts.",
+    "domains": [
+      "env"
+    ],
+    "dependencies": [],
+    "requirements": []
+  },
+  {
+    "source": "stdlib:filesystem",
+    "description": "Read and write files with path and access contracts.",
+    "domains": [
+      "filesystem"
+    ],
+    "dependencies": [],
+    "requirements": []
+  },
+  {
+    "source": "stdlib:find",
+    "description": "Find and list files under a directory tree.",
+    "domains": [
+      "find"
+    ],
+    "dependencies": [
+      "stdlib:filesystem"
+    ],
+    "requirements": [
+      "find executable"
+    ]
+  },
+  {
+    "source": "stdlib:gh",
+    "description": "Use the GitHub CLI with repository and command contracts.",
+    "domains": [
+      "gh"
+    ],
+    "dependencies": [],
+    "requirements": [
+      "Authenticated gh CLI"
+    ]
+  },
+  {
+    "source": "stdlib:git",
+    "description": "Run Git commands and pushes with repository and branch contracts.",
+    "domains": [
+      "git"
+    ],
+    "dependencies": [],
+    "requirements": [
+      "git executable"
+    ]
+  },
+  {
+    "source": "stdlib:grep",
+    "description": "Search file contents for matching text.",
+    "domains": [
+      "grep"
+    ],
+    "dependencies": [
+      "stdlib:filesystem"
+    ],
+    "requirements": []
+  },
+  {
+    "source": "stdlib:rsync",
+    "description": "Synchronize files with destination and deletion contracts.",
+    "domains": [
+      "rsync"
+    ],
+    "dependencies": [],
+    "requirements": [
+      "rsync executable"
+    ]
+  },
+  {
+    "source": "stdlib:text",
+    "description": "Read a selected UTF-8 text line by line number, with path and read-count contracts.",
+    "domains": [
+      "text"
+    ],
+    "dependencies": [
+      "stdlib:filesystem"
+    ],
+    "requirements": []
+  },
+  {
+    "source": "stdlib:web_fetch",
+    "description": "Fetch URLs and send HTTP requests with URL and payload contracts.",
+    "domains": [
+      "web_fetch"
+    ],
+    "dependencies": [],
+    "requirements": []
+  },
+  {
+    "source": "stdlib:web_search",
+    "description": "Search the web with query and request-count contracts.",
+    "domains": [
+      "web_search"
+    ],
+    "dependencies": [],
+    "requirements": [
+      "CLAUZ3_SEARCH_URL backend endpoint"
+    ]
+  },
+  {
+    "source": "gh:normalform-ai/clauz3-tools-autolabs",
+    "description": "Autonomous lab tools: pipetting, instruments, oligo orders and plate movement.",
+    "domains": [
+      "lims"
+    ],
+    "dependencies": [],
+    "requirements": [],
+    "url": "https://github.com/normalform-ai/clauz3-tools-autolabs",
+    "visibility": "public"
+  },
+  {
+    "source": "gh:normalform-ai/clauz3-tools-assistant",
+    "description": "Outbound email through gog Gmail with dry-run contracts.",
+    "domains": [
+      "email"
+    ],
+    "dependencies": [],
+    "requirements": [
+      "Repository access from maintainers",
+      "Authenticated gog CLI"
+    ],
+    "url": "https://github.com/normalform-ai/clauz3-tools-assistant",
+    "visibility": "private"
+  }
+]

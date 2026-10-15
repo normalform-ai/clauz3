@@ -1,8 +1,10 @@
 """Bank predicates built from generic trusted effect facts."""
 
+from tools.bank.trusted.effects import withdraw
+
 from clauz3.spec import ContractSpec, contract, effect
 
-Withdraw = effect("withdraw")
+Withdraw = effect(withdraw)
 
 
 @contract

@@ -1,16 +1,31 @@
 import io
 import sys
+from collections.abc import Iterable
+from importlib.machinery import ModuleSpec
 from pathlib import Path
 
+import pytest
 from _pytest.capture import CaptureFixture
 from _pytest.monkeypatch import MonkeyPatch
 
-from clauz3.approval import APPROVAL_SERVICE_ENV, MockApprovalServer
+from clauz3.approvals.client import APPROVAL_SERVICE_ENV, MockApprovalServer
+from clauz3.approvals.receipts import SIGNING_KEY_ENV, VERIFY_KEY_ENV, generate_keypair
 from clauz3.cli import main
 
 ROOT = Path(__file__).resolve().parents[1]
 EMAIL_ROOT = ROOT / "examples/email"
 TRUSTED_ROOT = EMAIL_ROOT / "tools/email/trusted"
+
+
+@pytest.fixture(autouse=True)
+def _approval_keys(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
+    """Provision an Ed25519 keypair so the mock service signs and the runner
+    verifies; isolate the single-use nonce store under tmp."""
+    signing, verify = generate_keypair()
+    monkeypatch.setenv(SIGNING_KEY_ENV, signing)
+    monkeypatch.setenv(VERIFY_KEY_ENV, verify)
+    monkeypatch.setenv("CLAUZ3_CACHE", str(tmp_path / "cache"))
+
 
 PASSING_SOURCE = """
 import clauz3
@@ -36,13 +51,34 @@ def main() -> None:
 """
 
 
+# A SKIP whose cause is permanent: direct recursion fails closed by design
+# (see test_function_control_flow.py), unlike the AugAssign gap that
+# examples/email/cases/aug_assign_skip.py documents, which #109 intends to
+# close. Anchoring here keeps this parity test alive when that handler lands.
+SKIPPED_SOURCE = """
+import clauz3
+from tools.email.trusted import contracts as emails
+from tools.email.trusted.effects import send_email
+
+
+def helper(n: int) -> int:
+    if n > 0:
+        return helper(n - 1)
+    return 0
+
+
+@clauz3.guarantee(emails.only(["bob@example.com"]))
+def main() -> None:
+    helper(1)
+    send_email("bob@example.com", "hi")
+"""
+
+
 def test_clauz3_run_from_stdin_approved(
     monkeypatch: MonkeyPatch,
     capsys: CaptureFixture[str],
 ) -> None:
-    with MockApprovalServer(
-        config={"decision": "approved_once", "receipt": "receipt-test"},
-    ) as server:
+    with MockApprovalServer(config={"decision": "approved_once"}) as server:
         monkeypatch.setenv(APPROVAL_SERVICE_ENV, server.url)
         monkeypatch.setattr(sys, "stdin", io.StringIO(PASSING_SOURCE))
 
@@ -159,6 +195,70 @@ def test_clauz3_run_does_not_submit_failed_proof(
     assert "main: failed guarantee" in capsys.readouterr().out
 
 
+def test_clauz3_run_does_not_submit_skipped_proof(
+    monkeypatch: MonkeyPatch,
+    capsys: CaptureFixture[str],
+) -> None:
+    """A SKIP must be refused by ``run``, not just by ``prove``.
+
+    ``run`` gates on ``conclusion != OK``, so leaving the provable subset has
+    to be as fatal as a counterexample -- otherwise "nothing runs unproven"
+    would hold only on the ``prove`` path. Nothing may reach the approval
+    service either: asking a human to approve a program the prover could not
+    analyse is the failure this gate exists to prevent.
+    """
+    with MockApprovalServer(config={"decision": "approved_once"}) as server:
+        monkeypatch.setenv(APPROVAL_SERVICE_ENV, server.url)
+        monkeypatch.setattr(sys, "stdin", io.StringIO(SKIPPED_SOURCE))
+
+        result = main(
+            [
+                "run",
+                "--trusted-root",
+                str(TRUSTED_ROOT),
+                "--import-root",
+                str(EMAIL_ROOT),
+            ]
+        )
+
+    assert result == 1
+    assert server.requests == []
+    assert "main: skipped unsupported program body" in capsys.readouterr().out
+
+
+def test_clauz3_run_refuses_aug_assign_case_at_preflight(
+    monkeypatch: MonkeyPatch,
+    capsys: CaptureFixture[str],
+) -> None:
+    """The shipped AugAssign skip case is refused by the *shipped* preflight.
+
+    On the run path ``_preflight_structure`` runs before the prover, so this
+    case exits 2 as a config refusal and never reaches the SKIP gate that
+    ``test_clauz3_run_does_not_submit_skipped_proof`` pins. Feeding the real
+    case file through ``main(["run", ...])`` pins the shipped gate, the CLI
+    exit-code contract, and the no-approval-request property together --
+    rather than a test-local model of the gate (see test_interp_corpus.py).
+    """
+    source = (EMAIL_ROOT / "cases" / "aug_assign_skip.py").read_text()
+    with MockApprovalServer(config={"decision": "approved_once"}) as server:
+        monkeypatch.setenv(APPROVAL_SERVICE_ENV, server.url)
+        monkeypatch.setattr(sys, "stdin", io.StringIO(source))
+
+        result = main(
+            [
+                "run",
+                "--trusted-root",
+                str(TRUSTED_ROOT),
+                "--import-root",
+                str(EMAIL_ROOT),
+            ]
+        )
+
+    assert result == 2
+    assert server.requests == []
+    assert "AugAssign" in capsys.readouterr().err
+
+
 def test_clauz3_run_rejects_direct_side_effect_import(
     monkeypatch: MonkeyPatch,
     capsys: CaptureFixture[str],
@@ -180,7 +280,7 @@ def test_clauz3_run_rejects_direct_side_effect_import(
     )
 
     assert result == 2
-    assert "import of subprocess is not allowed" in capsys.readouterr().err
+    assert "import of 'subprocess' is not in the allowlist" in capsys.readouterr().err
 
 
 def test_clauz3_run_rejects_builtins_import(
@@ -204,7 +304,7 @@ def test_clauz3_run_rejects_builtins_import(
     )
 
     assert result == 2
-    assert "import of builtins is not allowed" in capsys.readouterr().err
+    assert "import of 'builtins' is not in the allowlist" in capsys.readouterr().err
 
 
 def test_clauz3_run_rejects_reflective_builtin_access(
@@ -227,5 +327,226 @@ def test_clauz3_run_rejects_reflective_builtin_access(
         ]
     )
 
+    # Refused, but by the proof gate rather than an AST denylist: the runtime
+    # is no longer ``exec``, so ``FORBIDDEN_BUILTINS`` is gone. ``getattr`` is
+    # not a name the prover can resolve, so the theorem does not come back OK
+    # and ``run`` stops before approval. Even if it had proved,
+    # ``clauz3.interp`` has no ``getattr`` to call -- see
+    # ``tests/test_interp_escapes.py::test_getattr_indirection_is_not_available``.
+    assert result == 1
+    assert "skipped" in capsys.readouterr().out
+
+
+def test_clauz3_run_rejects_unlisted_stdlib_import(
+    monkeypatch: MonkeyPatch,
+    capsys: CaptureFixture[str],
+) -> None:
+    """Modules not in the denylist used to slip through; allowlist closes that."""
+    monkeypatch.setattr(
+        sys,
+        "stdin",
+        io.StringIO("import pickle\n\ndef main() -> None:\n    pass\n"),
+    )
+
+    result = main(
+        [
+            "run",
+            "--trusted-root",
+            str(TRUSTED_ROOT),
+            "--import-root",
+            str(EMAIL_ROOT),
+        ]
+    )
+
     assert result == 2
-    assert "getattr is not allowed in run" in capsys.readouterr().err
+    assert "import of 'pickle' is not in the allowlist" in capsys.readouterr().err
+
+
+def test_clauz3_run_allows_extra_import_when_opted_in(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """``--allow-import pickle`` lifts the gate for that module only."""
+
+    source = (
+        "import pickle  # noqa: F401\n"
+        "import clauz3\n"
+        "from tools.email.trusted import contracts as emails\n"
+        "from tools.email.trusted.effects import send_email\n"
+        "\n"
+        "@clauz3.guarantee(emails.only(['bob@example.com']))\n"
+        "@clauz3.guarantee(emails.unique_recipients())\n"
+        "def main() -> None:\n"
+        "    send_email('bob@example.com', 'Report is ready')\n"
+    )
+    with MockApprovalServer(config={"decision": "approved_once"}) as server:
+        monkeypatch.setenv(APPROVAL_SERVICE_ENV, server.url)
+        monkeypatch.setattr(sys, "stdin", io.StringIO(source))
+
+        result = main(
+            [
+                "run",
+                "--trusted-root",
+                str(TRUSTED_ROOT),
+                "--import-root",
+                str(EMAIL_ROOT),
+                "--allow-import",
+                "pickle",
+            ]
+        )
+
+    assert result == 0
+    assert len(server.requests) == 1
+
+
+def test_clauz3_run_reports_a_program_fault_as_exit_1(
+    monkeypatch: MonkeyPatch,
+    capsys: CaptureFixture[str],
+) -> None:
+    """A proved, approved program that faults exits 1, not 2.
+
+    Exit 2 is reserved for "this source should not have been run" -- a bad
+    config, a disallowed import, a construct outside the subset. Collapsing a
+    runtime fault into it would tell an agent to rewrite a program that was
+    accepted and simply failed.
+    """
+    from clauz3 import interp, runner
+
+    def boom(*args: object, **kwargs: object) -> None:
+        raise interp.ProgramError("boom", kind="ValueError")
+
+    monkeypatch.setattr(runner.interp, "execute", boom)  # type: ignore[attr-defined]
+
+    with MockApprovalServer(config={"decision": "approved_once"}) as server:
+        monkeypatch.setenv(APPROVAL_SERVICE_ENV, server.url)
+        monkeypatch.setattr(sys, "stdin", io.StringIO(PASSING_SOURCE))
+
+        result = main(
+            [
+                "run",
+                "--trusted-root",
+                str(TRUSTED_ROOT),
+                "--import-root",
+                str(EMAIL_ROOT),
+            ]
+        )
+
+    assert result == 1
+    assert "runtime error: <stdin>: ValueError: boom" in capsys.readouterr().err
+
+
+def test_import_disappearing_after_receipt_verification_is_exit_2(
+    monkeypatch: MonkeyPatch,
+    capsys: CaptureFixture[str],
+) -> None:
+    from clauz3 import runner
+    from clauz3.interp import import_bindings
+
+    verified = False
+    original_consume = runner._consume_nonce
+    original_find = import_bindings._find_spec
+
+    def consume_then_hide(nonce: str) -> None:
+        nonlocal verified
+        original_consume(nonce)
+        verified = True
+
+    def disappear_after_verification(
+        name: str, paths: Iterable[str]
+    ) -> ModuleSpec | None:
+        if verified and name == "statistics":
+            return None
+        return original_find(name, paths)
+
+    monkeypatch.setattr(runner, "_consume_nonce", consume_then_hide)
+    monkeypatch.setattr(import_bindings, "_find_spec", disappear_after_verification)
+    monkeypatch.setattr(
+        sys, "stdin", io.StringIO("import statistics\n" + PASSING_SOURCE)
+    )
+    with MockApprovalServer(config={"decision": "approved_once"}) as server:
+        monkeypatch.setenv(APPROVAL_SERVICE_ENV, server.url)
+        result = main(
+            [
+                "run",
+                "--trusted-root",
+                str(TRUSTED_ROOT),
+                "--import-root",
+                str(EMAIL_ROOT),
+            ]
+        )
+
+    assert verified
+    assert len(server.requests) == 1
+    assert result == 2
+    output = capsys.readouterr()
+    assert "cannot resolve import 'statistics'" in output.err
+    assert "runtime error:" not in output.err
+    assert "Report is ready" not in output.out
+
+
+@pytest.mark.parametrize(
+    ("label", "source", "match"),
+    [
+        (
+            # Proves OK: the prover never evaluates module level. Refused by
+            # `_exec_module`, which used to run only after approval.
+            "module-level-non-constant",
+            "import clauz3\n"
+            "from tools.email.trusted import contracts as emails\n"
+            "from tools.email.trusted.effects import send_email\n"
+            "\n"
+            "OTHER = 5\n"
+            "LIMIT = OTHER\n"
+            "\n"
+            '@clauz3.guarantee(emails.only(["bob@example.com"]))\n'
+            "def main() -> None:\n"
+            '    send_email("bob@example.com", "hi")\n',
+            "must be a constant",
+        ),
+        (
+            # A construct with no handler in either registry. The prover skips
+            # it, but the refusal should not wait for the run either.
+            "outside-the-subset",
+            "import clauz3\n"
+            "from tools.email.trusted import contracts as emails\n"
+            "from tools.email.trusted.effects import send_email\n"
+            "\n"
+            '@clauz3.guarantee(emails.only(["bob@example.com"]))\n'
+            "def main() -> None:\n"
+            "    x = (i for i in [1])\n"
+            '    send_email("bob@example.com", "hi")\n',
+            "not part of the proved subset",
+        ),
+    ],
+)
+def test_structural_refusal_happens_before_the_approval_round_trip(
+    label: str,
+    source: str,
+    match: str,
+    monkeypatch: MonkeyPatch,
+    capsys: CaptureFixture[str],
+) -> None:
+    """No approval request, so no human decision and no burned receipt nonce.
+
+    Moving the structural rules into ``interp.execute`` moved them past
+    ``prove_text``, past the approval request, past the human decision, and past
+    ``_verify_receipt_or_refuse``, which consumes the single-use nonce. The
+    deleted ``_validate_module_level`` ran before proving. A program that proves
+    and is then refused would burn a receipt on a run that never happened.
+    """
+    with MockApprovalServer(config={"decision": "approved_once"}) as server:
+        monkeypatch.setenv(APPROVAL_SERVICE_ENV, server.url)
+        monkeypatch.setattr(sys, "stdin", io.StringIO(source))
+
+        result = main(
+            [
+                "run",
+                "--trusted-root",
+                str(TRUSTED_ROOT),
+                "--import-root",
+                str(EMAIL_ROOT),
+            ]
+        )
+
+    assert result == 2
+    assert server.requests == []
+    assert match in capsys.readouterr().err

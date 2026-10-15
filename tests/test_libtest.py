@@ -101,6 +101,7 @@ def test_recipe_env_points_at_current_interpreter() -> None:
     env = _recipe_env()
     assert env["CLAUZ3"] == f"{sys.executable} -m clauz3"
     assert env["DEAL"] == f"{sys.executable} -m deal"
+    assert env["PYTHON"] == sys.executable
 
 
 @needs_just

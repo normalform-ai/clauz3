@@ -43,3 +43,27 @@ def db_query_invoices(table: str) -> list[InvoiceRow]:
 def charge(amount: int) -> None:
     """MOCK trusted charge."""
     pass
+
+
+@deal.has("check")
+def is_allowed(addr: str) -> bool:
+    """MOCK trusted predicate with a bool return."""
+    return False
+
+
+@deal.has("lookup")
+def lookup_name(key: str) -> str:
+    """MOCK trusted lookup with a str return."""
+    return ""
+
+
+@deal.has("email")
+def send_bulk(addr: str, cc: list[str]) -> None:
+    """MOCK trusted sender with a container argument."""
+    pass
+
+
+@deal.has("email")
+def send_bulk_any(addr: str, extra: object) -> None:
+    """MOCK trusted sender whose second argument may be any container."""
+    pass

@@ -2,7 +2,10 @@
 db_trusted := "tools/db/trusted"
 prove := "uv run clauz3 prove --trusted-root " + db_trusted
 
-test: cases
+test: lint cases
+
+lint:
+    uv run clauz3 lint {{db_trusted}}/effects.py
 
 cases: newsletter-pass count-pass no-emails-with-loop-pass literal-address-fail wrong-column-fail mixed-source-fail count-too-tight-fail
 

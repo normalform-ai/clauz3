@@ -57,6 +57,16 @@ provenance lattice the [background](../explanation/background.md#mechanics-worth
    contracts, or
 3. a trusted-domain helper authored by the TLE alongside `only`/`unique_recipients`.
 
+**The reference design for the label itself** is
+[CaMeL](../explanation/background.md#camel)'s capability: a provenance tag
+(`User` for literals in the agent's own code, `CaMeL` for computed values, or a
+tool, optionally with an inner source such as an email's sender) plus a set of
+allowed readers, unioned at every operation. `clauz3` would carry it
+symbolically rather than dynamically — the label belongs on the value in
+`FactInfo.args`, established by the prover, not by an interpreter watching
+concrete data go past — but the lattice is the same one, and the reader half is
+the part `clauz3` has no vocabulary for at all.
+
 The [effect-IR](effect-ir.md) direction argues for making provenance an
 explicit part of the fact grammar so all three can be expressed as analyses over
 one artifact, rather than bolted onto the Python evaluator.

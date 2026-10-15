@@ -45,7 +45,6 @@ def test_for_loop_fact_has_one_quantifier() -> None:
         def send_email(addr: str, msg: str) -> None: ...
 
 
-        @clauz3.guarantee(lambda: True)
         def main() -> None:
             for row in db_query("users"):
                 send_email(row.email, "hi")
@@ -86,7 +85,6 @@ def test_nested_for_loops_emit_two_quantifiers() -> None:
         def send_email(addr: str, msg: str) -> None: ...
 
 
-        @clauz3.guarantee(lambda: True)
         def main() -> None:
             for u in get_users("users"):
                 for c in get_contacts("contacts"):

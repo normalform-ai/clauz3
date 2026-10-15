@@ -1,16 +1,18 @@
 """Web-search query policies built from generic trusted effect facts.
 
-Searches are recorded under the ``net`` and ``search`` markers. These
+Searches are recorded as the ``web_search`` effect. These
 contracts let an agent state how many searches may occur, how long each
 query may be, and which substrings the query must (not) contain — the last
 is a privacy / exfil guard with the same shape as ``web_fetch``'s
 ``no_url_contains``.
 """
 
+from tools.web_search.trusted.effects import web_search
+
 from clauz3.spec import ContractSpec, contract, effect
 from clauz3.spec import no_guarantees as core_no_guarantees
 
-Search = effect("search")
+Search = effect(web_search)
 
 
 @contract

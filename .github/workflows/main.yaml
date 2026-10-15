@@ -8,18 +8,150 @@ on:  # yamllint disable-line rule:truthy
     branches: [main]
   pull_request:
 
+# A new push to a PR cancels that PR's in-flight run. Pushes to main each
+# get their own group (keyed by commit), so every merge is still tested.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   FORCE_COLOR: "1" # Make tools pretty.
 
 #permissions: {}
 
 jobs:
-  test:
+  # Picks how much of CI a pull request needs from the files it touches:
+  # "ui" when every change is a web asset, "docs" when every change is
+  # prose, otherwise "full". Pushes to main always run in full, so a merged
+  # change is still tested against the whole suite.
+  changes:
 
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      tier: ${{ steps.tier.outputs.tier }}
+
+    steps:
+
+      - name: Check out repository
+        uses: actions/checkout@v4.2.2
+        with:
+          persist-credentials: false
+          # The PR merge commit plus its base parent, enough to diff the two.
+          fetch-depth: 2
+
+      - name: Classify changed files
+        id: tier
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" != pull_request ]; then
+            tier=full
+          else
+            changed=$(git diff --name-only HEAD^1 HEAD)
+            # docs/macros.py is linted and the LinkML catalog is checked
+            # against the source, so neither counts as prose.
+            non_ui=$(grep -vE '^(src/clauz3/(sessions|approvals)/web/|tests/web/)' \
+              <<< "$changed" || true)
+            non_docs=$(grep -vE '^(docs/|[^/]+\.md$|mkdocs\.yml$)' \
+              <<< "$changed" || true)
+            generated=$(grep -E \
+              '^docs/(.*\.py|reference/contracts\.linkml\.json)$' \
+              <<< "$changed" || true)
+            if [ -z "$changed" ]; then
+              tier=full
+            elif [ -z "$non_ui" ]; then
+              tier=ui
+            elif [ -z "$non_docs" ] && [ -z "$generated" ]; then
+              tier=docs
+            else
+              tier=full
+            fi
+          fi
+          echo "tier=$tier" | tee -a "$GITHUB_OUTPUT"
+
+  # Web assets only: syntax-check the scripts and run the tests that serve
+  # and drive the workspace and approval pages.
+  ui:
+
+    needs: changes
+    if: needs.changes.outputs.tier == 'ui'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+
+      - name: Check out repository
+        uses: actions/checkout@v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6.4.3
+        with:
+          python-version: "3.14"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v5.6.0
+        with:
+          python-version: "3.14"
+
+      - name: Install just
+        run: |
+          uv tool install rust-just
+
+      - name: Install project
+        run: uv sync --dev
+
+      - name: Run web UI checks
+        run: just ui-test
+
+  # Prose only: the strict site build catches broken links and macros.
+  docs:
+
+    needs: changes
+    if: needs.changes.outputs.tier == 'docs'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+
+      - name: Check out repository
+        uses: actions/checkout@v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6.4.3
+        with:
+          python-version: "3.14"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Install just
+        run: |
+          uv tool install rust-just
+
+      - name: Build docs
+        run: just docs
+
+  test:
+
+    needs: changes
+    if: needs.changes.outputs.tier == 'full'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
     strategy:
       matrix:
-        python-version: ["3.11", "3.14"]
+        # PRs test only the newest Python. Pushes to main also test the
+        # oldest supported version, which runs ~1.5x slower; mypy and ruff
+        # still check 3.11 compatibility statically on every run.
+        python-version: >-
+          ${{ github.event_name == 'push'
+          && fromJSON('["3.11", "3.14"]')
+          || fromJSON('["3.14"]') }}
       fail-fast: false
 
     steps:
@@ -51,5 +183,81 @@ jobs:
       - name: Install project
         run: uv sync --dev
 
+      - name: Check fresh installation without the development lockfile
+        run: >-
+          uvx --python ${{ matrix.python-version }} --from .
+          python -P -m clauz3.sessions.tools --check "$RUNNER_TEMP"
+
       - name: Run test suite
         run: just test
+
+  # Runs alongside the test matrix rather than after it, on one Python
+  # version: the sweep checks prover soundness over the corpus, which
+  # is unlikely to depend on the interpreter version.
+  differential:
+
+    needs: changes
+    if: needs.changes.outputs.tier == 'full'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+
+      - name: Check out repository
+        uses: actions/checkout@v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6.4.3
+        with:
+          python-version: "3.14"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v5.6.0
+        with:
+          python-version: "3.14"
+
+      - name: Install just
+        run: |
+          uv tool install rust-just
+
+      - name: Install project
+        run: uv sync --dev
+
+      - name: Run differential corpus sweep
+        timeout-minutes: 35
+        run: just differential-test
+
+  # Merged PRs are tested again on main, where nobody is watching. Open one
+  # tracking issue when that run fails, then comment on it for later
+  # failures until someone closes it.
+  report-main-failure:
+
+    needs: [changes, test, differential]
+    if: failure() && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+
+    steps:
+
+      - name: Open or update the tracking issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHA: ${{ github.sha }}
+        run: |
+          title="CI failing on main"
+          body="Run $RUN_URL failed on $SHA."
+          issue=$(gh issue list --state open --search "\"$title\" in:title" \
+            --json number --jq '.[0].number // empty')
+          if [ -n "$issue" ]; then
+            gh issue comment "$issue" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi

@@ -6,14 +6,16 @@ allowlists, numeric aggregation, per-fact bounds — applied to a different
 effect vocabulary.
 """
 
+from tools.home.trusted.effects import order_grocery, set_thermostat, unlock_door
+
 from clauz3.spec import ContractSpec, contract, effect
 from clauz3.spec import no_guarantees as core_no_guarantees
 
 from .effects import DoorLocked
 
-Thermostat = effect("set_thermostat")
-Unlock = effect("unlock_door")
-Grocery = effect("order_grocery")
+Thermostat = effect(set_thermostat)
+Unlock = effect(unlock_door)
+Grocery = effect(order_grocery)
 
 
 @contract
