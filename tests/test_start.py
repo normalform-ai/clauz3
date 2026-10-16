@@ -546,6 +546,9 @@ def test_default_session_accepts_browser_approval(
 ) -> None:
     monkeypatch.setenv("TEST_CASE", str(EMAIL / "cases/only_bob_pass.py"))
     monkeypatch.setenv("CLAUZ3_PROOF_TIMEOUT_SECONDS", "20")
+    # Upper bounds only; a passing run returns in a few seconds. The subprocess
+    # must outlast interpreter start-up, the proof and the approval wait, which
+    # together exceeded the old 15s on a loaded machine.
     fake_agent(
         tmp_path,
         monkeypatch,
@@ -553,9 +556,9 @@ def test_default_session_accepts_browser_approval(
 import os, subprocess, sys
 from pathlib import Path
 result = subprocess.run(
-    [sys.executable, "-P", "-m", "clauz3", "run", "-", "--approval-timeout", "10"],
+    [sys.executable, "-P", "-m", "clauz3", "run", "-", "--approval-timeout", "60"],
     input=Path(os.environ["TEST_CASE"]).read_text(), text=True, capture_output=True,
-    timeout=15,
+    timeout=120,
 )
 assert result.returncode == 0, result.stdout + result.stderr
 assert "approval: approved_once receipt=clz2." in result.stdout, result.stdout
@@ -568,7 +571,7 @@ assert "approval: approved_once receipt=clz2." in result.stdout, result.stdout
             assert login.status == 200
             assert login.url.endswith("/ui")
         base = url.split("/ui/login")[0]
-        deadline = time.monotonic() + 10
+        deadline = time.monotonic() + 90
         while time.monotonic() < deadline:
             with browser.open(base + "/requests", timeout=2) as response:
                 requests = json.load(response)
