@@ -162,12 +162,15 @@ def create_approval_app(
             "files.js",
             "libraries.js",
             "markdown.js",
+            "logo.svg",
+            "favicon.svg",
         }:
             raise HTTPException(404)
         directory = Path(__file__).parents[1] / "sessions" / "web"
+        media_types = {".css": "text/css", ".svg": "image/svg+xml"}
         return Response(
             (directory / name).read_text(),
-            media_type="text/css" if name.endswith(".css") else "text/javascript",
+            media_type=media_types.get(Path(name).suffix, "text/javascript"),
         )
 
     @app.get("/ui/approval-assets/{name}")

@@ -112,6 +112,18 @@ def test_authentication_and_origin(client: TestClient) -> None:
     assert client.get("/ui/assets/chat.py").status_code == 404
 
 
+@pytest.mark.parametrize("name", ["logo.svg", "favicon.svg"])
+def test_brand_assets_match_docs(client: TestClient, name: str) -> None:
+    """The UI serves the same logo files as the docs site."""
+    response = client.get(f"/ui/assets/{name}")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("image/svg+xml")
+    docs = Path(__file__).parents[1] / "docs" / "assets" / name
+    assert response.text == docs.read_text()
+    login(client)
+    assert f"/ui/assets/{name}" in client.get("/ui").text
+
+
 def test_stream_reconnect_draft_and_followup(client: TestClient) -> None:
     login(client)
     headers = {"Origin": "http://127.0.0.1"}

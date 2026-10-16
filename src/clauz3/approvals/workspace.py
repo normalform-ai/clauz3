@@ -17,10 +17,11 @@ def profile_page() -> str:
 <html lang="en"><head><meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <meta name="referrer" content="no-referrer" /><title>Clauz3 · Approvals</title>
+<link rel="icon" href="/ui/assets/favicon.svg" type="image/svg+xml" />
 <link rel="stylesheet" href="/ui/assets/workspace.css" />
 <link rel="stylesheet" href="/ui/approval-assets/profile.css" /></head>
 <body class="profile-standalone"><aside class="sidebar">
-<a class="brand" href="/ui"><span class="brand-mark">c₃</span> clauz3</a>
+<a class="brand" href="/ui"><img src="/ui/assets/logo.svg" alt="ClauZ3" /></a>
 <div class="eyebrow">WORKSPACE</div><h2>Approvals</h2>
 <nav><a href="/ui">Live requests</a><a class="selected" href="/ui/profile">
 Approval profile &amp; history</a></nav>
