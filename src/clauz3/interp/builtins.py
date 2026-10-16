@@ -123,12 +123,21 @@ def _b_range(*args: Any) -> list[int]:
 
     The subset has no lazy iterators, and a bounded list is what the prover's
     unrolling models. The cap keeps an interpreted loop finite.
+
+    Only the cap is a subset limit. ``range('a')`` and ``range(1, 5, 0)`` are
+    the program calling a builtin wrongly, exactly like ``ord('ab')``: CPython's
+    own ``TypeError``/``ValueError`` propagates to ``call``, which reports it as
+    a program fault (``clauz3 run`` exit 1), not a subset refusal (exit 2).
+
+    >>> _b_range(1, 7, 2)
+    [1, 3, 5]
+    >>> _b_range(1, 5, 0)
+    Traceback (most recent call last):
+    ...
+    ValueError: range() arg 3 must not be zero
     """
     _require_data("range", *args)
-    try:
-        values = _py_builtins.range(*args)
-    except (TypeError, ValueError) as exc:
-        raise UnsupportedNode(f"range(): {exc}") from exc
+    values = _py_builtins.range(*args)
     # Computed from start/stop/step rather than via ``len()``: ``len`` on a
     # range wider than a C ssize_t raises OverflowError before the bound below
     # can reject it, which would surface as an unclassified crash.

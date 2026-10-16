@@ -1166,6 +1166,17 @@ def _bind_arguments(
     closure: Scope,
     what: str,
 ) -> Scope:
+    """Bind a call's arguments to a fresh scope over ``closure``.
+
+    Two kinds of failure, kept apart on purpose. A parameter *form* the subset
+    has no model for (``*args``, positional-only, keyword-only) is a subset
+    refusal: ``UnsupportedNode``. A call that does not fit an admitted
+    signature -- too many positionals, a missing, unexpected or duplicated
+    argument -- is the program calling its own function wrongly: under
+    ``exec`` that was a ``TypeError`` and ``clauz3 run`` exited 1, so it is a
+    ``ProgramError`` here rather than an exit-2 "should not have been
+    submitted".
+    """
     if arguments.vararg or arguments.kwarg:
         raise UnsupportedNode(f"{what}: *args/**kwargs are not in the proved subset")
     if getattr(arguments, "posonlyargs", None):
@@ -1179,14 +1190,16 @@ def _bind_arguments(
     names = [arg.name for arg in arguments.args or ()]
     scope = Scope(parent=closure)
     if len(args) > len(names):
-        raise UnsupportedNode(f"{what}: too many positional arguments")
+        raise ProgramError(f"{what}: too many positional arguments", kind="TypeError")
     for name, value in zip(names, args, strict=False):
         scope.set(name, value)
     for key, value in kwargs.items():
         if key not in names:
-            raise UnsupportedNode(f"{what}: unexpected keyword argument {key!r}")
+            raise ProgramError(
+                f"{what}: unexpected keyword argument {key!r}", kind="TypeError"
+            )
         if key in scope.names:
-            raise UnsupportedNode(f"{what}: duplicate value for {key!r}")
+            raise ProgramError(f"{what}: duplicate value for {key!r}", kind="TypeError")
         scope.set(key, value)
     for name in names:
         if name in scope.names:
@@ -1194,7 +1207,7 @@ def _bind_arguments(
         if name in defaults:
             scope.set(name, defaults[name])
             continue
-        raise UnsupportedNode(f"{what}: missing argument {name!r}")
+        raise ProgramError(f"{what}: missing argument {name!r}", kind="TypeError")
     return scope
 
 

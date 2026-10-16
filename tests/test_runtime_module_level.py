@@ -467,6 +467,22 @@ def test_constructs_outside_the_subset_are_refused_before_approval(
         _validate(f"def main() -> None:\n{body}\n")
 
 
+def test_calling_an_inner_function_wrongly_is_a_runtime_error() -> None:
+    """``f()`` against ``def f(a)`` is a program fault: exit 1, as under ``exec``.
+
+    ``_bind_arguments`` raised ``UnsupportedNode`` for it, which
+    ``_execute_source`` maps to ``RunConfigError`` -- exit 2, "this source
+    should not have been submitted".
+    """
+    with pytest.raises(RunProgramError, match=r"TypeError: f\(\): missing"):
+        _execute(
+            "def main() -> None:\n"
+            "    def f(a: int) -> int:\n"
+            "        return a\n"
+            "    f()\n"
+        )
+
+
 @pytest.mark.parametrize(
     "body",
     [

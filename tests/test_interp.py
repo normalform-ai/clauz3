@@ -1337,6 +1337,70 @@ def test_unreadable_layer_source_exposes_no_constants(tmp_path: Path) -> None:
         interpreter._imported_names = original
 
 
+@pytest.mark.parametrize(
+    ("label", "source", "kind"),
+    [
+        ("range-of-str", "def main():\n    return range('a')\n", "TypeError"),
+        ("range-zero-step", "def main():\n    return range(1, 5, 0)\n", "ValueError"),
+        (
+            "too-many-positional",
+            "def main():\n    def f(a):\n        return a\n    return f(1, 2)\n",
+            "TypeError",
+        ),
+        (
+            "missing-argument",
+            "def main():\n    def f(a):\n        return a\n    return f()\n",
+            "TypeError",
+        ),
+        (
+            "unexpected-keyword",
+            "def main():\n    def f(a):\n        return a\n    return f(b=1)\n",
+            "TypeError",
+        ),
+        (
+            "duplicate-argument",
+            "def main():\n    def f(a):\n        return a\n    return f(1, a=2)\n",
+            "TypeError",
+        ),
+        (
+            "lambda-missing-argument",
+            "def main():\n    g = lambda a: a\n    return g()\n",
+            "TypeError",
+        ),
+    ],
+)
+def test_wrong_calls_are_program_faults_not_subset_refusals(
+    label: str,
+    source: str,
+    kind: str,
+) -> None:
+    """A call that does not fit is a bug in the program, not a subset limit.
+
+    ``_b_range`` re-raised CPython's ``TypeError``/``ValueError`` as
+    ``UnsupportedNode`` and ``_bind_arguments`` raised ``UnsupportedNode`` for
+    arity and keyword mismatches, so ``range('a')`` and ``f(1, 2)`` took the
+    exit-2 branch while the equivalent ``ord('ab')`` took exit 1.
+    """
+    with pytest.raises(ProgramError) as excinfo:
+        run(source)
+    assert excinfo.value.kind == kind
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "def main():\n    def f(*a):\n        return a\n    return f()\n",
+        "def main():\n    def f(**a):\n        return a\n    return f()\n",
+        "def main():\n    def f(a, /):\n        return a\n    return f(1)\n",
+        "def main():\n    def f(*, a):\n        return a\n    return f(a=1)\n",
+    ],
+)
+def test_unsupported_parameter_forms_stay_subset_refusals(source: str) -> None:
+    """Only the *call* mismatches moved; parameter forms are still refused."""
+    with pytest.raises(UnsupportedNode, match="not in the proved subset"):
+        run(source)
+
+
 _SENDS_THEN_FAILS = (
     "from tools.email.trusted.effects import send_email\n"
     "def main():\n"
