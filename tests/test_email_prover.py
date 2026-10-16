@@ -63,7 +63,10 @@ CASES = [
         Conclusion.OK,
         "assertion, assertion, assertion, assertion, guarantee",
     ),
-    ("aug_assign_skip.py", Conclusion.SKIP, "unsupported program body"),
+    ("while_loop_skip.py", Conclusion.SKIP, "unsupported program body"),
+    # `+=` on a str and its desugaring prove the same way (#109).
+    ("aug_assign_pass.py", Conclusion.OK, "assertion, guarantee"),
+    ("aug_assign_fail.py", Conclusion.FAIL, "guarantee"),
     ("aug_assign_rewritten_fail.py", Conclusion.FAIL, "guarantee"),
 ]
 

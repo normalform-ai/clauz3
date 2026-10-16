@@ -52,9 +52,8 @@ def main() -> None:
 
 
 # A SKIP whose cause is permanent: direct recursion fails closed by design
-# (see test_function_control_flow.py), unlike the AugAssign gap that
-# examples/email/cases/aug_assign_skip.py documents, which #109 intends to
-# close. Anchoring here keeps this parity test alive when that handler lands.
+# (see test_function_control_flow.py). The AugAssign gap this test used to sit
+# beside is closed (#109); anchoring on recursion kept it alive through that.
 SKIPPED_SOURCE = """
 import clauz3
 from tools.email.trusted import contracts as emails
@@ -226,11 +225,11 @@ def test_clauz3_run_does_not_submit_skipped_proof(
     assert "main: skipped unsupported program body" in capsys.readouterr().out
 
 
-def test_clauz3_run_refuses_aug_assign_case_at_preflight(
+def test_clauz3_run_refuses_while_skip_case_at_preflight(
     monkeypatch: MonkeyPatch,
     capsys: CaptureFixture[str],
 ) -> None:
-    """The shipped AugAssign skip case is refused by the *shipped* preflight.
+    """The shipped ``while`` skip case is refused by the *shipped* preflight.
 
     On the run path ``_preflight_structure`` runs before the prover, so this
     case exits 2 as a config refusal and never reaches the SKIP gate that
@@ -239,7 +238,7 @@ def test_clauz3_run_refuses_aug_assign_case_at_preflight(
     exit-code contract, and the no-approval-request property together --
     rather than a test-local model of the gate (see test_interp_corpus.py).
     """
-    source = (EMAIL_ROOT / "cases" / "aug_assign_skip.py").read_text()
+    source = (EMAIL_ROOT / "cases" / "while_loop_skip.py").read_text()
     with MockApprovalServer(config={"decision": "approved_once"}) as server:
         monkeypatch.setenv(APPROVAL_SERVICE_ENV, server.url)
         monkeypatch.setattr(sys, "stdin", io.StringIO(source))
@@ -256,7 +255,47 @@ def test_clauz3_run_refuses_aug_assign_case_at_preflight(
 
     assert result == 2
     assert server.requests == []
-    assert "AugAssign" in capsys.readouterr().err
+    assert "While" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("case_name", "status", "requests", "message"),
+    [
+        ("aug_assign_pass.py", 0, 1, "main: proved!"),
+        ("aug_assign_fail.py", 1, 0, "main: failed guarantee"),
+    ],
+)
+def test_clauz3_run_proves_aug_assign_cases(
+    monkeypatch: MonkeyPatch,
+    capsys: CaptureFixture[str],
+    case_name: str,
+    status: int,
+    requests: int,
+    message: str,
+) -> None:
+    """``msg += ...`` passes the preflight and is decided by the prover (#109).
+
+    The pass case is submitted for approval and runs; the fail case is
+    refuted and never reaches the approval service.
+    """
+    source = (EMAIL_ROOT / "cases" / case_name).read_text()
+    with MockApprovalServer(config={"decision": "approved_once"}) as server:
+        monkeypatch.setenv(APPROVAL_SERVICE_ENV, server.url)
+        monkeypatch.setattr(sys, "stdin", io.StringIO(source))
+
+        result = main(
+            [
+                "run",
+                "--trusted-root",
+                str(TRUSTED_ROOT),
+                "--import-root",
+                str(EMAIL_ROOT),
+            ]
+        )
+
+    assert result == status
+    assert len(server.requests) == requests
+    assert message in capsys.readouterr().out
 
 
 def test_clauz3_run_rejects_direct_side_effect_import(

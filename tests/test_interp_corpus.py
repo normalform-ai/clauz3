@@ -204,10 +204,10 @@ def _preflight_nodes(source: str, *, source_name: str) -> None:
 # Interpreter, prover, and shipped preflight refusal reasons. Set equality
 # below prevents adding an untested skip case or retaining a stale exemption.
 _SKIP_REFUSALS = {
-    "examples/email/cases/aug_assign_skip.py": (
-        r"AugAssign is outside the proved subset",
-        r"^unsupported ast node AugAssign at line 17: msg \+=",
-        r"AugAssign is not part of the proved subset",
+    "examples/email/cases/while_loop_skip.py": (
+        r"While is outside the proved subset",
+        r"^unsupported ast node While at line 15: while n < 2",
+        r"While is not part of the proved subset",
     ),
 }
 

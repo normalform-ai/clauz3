@@ -93,13 +93,17 @@ def eval_const(node: astroid.Const, ctx: Context) -> ProxySort:
 @eval_expr.register(astroid.BinOp)
 def eval_bin_op(node: astroid.BinOp, ctx: Context) -> ProxySort:
     assert node.op
-    op_name = BIN_OPERATIONS.get(node.op)
-    assert op_name, "unsupported binary operator"
     left = eval_expr(node=node.left, ctx=ctx)
     right = eval_expr(node=node.right, ctx=ctx)
+    return apply_bin_op(node.op, left, right, ctx=ctx)
+
+
+def apply_bin_op(op: str, left: ProxySort, right: ProxySort, *, ctx: Context) -> ProxySort:
+    """``left op right`` via the proxy dunder; shared with ``eval_aug_assign``."""
+    op_name = BIN_OPERATIONS.get(op)
+    assert op_name, "unsupported binary operator"
     method = left.m_getattr(op_name, ctx=ctx)
-    result = method.m_call(right, ctx=ctx)
-    return result
+    return method.m_call(right, ctx=ctx)
 
 
 @eval_expr.register(astroid.Compare)

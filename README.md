@@ -300,13 +300,13 @@ lack complete conclusion tables; their example recipes check negative cases
 only for rejection. `policy_*.py` files are approval-policy fixtures and are
 excluded from the proof tables.
 
-The email pair `aug_assign_skip.py` and `aug_assign_rewritten_fail.py` shows
-why this distinction matters: `msg += ...` currently leaves the supported
-subset, while `msg = msg + ...` lets the prover refute the same length bound.
-The skip tests pin the prover and interpreter refusal reasons and check the
-runner refuses before requesting approval. Adding augmented-assignment support
-([#139](https://github.com/cmungall/agent-deal/pull/139)) should replace this
-skip fixture with an ordinary refutation.
+The email case `while_loop_skip.py` shows the skip side of that distinction:
+the program is bounded and its guarantee holds, but `while` is outside the
+supported subset, so it skips rather than proves. Its tests pin the prover and
+interpreter refusal reasons and check the runner refuses before requesting
+approval. The pair `aug_assign_fail.py` and `aug_assign_rewritten_fail.py`
+shows the other side: `msg += ...` on a `str` is desugared to
+`msg = msg + ...`, so both spellings are refuted the same way.
 
 ## Skills marketplace
 

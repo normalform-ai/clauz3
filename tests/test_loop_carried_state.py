@@ -48,6 +48,10 @@ UNSOUND = [
     # The accumulator one loop deeper: a property of the body, not its top
     # level.
     "nested_accumulator_fail.py",
+    # The augmented spelling of a rebound outer name: each call would be
+    # checked against the pre-loop `addr`, discharging a precondition the
+    # second row violates.
+    "aug_assign_over_loop_fail.py",
 ]
 
 
@@ -75,6 +79,13 @@ def test_refusal_names_the_variable_that_carries_the_state() -> None:
     """The skip has to be actionable, so it names the offending binding."""
     result = _prove("accumulator_over_loop_fail.py")
     assert "'total'" in str(result.proof.error)
+
+
+def test_augmented_assignment_is_refused_as_loop_carried_state() -> None:
+    """``addr += "x"`` binds the same outer name as ``addr = addr + "x"``."""
+    result = _prove("aug_assign_over_loop_fail.py")
+    assert "'addr'" in str(result.proof.error)
+    assert "a name bound outside the loop" in str(result.proof.error)
 
 
 def test_body_local_temporary_is_still_allowed() -> None:
