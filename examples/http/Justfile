@@ -1,22 +1,13 @@
 
 trusted := "tools/http/trusted"
 prove := "uv run clauz3 prove --trusted-root " + trusted
+# Proves each case in one process: *_pass.py must prove, *_fail.py must not.
+prove-cases := "uv run python -m clauz3._prove_cases --trusted-root " + trusted
 
 test: lint cases
 
 lint:
     uv run clauz3 lint {{trusted}}/effects.py
 
-cases: host-pass host-fail no-posts-pass no-posts-fail
-
-host-pass:
-    {{prove}} cases/host_pass.py
-
-host-fail:
-    if {{prove}} cases/host_fail.py; then exit 1; fi
-
-no-posts-pass:
-    {{prove}} cases/no_posts_pass.py
-
-no-posts-fail:
-    if {{prove}} cases/no_posts_fail.py; then exit 1; fi
+cases:
+    {{prove-cases}} cases/*_pass.py cases/*_fail.py

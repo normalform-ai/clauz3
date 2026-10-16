@@ -2,44 +2,18 @@
 # `clauz3 test` overrides CLAUZ3 so the bundled suite also runs from an
 # installed wheel, where `uv` is absent.
 clauz3 := env_var_or_default("CLAUZ3", "uv run clauz3")
+python := env_var_or_default("PYTHON", "uv run python")
 
 trusted := "../tools/env/trusted"
 effects := trusted + "/effects.py"
 prove := clauz3 + " prove --trusted-root " + trusted + " --import-root .."
+# Proves each case in one process: *_pass.py must prove, *_fail.py must not.
+prove-cases := python + " -m clauz3._prove_cases --trusted-root " + trusted + " --import-root .."
 
 test: lint cases
 
 lint:
     {{clauz3}} lint {{effects}}
 
-cases: no-env-reads-pass no-env-reads-fail only-vars-pass only-vars-fail never-vars-pass never-vars-fail never-var-prefix-pass never-var-prefix-fail env-reads-at-most-pass env-reads-at-most-fail
-
-no-env-reads-pass:
-    {{prove}} cases/no_env_reads_pass.py
-
-no-env-reads-fail:
-    if {{prove}} cases/no_env_reads_fail.py; then exit 1; fi
-
-only-vars-pass:
-    {{prove}} cases/only_vars_pass.py
-
-only-vars-fail:
-    if {{prove}} cases/only_vars_fail.py; then exit 1; fi
-
-never-vars-pass:
-    {{prove}} cases/never_vars_pass.py
-
-never-vars-fail:
-    if {{prove}} cases/never_vars_fail.py; then exit 1; fi
-
-never-var-prefix-pass:
-    {{prove}} cases/never_var_prefix_pass.py
-
-never-var-prefix-fail:
-    if {{prove}} cases/never_var_prefix_fail.py; then exit 1; fi
-
-env-reads-at-most-pass:
-    {{prove}} cases/env_reads_at_most_pass.py
-
-env-reads-at-most-fail:
-    if {{prove}} cases/env_reads_at_most_fail.py; then exit 1; fi
+cases:
+    {{prove-cases}} cases/*_pass.py cases/*_fail.py

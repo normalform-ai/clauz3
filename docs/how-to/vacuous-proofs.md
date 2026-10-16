@@ -146,8 +146,9 @@ entry-file look-alikes, lambdas, and malformed decorator calls are refused
 before approval. See [The guarantee grammar](../reference/python-subset.md#the-guarantee-grammar).
 
 **A `_fail` case that passes on a skip — not caught.** The Justfile idiom
-`if {{prove}} cases/x_fail.py; then exit 1; fi` accepts any non-zero exit,
-including `skipped`. When two trusted layers share a dotted package name
+`if {{prove}} cases/x_fail.py; then exit 1; fi`, and the batched
+`python -m clauz3._prove_cases` the example and bundled-library Justfiles
+now use, accept any non-zero exit, including `skipped`. When two trusted layers share a dotted package name
 (`tools.db` from an example and from `stdlib:db`), an import-cache collision
 can cause a configuration error rather than a counterexample. The loader now
 refuses a module cached from a different root; historically, a

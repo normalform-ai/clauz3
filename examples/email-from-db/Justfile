@@ -1,31 +1,13 @@
 
 db_trusted := "tools/db/trusted"
 prove := "uv run clauz3 prove --trusted-root " + db_trusted
+# Proves each case in one process: *_pass.py must prove, *_fail.py must not.
+prove-cases := "uv run python -m clauz3._prove_cases --trusted-root " + db_trusted
 
 test: lint cases
 
 lint:
     uv run clauz3 lint {{db_trusted}}/effects.py
 
-cases: newsletter-pass count-pass no-emails-with-loop-pass literal-address-fail wrong-column-fail mixed-source-fail count-too-tight-fail
-
-newsletter-pass:
-    {{prove}} cases/newsletter_pass.py
-
-count-pass:
-    {{prove}} cases/count_pass.py
-
-no-emails-with-loop-pass:
-    {{prove}} cases/no_emails_with_loop_pass.py
-
-literal-address-fail:
-    if {{prove}} cases/literal_address_fail.py; then exit 1; fi
-
-wrong-column-fail:
-    if {{prove}} cases/wrong_column_fail.py; then exit 1; fi
-
-mixed-source-fail:
-    if {{prove}} cases/mixed_source_fail.py; then exit 1; fi
-
-count-too-tight-fail:
-    if {{prove}} cases/count_too_tight_fail.py; then exit 1; fi
+cases:
+    {{prove-cases}} cases/*_pass.py cases/*_fail.py

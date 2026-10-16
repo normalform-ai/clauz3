@@ -1,43 +1,13 @@
 
 trusted := "tools/bank/trusted"
 prove := "uv run clauz3 prove --trusted-root " + trusted
+# Proves each case in one process: *_pass.py must prove, *_fail.py must not.
+prove-cases := "uv run python -m clauz3._prove_cases --trusted-root " + trusted
 
 test: lint cases
 
 lint:
     uv run clauz3 lint {{trusted}}/effects.py
 
-cases: max-spend-pass max-spend-fail max-spend-branch-pass for-loop-sum-pass for-loop-sum-fail only-account-pass only-account-fail negative-amount-fail pay-bill-capped-pass pay-bill-uncapped-fail pay-bill-cap-too-tight-fail
-
-max-spend-pass:
-    {{prove}} cases/max_spend_pass.py
-
-max-spend-fail:
-    if {{prove}} cases/max_spend_fail.py; then exit 1; fi
-
-max-spend-branch-pass:
-    {{prove}} cases/max_spend_branch_pass.py
-
-for-loop-sum-pass:
-    {{prove}} cases/for_loop_sum_pass.py
-
-for-loop-sum-fail:
-    if {{prove}} cases/for_loop_sum_fail.py; then exit 1; fi
-
-only-account-pass:
-    {{prove}} cases/only_account_pass.py
-
-only-account-fail:
-    if {{prove}} cases/only_account_fail.py; then exit 1; fi
-
-negative-amount-fail:
-    if {{prove}} cases/negative_amount_fail.py; then exit 1; fi
-
-pay-bill-capped-pass:
-    {{prove}} cases/pay_bill_capped_pass.py
-
-pay-bill-uncapped-fail:
-    if {{prove}} cases/pay_bill_uncapped_fail.py; then exit 1; fi
-
-pay-bill-cap-too-tight-fail:
-    if {{prove}} cases/pay_bill_cap_too_tight_fail.py; then exit 1; fi
+cases:
+    {{prove-cases}} cases/*_pass.py cases/*_fail.py

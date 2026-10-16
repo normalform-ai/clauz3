@@ -106,6 +106,7 @@ def test_recipe_env_points_at_current_interpreter() -> None:
 
 @needs_just
 def test_cli_test_runs_bundled_stdlib_without_uv() -> None:
-    # Exercises the injected CLAUZ3 runner against a real bundled proof case,
-    # so this passes even where `uv` is not on PATH.
-    assert main(["test", "stdlib:grep", "--recipe", "only-pattern-pass"]) == 0
+    # Exercises the injected CLAUZ3 (lint) and PYTHON (batched proof cases)
+    # runners against a real bundled suite, so this passes even where `uv` is
+    # not on PATH.
+    assert main(["test", "stdlib:grep"]) == 0

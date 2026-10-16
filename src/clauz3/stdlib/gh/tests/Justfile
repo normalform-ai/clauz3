@@ -2,56 +2,18 @@
 # `clauz3 test` overrides CLAUZ3 so the bundled suite also runs from an
 # installed wheel, where `uv` is absent.
 clauz3 := env_var_or_default("CLAUZ3", "uv run clauz3")
+python := env_var_or_default("PYTHON", "uv run python")
 
 trusted := "../tools/gh/trusted"
 effects := trusted + "/effects.py"
 prove := clauz3 + " prove --trusted-root " + trusted + " --import-root .."
+# Proves each case in one process: *_pass.py must prove, *_fail.py must not.
+prove-cases := python + " -m clauz3._prove_cases --trusted-root " + trusted + " --import-root .."
 
 test: lint cases
 
 lint:
     {{clauz3}} lint {{effects}}
 
-cases: read-only-pass read-only-fail only-commands-pass only-commands-fail never-actions-pass never-actions-fail only-repo-pass only-repo-fail only-owner-pass only-owner-fail no-gh-pass no-gh-fail runs-at-most-pass runs-at-most-fail
-
-read-only-pass:
-    {{prove}} cases/read_only_pass.py
-
-read-only-fail:
-    if {{prove}} cases/read_only_fail.py; then exit 1; fi
-
-only-commands-pass:
-    {{prove}} cases/only_commands_pass.py
-
-only-commands-fail:
-    if {{prove}} cases/only_commands_fail.py; then exit 1; fi
-
-never-actions-pass:
-    {{prove}} cases/never_actions_pass.py
-
-never-actions-fail:
-    if {{prove}} cases/never_actions_fail.py; then exit 1; fi
-
-only-repo-pass:
-    {{prove}} cases/only_repo_pass.py
-
-only-repo-fail:
-    if {{prove}} cases/only_repo_fail.py; then exit 1; fi
-
-only-owner-pass:
-    {{prove}} cases/only_owner_pass.py
-
-only-owner-fail:
-    if {{prove}} cases/only_owner_fail.py; then exit 1; fi
-
-no-gh-pass:
-    {{prove}} cases/no_gh_pass.py
-
-no-gh-fail:
-    if {{prove}} cases/no_gh_fail.py; then exit 1; fi
-
-runs-at-most-pass:
-    {{prove}} cases/runs_at_most_pass.py
-
-runs-at-most-fail:
-    if {{prove}} cases/runs_at_most_fail.py; then exit 1; fi
+cases:
+    {{prove-cases}} cases/*_pass.py cases/*_fail.py

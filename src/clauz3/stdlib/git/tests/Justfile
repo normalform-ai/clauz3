@@ -2,68 +2,18 @@
 # `clauz3 test` overrides CLAUZ3 so the bundled suite also runs from an
 # installed wheel, where `uv` is absent.
 clauz3 := env_var_or_default("CLAUZ3", "uv run clauz3")
+python := env_var_or_default("PYTHON", "uv run python")
 
 trusted := "../tools/git/trusted"
 effects := trusted + "/effects.py"
 prove := clauz3 + " prove --trusted-root " + trusted + " --import-root .."
+# Proves each case in one process: *_pass.py must prove, *_fail.py must not.
+prove-cases := python + " -m clauz3._prove_cases --trusted-root " + trusted + " --import-root .."
 
 test: lint cases
 
 lint:
     {{clauz3}} lint {{effects}}
 
-cases: read-only-pass read-only-fail only-subcommands-pass only-subcommands-fail never-subcommands-pass never-subcommands-fail only-in-pass only-in-fail no-git-pass no-git-fail runs-at-most-pass runs-at-most-fail no-push-pass no-push-fail only-push-to-remote-pass only-push-to-remote-fail only-push-to-branch-pass only-push-to-branch-fail
-
-read-only-pass:
-    {{prove}} cases/read_only_pass.py
-
-read-only-fail:
-    if {{prove}} cases/read_only_fail.py; then exit 1; fi
-
-only-subcommands-pass:
-    {{prove}} cases/only_subcommands_pass.py
-
-only-subcommands-fail:
-    if {{prove}} cases/only_subcommands_fail.py; then exit 1; fi
-
-never-subcommands-pass:
-    {{prove}} cases/never_subcommands_pass.py
-
-never-subcommands-fail:
-    if {{prove}} cases/never_subcommands_fail.py; then exit 1; fi
-
-only-in-pass:
-    {{prove}} cases/only_in_pass.py
-
-only-in-fail:
-    if {{prove}} cases/only_in_fail.py; then exit 1; fi
-
-no-git-pass:
-    {{prove}} cases/no_git_pass.py
-
-no-git-fail:
-    if {{prove}} cases/no_git_fail.py; then exit 1; fi
-
-runs-at-most-pass:
-    {{prove}} cases/runs_at_most_pass.py
-
-runs-at-most-fail:
-    if {{prove}} cases/runs_at_most_fail.py; then exit 1; fi
-
-no-push-pass:
-    {{prove}} cases/no_push_pass.py
-
-no-push-fail:
-    if {{prove}} cases/no_push_fail.py; then exit 1; fi
-
-only-push-to-remote-pass:
-    {{prove}} cases/only_push_to_remote_pass.py
-
-only-push-to-remote-fail:
-    if {{prove}} cases/only_push_to_remote_fail.py; then exit 1; fi
-
-only-push-to-branch-pass:
-    {{prove}} cases/only_push_to_branch_pass.py
-
-only-push-to-branch-fail:
-    if {{prove}} cases/only_push_to_branch_fail.py; then exit 1; fi
+cases:
+    {{prove-cases}} cases/*_pass.py cases/*_fail.py
