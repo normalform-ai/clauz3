@@ -1,9 +1,12 @@
 """Remembered decisions are verified authority, not cached execution receipts."""
 
 import json
+import re
 import shutil
+import sqlite3
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
@@ -12,6 +15,14 @@ import pytest
 from fastapi.testclient import TestClient
 
 from clauz3.approvals.authority import ApprovedLayer
+from clauz3.approvals.decisions import (
+    APPROVED_DECISIONS,
+    AUTO_DECISIONS,
+    REMEMBERABLE_DECISIONS,
+    Decision,
+    UnknownDecisionError,
+    is_approved,
+)
 from clauz3.approvals.descriptions import render_guarantees
 from clauz3.approvals.policy import ApprovalPolicy
 from clauz3.approvals.profiles.store import ProfileStore, objects
@@ -216,8 +227,8 @@ def test_store_deny_wins_and_projects_are_isolated(tmp_path: Path) -> None:
     basis: dict[str, object] = {"signature": "test"}
     first = store.record({}, basis)
     second = store.record({}, basis)
-    store.decide(first, "approved_once", remember=True)
-    store.decide(second, "rejected", remember=True)
+    store.decide(first, Decision.APPROVED_ONCE, remember=True)
+    store.decide(second, Decision.REJECTED, remember=True)
     match = store.match("test")
     assert match and match["decision"] == "deny"
     store.disable(str(match["id"]))
@@ -375,15 +386,94 @@ def test_false_proof_and_unapproved_roots_cannot_use_profile(
 def test_concurrent_promotion_is_idempotent_and_atomic(tmp_path: Path) -> None:
     store = ProfileStore(tmp_path / "history.sqlite", project=tmp_path)
     event = store.record({}, {"signature": "verified"})
-    store.decide(event, "approved_once")
+    store.decide(event, Decision.APPROVED_ONCE)
     with ThreadPoolExecutor(max_workers=4) as pool:
         results = list(pool.map(store.remember, [event] * 8))
     assert len(set(results)) == 1
     assert len(objects(store.snapshot()["rules"])) == 1
     ineligible = store.record({}, None)
     with pytest.raises(ValueError, match="no verified"):
-        store.decide(ineligible, "approved_once", remember=True)
+        store.decide(ineligible, Decision.APPROVED_ONCE, remember=True)
     history = objects(store.snapshot()["history"])
     assert (
         next(item for item in history if item["id"] == ineligible)["decision"] is None
     )
+
+
+def test_unknown_decision_is_refused_and_never_stored(
+    tmp_path: Path, layer: ApprovedLayer
+) -> None:
+    # Issue #62: "approved" used to be answered 200, stored in the history, and
+    # shown on the profile page as an approval of a request that was denied.
+    store = ProfileStore(tmp_path / "history.sqlite", project=layer.import_roots[0])
+    api = client(store, layer)
+    payload = request(layer)
+    assert api.post("/requests", json=payload, headers=AGENT).status_code == 503
+    refused = api.post(
+        f"/api/requests/{payload['request_id']}/decision",
+        json={"decision": "approved", "remember": True},
+        headers=OPERATOR,
+    )
+    assert refused.status_code == 400
+    assert "decision 'approved' is not one of" in refused.json()["detail"]
+    assert api.get(f"/requests/{payload['request_id']}").json()["status"] == "pending"
+    (event,) = objects(store.snapshot()["history"])
+    assert event["decision"] is None
+    assert not store.snapshot()["rules"]
+
+    decide(api, payload, decision="rejected", remember=False)
+    (event,) = objects(store.snapshot()["history"])
+    assert event["decision"] == "rejected"
+
+
+def test_store_refuses_to_write_an_unknown_decision(tmp_path: Path) -> None:
+    store = ProfileStore(tmp_path / "history.sqlite", project=tmp_path)
+    event = store.record({}, {"signature": "verified"})
+    with pytest.raises(UnknownDecisionError):
+        store.decide(event, cast(Decision, "approved"))
+    assert objects(store.snapshot()["history"])[0]["decision"] is None
+
+
+@pytest.mark.parametrize("legacy", ["approved", "approve", "Approved_Once"])
+def test_legacy_unknown_history_rows_are_never_approvals(
+    tmp_path: Path, layer: ApprovedLayer, legacy: str
+) -> None:
+    # A store written before the vocabulary was closed may hold any string.
+    # It still opens, keeps the row as recorded, and never treats it as an
+    # approval or lets it become a rule.
+    path = tmp_path / "history.sqlite"
+    store = ProfileStore(path, project=layer.import_roots[0])
+    event = store.record({"request_id": "clr_legacy"}, {"signature": "verified"})
+    with closing(sqlite3.connect(path)) as db, db:
+        db.execute("UPDATE history SET decision=? WHERE id=?", (legacy, event))
+
+    reopened = ProfileStore(path, project=layer.import_roots[0])
+    (row,) = objects(reopened.snapshot()["history"])
+    assert row["decision"] == legacy
+    assert not is_approved(row["decision"])
+    with pytest.raises(ValueError, match="only a human approval or rejection"):
+        reopened.remember(event)
+    assert reopened.match("verified") is None
+
+    api = client(reopened, layer)
+    response = api.post("/api/profile/remember", json={"id": event}, headers=OPERATOR)
+    assert response.status_code == 400
+    assert not reopened.snapshot()["rules"]
+
+
+def _js_strings(source: str, name: str) -> set[str]:
+    match = re.search(rf"const {name} = \[(.*?)\];", source, re.DOTALL)
+    assert match, name
+    return set(re.findall(r'"([a-z_]+)"', match.group(1)))
+
+
+def test_profile_page_uses_the_closed_vocabulary() -> None:
+    source = (ROOT / "src/clauz3/approvals/web/profile.js").read_text()
+    assert _js_strings(source, "APPROVED") == set(APPROVED_DECISIONS)
+    assert _js_strings(source, "AUTOMATIC") == set(AUTO_DECISIONS)
+    assert _js_strings(source, "REMEMBERABLE") == set(REMEMBERABLE_DECISIONS)
+    labels = re.search(r"const labels = \{(.*?)\};", source, re.DOTALL)
+    assert labels
+    assert set(re.findall(r"^\s*([a-z_]+):", labels.group(1), re.M)) == set(Decision)
+    # Substring matching is what showed "approved" as an approval (issue #62).
+    assert '.includes("approved")' not in source

@@ -1,12 +1,17 @@
 /* Shared profile component. Decisions still use the existing authority APIs. */
 (() => {
-  const $ = (id) => document.getElementById(id);
-  const view = $("approvals-view");
-  if (!view) return;
-  let snapshot = { rules: [], history: [] },
-    tab = "rules",
-    loading = false,
-    saving = false;
+  // The closed decision vocabulary of clauz3.approvals.decisions.Decision
+  // (tests/test_approval_profiles.py keeps these lists in step with it).
+  // Matching is exact: profiles written before issue #62 may hold other
+  // strings such as "approved", which are unknown and never approvals.
+  const APPROVED = ["approved_once", "approved_remember", "auto_approved"];
+  const AUTOMATIC = ["auto_approved", "auto_rejected"];
+  const REMEMBERABLE = [
+    "approved_once",
+    "approved_remember",
+    "rejected",
+    "rejected_contract",
+  ];
   const labels = {
     approved_once: "Approved",
     approved_remember: "Approved and remembered",
@@ -16,6 +21,39 @@
     auto_approved: "Automatically approved",
     auto_rejected: "Automatically rejected",
   };
+  const known = (decision) => Object.hasOwn(labels, decision);
+  const isApproved = (decision) => APPROVED.includes(decision);
+  const decisionTitle = (decision) =>
+    !decision
+      ? "Awaiting decision"
+      : known(decision)
+        ? labels[decision]
+        : `Unknown decision “${decision}” (not approved)`;
+  const decisionBadge = (decision) =>
+    isApproved(decision)
+      ? "Approved"
+      : !decision
+        ? "Pending"
+        : known(decision)
+          ? "Reviewed"
+          : "Unknown";
+  globalThis.clauz3ProfileDecisions = {
+    APPROVED,
+    AUTOMATIC,
+    REMEMBERABLE,
+    labels,
+    isApproved,
+    decisionTitle,
+    decisionBadge,
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const view = $("approvals-view");
+  if (!view) return;
+  let snapshot = { rules: [], history: [] },
+    tab = "rules",
+    loading = false,
+    saving = false;
   const text = (tag, value, cls) => {
     const node = document.createElement(tag);
     node.textContent = value;
@@ -73,7 +111,7 @@
     $("rules-count").textContent = rules.filter((r) => r.enabled).length;
     $("decisions-count").textContent = history.filter((e) => e.decision).length;
     $("automatic-count").textContent = history.filter((e) =>
-      (e.decision || "").startsWith("auto_"),
+      AUTOMATIC.includes(e.decision),
     ).length;
     const container = $("profile-cards");
     container.replaceChildren();
@@ -97,11 +135,11 @@
       const allowed =
         tab === "rules"
           ? entry.decision === "allow"
-          : (entry.decision || "").includes("approved");
+          : isApproved(entry.decision);
       const title =
         tab === "rules"
           ? `${allowed ? "Approve" : "Reject"} matching contracts`
-          : labels[entry.decision] || "Awaiting decision";
+          : decisionTitle(entry.decision);
       heading.append(
         text("h3", title),
         text(
@@ -110,11 +148,7 @@
             ? entry.enabled
               ? "Enabled"
               : "Disabled"
-            : allowed
-              ? "Approved"
-              : entry.decision
-                ? "Reviewed"
-                : "Pending",
+            : decisionBadge(entry.decision),
           `profile-badge ${tab === "rules" && !entry.enabled ? "disabled" : allowed ? "allowed" : "reviewed"}`,
         ),
       );
@@ -132,13 +166,7 @@
       if (tab === "history") {
         const rule = rules.find((r) => r.history_id === event.id);
         const eligible =
-          event.signature &&
-          [
-            "approved_once",
-            "approved_remember",
-            "rejected",
-            "rejected_contract",
-          ].includes(event.decision);
+          event.signature && REMEMBERABLE.includes(event.decision);
         if (rule?.enabled)
           card.append(action("Exclude from profile", "disable", rule.id));
         else if (eligible)

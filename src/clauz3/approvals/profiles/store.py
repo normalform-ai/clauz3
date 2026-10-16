@@ -3,6 +3,12 @@
 This file has the same trust requirement as an operator's policy file: agents
 and approved effects must not be allowed to modify it. Unix permissions protect
 against other users, not arbitrary processes running as the operator.
+
+``history.decision`` only ever receives a :class:`Decision`. Stores written
+before the vocabulary was closed (issue #62) may still hold other strings, such
+as ``"approved"``. Those rows are kept as recorded, for audit, and read as
+unknown, never as approvals: they cannot be remembered as a rule, and the
+profile page labels them as unknown decisions.
 """
 
 import json
@@ -14,6 +20,13 @@ from contextlib import closing, contextmanager
 from pathlib import Path
 from typing import cast
 from uuid import uuid4
+
+from clauz3.approvals.decisions import (
+    REMEMBERABLE_DECISIONS,
+    Decision,
+    is_approved,
+    parse_decision,
+)
 
 
 class ProfileStore:
@@ -81,15 +94,18 @@ class ProfileStore:
     def decide(
         self,
         event: str,
-        decision: str,
+        decision: Decision,
         rule_id: str | None = None,
         *,
         remember: bool = False,
     ) -> None:
+        # Never persist a string outside the vocabulary, even from an untyped
+        # embedding caller.
+        decision = parse_decision(decision)
         with self._connection() as db:
             db.execute(
                 "UPDATE history SET decision=?, rule_id=? WHERE id=? AND project=?",
-                (decision, rule_id, event, self.project),
+                (decision.value, rule_id, event, self.project),
             )
             if remember:
                 self._remember(db, event)
@@ -107,12 +123,9 @@ class ProfileStore:
         if row is None or not row["signature"]:
             raise ValueError("this request has no verified profile signature")
         decision = row["decision"]
-        if decision in {"approved_once", "approved_remember"}:
-            action = "allow"
-        elif decision in {"rejected", "rejected_contract"}:
-            action = "deny"
-        else:
+        if decision not in REMEMBERABLE_DECISIONS:
             raise ValueError("only a human approval or rejection can be remembered")
+        action = "allow" if is_approved(decision) else "deny"
         rule = uuid4().hex
         db.execute(
             """INSERT INTO rules VALUES (?, ?, ?, ?, 1, ?, ?)

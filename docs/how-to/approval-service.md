@@ -274,24 +274,33 @@ policy checks.
 
 ## User decisions
 
-The bundled UI offers these decision paths:
+The decision API and the bundled UI accept exactly these decision strings,
+spelled as shown (matching is case-sensitive):
 
 | Decision | Meaning |
 | --- | --- |
 | `approved_once` | Approve this exact request and issue a receipt. |
+| `approved_remember` | Approve and issue a receipt; when the service has a profile, also remember the verified contract (see [Remember decisions across sessions](#remember-decisions-across-sessions)). |
 | `rejected_contract` | Reject because the proved contract says the program will do something the user does not want. |
 | `request_more` | Reject for now because the contract or explanation is too vague. The agent should revise and submit a new request. |
 | `rejected` | Reject without a more specific subtype. |
 
-Only these approved decisions let `clauz3 run` execute:
+Two further decisions, `auto_approved` and `auto_rejected`, are issued only by
+policy rules and remembered profile rules; the decision API refuses them.
 
-- `approved_once`
-- `approved_remember`
-- `auto_approved`
+Only `approved_once`, `approved_remember`, and `auto_approved` let `clauz3 run`
+execute. The other decisions are denials.
 
-All other decisions are treated as not approved. The current UI issues
-`approved_once`; future policy layers may issue `approved_remember` or
-`auto_approved`.
+Any other string, including near-misses such as `approved`, `approve`, or
+`Approved_Once`, is refused with HTTP 400 and a body listing the valid strings.
+The request stays pending and nothing is written to the profile history: an
+unknown decision is never recorded as a denial or as an approval. `clauz3 run`
+applies the same rule to the service's response and exits 2 with
+`error: invalid approval response: ...` rather than reporting a denial.
+
+Profile histories written by earlier versions may still contain such strings.
+They are kept as recorded, shown on the profile page as an unknown decision
+that is not approved, and cannot be remembered as a rule.
 
 The optional reason field is stored as `feedback` in the JSON response. It is
 user-authored decision text, not startup config.
@@ -394,7 +403,7 @@ Mock config keys:
 
 | Key | Type | Meaning |
 | --- | --- | --- |
-| `decision` | string | Decision returned to `clauz3 run`. Defaults to `approved_once` when omitted. |
+| `decision` | string | Decision returned to `clauz3 run`, spelled exactly as under [User decisions](#user-decisions) (policy decisions are also accepted). Defaults to `approved_once` when omitted; the mock refuses to start on any other value. |
 | `receipt` | string | Optional verbatim receipt returned for approved decisions. When omitted, the mock signs a valid receipt if `CLAUZ3_APPROVAL_SIGNING_KEY` is set, else returns an unsigned `mock-<request_id>` (which a fail-closed runner rejects). |
 | `feedback` | string | Optional mock feedback returned with the decision. |
 | `require_program_sha256` | string | Optional exact program hash gate. If the request hash does not match, the mock returns `rejected`. |
@@ -438,7 +447,8 @@ A `clauz3 run` request looks like this:
 }
 ```
 
-The service response must be a JSON object with at least a string `decision`:
+The service response must be a JSON object whose `decision` is one of the
+strings under [User decisions](#user-decisions) or a policy decision:
 
 ```json
 {
@@ -451,8 +461,10 @@ The service response must be a JSON object with at least a string `decision`:
 For approved decisions, `clauz3 run` requires a receipt whose Ed25519 signature
 verifies against `CLAUZ3_APPROVAL_VERIFY_KEY` and that is bound to this exact
 program, request, and proved guarantees; otherwise it refuses to execute. For
-not-approved decisions, `clauz3 run` exits without executing and prints the
-decision plus any feedback.
+not-approved decisions, `clauz3 run` exits 3 without executing and prints the
+decision plus any feedback. For any other `decision` string, `clauz3 run` exits
+2 with `error: invalid approval response: ...`; an unknown decision is never
+read as a denial.
 
 ## Troubleshooting
 
@@ -499,3 +511,10 @@ decision plus any feedback.
 : The user or mock service responded with a not-approved decision. Read the
   printed feedback or inspect the request in the browser UI, strengthen the
   program guarantees, and run again.
+
+`error: invalid approval response: decision 'approved' is not one of [...]` /
+`400` from the decision endpoint with the same text
+
+: A decision string outside the closed vocabulary was sent, typically a
+  near-miss like `approved` for `approved_once`. Use one of the strings under
+  [User decisions](#user-decisions), spelled exactly; the error lists them.

@@ -496,7 +496,10 @@ See [Approval policies](../todos/approval-policies.md).
 ## `clauz3 mock-approval-service`
 
 A scripted decision server for tests and demos. The config JSON drives the
-returned decision (e.g. `{"decision": "approved_once"}`).
+returned decision (e.g. `{"decision": "approved_once"}`); `decision` must be one
+of the exact strings listed under
+[User decisions](../how-to/approval-service.md#user-decisions), and the mock
+exits 2 on any other value.
 
 ```
 clauz3 mock-approval-service --config CONFIG [--host HOST] [--port PORT]

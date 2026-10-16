@@ -39,10 +39,12 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PublicKey,
 )
 
-#: Decisions that authorize execution. Kept local to avoid importing the
-#: approval module (which imports networking machinery) into the runner's
-#: verification path.
-APPROVED_DECISIONS = frozenset({"approved_once", "approved_remember", "auto_approved"})
+# ``decisions`` is a leaf module, so the runner's verification path still
+# avoids the approval client's networking machinery.
+from clauz3.approvals.decisions import (
+    APPROVED_DECISIONS as APPROVED_DECISIONS,  # re-exported for compatibility
+)
+from clauz3.approvals.decisions import is_approved
 
 #: Service-side env var holding the base64 Ed25519 *private* signing key.
 SIGNING_KEY_ENV = "CLAUZ3_APPROVAL_SIGNING_KEY"
@@ -171,7 +173,7 @@ def verify_receipt(
         raise ReceiptError("receipt is not bound to this program")
     if payload.get("consent_sha256") != consent_sha256:
         raise ReceiptError("receipt is not bound to these guarantees/coverage")
-    if payload.get("decision") not in APPROVED_DECISIONS:
+    if not is_approved(payload.get("decision")):
         raise ReceiptError("receipt does not authorize execution")
     expires_at = payload.get("expires_at")
     if not isinstance(expires_at, (int, float)) or now > expires_at:

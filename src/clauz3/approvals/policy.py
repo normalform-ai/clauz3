@@ -36,7 +36,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from clauz3.approvals.authority import ApprovedLayer, authorize_layer
-from clauz3.approvals.client import APPROVED_DECISIONS
+from clauz3.approvals.decisions import (
+    AUTO_DECISIONS,
+    Decision,
+    UnknownDecisionError,
+    parse_decision,
+)
 from clauz3.prover import (
     ProverConfigError,
     _selected_layer_context,
@@ -45,8 +50,10 @@ from clauz3.prover import (
     validate_untrusted_source,
 )
 
-AUTO_DECISIONS = frozenset({"auto_approved", "auto_rejected"})
-_CLAUSE_KEY = {"auto_approved": "when_proven", "auto_rejected": "unless_proven"}
+_CLAUSE_KEY = {
+    Decision.AUTO_APPROVED: "when_proven",
+    Decision.AUTO_REJECTED: "unless_proven",
+}
 
 
 class ApprovalPolicyError(Exception):
@@ -56,9 +63,14 @@ class ApprovalPolicyError(Exception):
 @dataclass(frozen=True)
 class Rule:
     name: str
-    decision: str  # one of AUTO_DECISIONS
+    decision: Decision  # one of AUTO_DECISIONS
     clauses: tuple[str, ...]  # contract expressions to test for entailment
     reason: str | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "decision", parse_decision(self.decision, allowed=AUTO_DECISIONS)
+        )
 
 
 @dataclass(frozen=True)
@@ -70,9 +82,14 @@ class ApprovalPolicy:
 
 @dataclass(frozen=True)
 class PolicyDecision:
-    decision: str
+    decision: Decision  # one of AUTO_DECISIONS
     rule: str
     reason: str | None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "decision", parse_decision(self.decision, allowed=AUTO_DECISIONS)
+        )
 
 
 def load_approval_policy(path: Path) -> ApprovalPolicy:
@@ -148,7 +165,7 @@ def _evaluate_rules(
     trusted_roots: list[Path],
     import_roots: list[Path],
 ) -> PolicyDecision | None:
-    for wanted in ("auto_rejected", "auto_approved"):
+    for wanted in (Decision.AUTO_REJECTED, Decision.AUTO_APPROVED):
         for rule in policy.rules:
             if rule.decision != wanted:
                 continue
@@ -162,7 +179,7 @@ def _evaluate_rules(
             )
             if entailed is None:
                 continue
-            fires = entailed if rule.decision == "auto_approved" else not entailed
+            fires = entailed if rule.decision.approved else not entailed
             if fires:
                 return PolicyDecision(
                     decision=rule.decision,
@@ -309,11 +326,10 @@ def _rule_from_dict(item: object) -> Rule:
     name = item.get("name")
     if not isinstance(name, str) or not name:
         raise ApprovalPolicyError("each rule must have a non-empty 'name'")
-    decision = item.get("decision")
-    if decision not in AUTO_DECISIONS:
-        raise ApprovalPolicyError(
-            f"rule {name!r} 'decision' must be one of {sorted(AUTO_DECISIONS)}",
-        )
+    try:
+        decision = parse_decision(item.get("decision"), allowed=AUTO_DECISIONS)
+    except UnknownDecisionError as exc:
+        raise ApprovalPolicyError(f"rule {name!r}: {exc}") from exc
     key = _CLAUSE_KEY[decision]
     raw_clauses = item.get(key)
     if not isinstance(raw_clauses, list) or not raw_clauses:
@@ -351,11 +367,11 @@ def auto_approval_response(
     """Build the approval response the service records for an auto-decision."""
 
     response: dict[str, object] = {
-        "decision": decision.decision,
+        "decision": decision.decision.value,
         "request_id": request_id,
     }
     if decision.reason:
         response["feedback"] = decision.reason
-    if decision.decision in APPROVED_DECISIONS:
+    if decision.decision.approved:
         response["receipt"] = f"auto-{request_id}"
     return response

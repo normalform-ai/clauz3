@@ -16,6 +16,7 @@ import pytest
 from clauz3._vendor.deal_solver import Conclusion
 from clauz3.approvals.authority import ApprovedLayer
 from clauz3.approvals.client import ApprovalResponse
+from clauz3.approvals.decisions import Decision
 from clauz3.approvals.policy import ApprovalPolicy, Rule, evaluate_policy
 from clauz3.approvals.receipts import (
     VERIFY_KEY_ENV,
@@ -93,15 +94,15 @@ def test_repeated_approval_requests_select_same_named_layers_without_cleanup(
     rules: tuple[Rule, ...]
     expected: list[str | None]
     if kind == "empty":
-        rules = (Rule("allow", "auto_approved", ()),)
+        rules = (Rule("allow", Decision.AUTO_APPROVED, ()),)
         expected = ["auto_approved", "auto_approved"]
     elif kind == "nonempty":
-        rules = (Rule("silent", "auto_approved", ("checks.silent()",)),)
+        rules = (Rule("silent", Decision.AUTO_APPROVED, ("checks.silent()",)),)
         expected = ["auto_approved", None]
     else:
         rules = (
-            Rule("deny-silent", "auto_rejected", ("checks.silent()",)),
-            Rule("allow-once", "auto_approved", ("checks.once()",)),
+            Rule("deny-silent", Decision.AUTO_REJECTED, ("checks.silent()",)),
+            Rule("allow-once", Decision.AUTO_APPROVED, ("checks.once()",)),
         )
         expected = ["auto_approved", "auto_rejected"]
     policy = ApprovalPolicy(imports=(("checks", name + ".contracts"),), rules=rules)
@@ -191,7 +192,7 @@ def test_approval_wait_releases_selection_and_resumes_exact_layer_for_lazy_impor
                 coverage=request.get("coverage"),
             ),
         )
-        return ApprovalResponse(decision="approved_once", receipt=receipt)
+        return ApprovalResponse(decision=Decision.APPROVED_ONCE, receipt=receipt)
 
     monkeypatch.setattr("clauz3.runner.submit_approval_request", approve)
     try:

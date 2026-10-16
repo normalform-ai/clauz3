@@ -9,6 +9,7 @@ import pytest
 from clauz3 import interp, runner
 from clauz3._vendor.deal_solver import Conclusion
 from clauz3.approvals.authority import ApprovedLayer
+from clauz3.approvals.decisions import Decision
 from clauz3.approvals.policy import ApprovalPolicy, Rule, evaluate_policy
 from clauz3.prover import ProverConfigError, prove_path
 
@@ -68,7 +69,7 @@ def test_approval_refuses_prebuilt_relation_with_unknown_field(
         rules=(
             Rule(
                 name="allow",
-                decision="auto_approved",
+                decision=Decision.AUTO_APPROVED,
                 clauses=("pol.only_x()",) if with_clause else (),
             ),
         ),
@@ -154,7 +155,7 @@ def test_approval_preserves_valid_prebuilt_relation(
         rules=(
             Rule(
                 name="allow",
-                decision="auto_approved",
+                decision=Decision.AUTO_APPROVED,
                 clauses=("pol.only_x()",) if with_clause else (),
             ),
         ),
