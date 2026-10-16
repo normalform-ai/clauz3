@@ -2,13 +2,13 @@
 
 ![Clauz3 browser workspace](../assets/workspace-ui.png)
 
-`clauz3 ui [claude]` composes the existing approval authority with a local agent
+`clauz3 ui [claude|codex|agy|opencode|pi]` composes the existing approval authority with a local agent
 conversation. It follows AmiGO3's browser/WebSocket/ACP-stdio architecture and
 server-owned process lifetime; the implementation lives in `sessions/chat.py`
 and packaged `sessions/web/` assets. There is no frontend build step.
 
 ```text
-Browser ── WebSocket ── Session host ── ACP/stdio ── Claude adapter
+Browser ── WebSocket ── Session host ── ACP/stdio ── Selected agent
    │                                                  │
    │                                           Clauz3 MCP tools
    │                                                  │
@@ -16,6 +16,41 @@ Browser ── WebSocket ── Session host ── ACP/stdio ── Claude adap
    │                                                  │
    └── approver cookie ── Approval authority ── signed receipt
 ```
+
+Provider selection lives in `sessions/providers.py`. Codex and OpenCode use
+external ACP runtimes; `native_adapter.py` maps Antigravity's stream-json and
+Pi's SDK/RPC events into the existing host protocol. Pi's packaged `pi_bridge.mjs`
+connects the six Clauz3 MCP tools. All provider runtimes are
+optional executable dependencies. `terminal.py` reuses `Conversation` for the
+non-Claude CLI frontend, including streaming, run state, cancellation, and
+resume. Claude's native terminal launcher is unchanged.
+
+Claude and pinned Pi support harness confinement. Other providers require
+`--unrestricted`, which is persisted with the conversation and displayed in the
+UI. Their native tools may bypass Clauz3. Provider and model identity are saved;
+a different provider never receives another provider's session ID. Runtime or
+authentication failures preserve the transcript. Provider switching is limited
+to server-defined commands and starts a new conversation.
+Claude's browser integration rejects `--unrestricted`, including switches from
+an unrestricted workspace; its native terminal launcher still offers that mode.
+Provider availability is cached per conversation and excluded from saved state.
+Unavailable or unknown saved providers preserve their transcripts and allow the
+operator to start another conversation.
+
+Restricted Pi runs `restricted_pi.mjs` against the unmodified, installed
+`@earendil-works/pi-coding-agent@0.82.1` SDK. Its `tools` allowlist filters both
+model-visible tools and the executable registry. Clauz3 provides an empty
+resource loader, in-memory settings, an isolated process environment, and an
+auth-only model runtime; no discovery loader runs. The adapter checks the exact
+tool inventory at startup and before each request. Only text prompts and a
+session-state query are accepted by this private transport; native RPC bash,
+configuration changes, and extension reload are unavailable. Fresh and resumed
+sessions use the same configuration. `tests/test_pi_confinement.py` drives the
+actual installed SDK with forced forbidden tool calls and hostile resources,
+without network access or model credentials. Install the pinned optional runtime
+to run that test; it skips when the runtime is absent or unsupported.
+The `pi-confinement` CI job installs it explicitly and also tests real proofs,
+signed approval, rejection, and cancellation through the SDK-to-MCP bridge.
 
 The existing launcher discovers libraries, snapshots skill documents, checks the
 MCP bridge, generates separate credentials, and starts the local service. UI
@@ -31,10 +66,13 @@ and New conversation. ACP updates remain protocol-shaped; `clauz3/user`,
 `clauz3/turn_end`, `clauz3/state`, `clauz3/restore`, and `clauz3/notice` are local
 workspace events. This endpoint is a constrained workspace transport, not a
 transparent general-purpose ACP proxy. Native terminal/filesystem capabilities
-are not advertised. Tool permission requests are refused; configured Clauz3 MCP
-tools are already allowed to invoke the proof workflow.
+are not advertised. Native tool permission requests are refused; configured Clauz3 MCP
+tools are already allowed to invoke the proof workflow. Codex additionally
+requests per-call MCP permission; only requests correlated with an announced
+Clauz3 tool call and marked as MCP approval are accepted, using `allow_once`.
+This grants entry to the bridge, never execution approval.
 
-The adapter version is deliberately pinned. Its `_meta.claudeCode.options`
+The Claude adapter version is deliberately pinned. Its `_meta.claudeCode.options`
 extension forwards the SDK restriction settings. On the reviewed release,
 `settingSources: []` becomes `--setting-sources=`, `tools: []` becomes
 `--tools ''`, and strict MCP configuration and the six allowed tools reach the

@@ -11,6 +11,7 @@ from uuid import UUID
 
 from clauz3.libraries.discovery import global_library_root
 from clauz3.libraries.layout import tools_dirs
+from clauz3.sessions.providers import PROVIDERS
 from clauz3.sessions.skills import SkillDocument
 
 
@@ -91,7 +92,8 @@ def load_session(session_id: str) -> SessionRecord:
         raise ValueError("invalid session metadata fields")
     if (
         data["session_id"] != session_id
-        or data["agent"] != "claude"
+        or not isinstance(data["agent"], str)
+        or data["agent"] not in PROVIDERS
         or not isinstance(data["cwd"], str)
         or not Path(data["cwd"]).is_absolute()
         or type(data["unrestricted"]) is not bool

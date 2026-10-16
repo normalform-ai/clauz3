@@ -14,6 +14,7 @@ from starlette.testclient import WebSocketTestSession
 
 from clauz3.approvals.service import create_approval_app
 from clauz3.libraries.workspace import WorkspaceLibraries
+from clauz3.sessions import providers
 from clauz3.sessions.chat import ChatConfig
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -122,15 +123,30 @@ def test_staged_tampering_unknown_sources_and_ids_are_refused(
 
 
 @pytest.fixture
-def client(manager: WorkspaceLibraries, tmp_path: Path) -> Iterator[TestClient]:
+def client(
+    manager: WorkspaceLibraries,
+    tmp_path: Path,
+    request: pytest.FixtureRequest,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Iterator[TestClient]:
+    agent = getattr(request, "param", "claude")
     config = ChatConfig(
-        command=[sys.executable, str(ROOT / "tests/fixtures/workspace_agent.py")],
+        command=[
+            sys.executable,
+            str(ROOT / "tests/fixtures/workspace_agent.py"),
+            *(["--generic"] if agent != "claude" else []),
+        ],
+        agent=agent,
+        unrestricted=agent != "claude",
+        select_provider=True,
         cwd=str(manager.project),
         bridge=[],
         runner_env={},
         status_file=str(tmp_path / "runs.json"),
         manage_libraries=True,
     )
+    if agent != "claude":
+        monkeypatch.setattr(providers, "command", lambda _: config.command)
     app = create_approval_app(
         auth_token="submit", decision_token="decide", chat_config=config
     )
@@ -334,6 +350,7 @@ def test_libraries_change_freely_before_the_first_message(client: TestClient) ->
         assert client.get("/api/workspace/libraries").json()["selected"] == []
 
 
+@pytest.mark.parametrize("client", ["claude", "codex", "opencode"], indirect=True)
 def test_adding_libraries_mid_conversation_needs_confirmation_and_pauses(
     client: TestClient,
 ) -> None:
@@ -343,6 +360,7 @@ def test_adding_libraries_mid_conversation_needs_confirmation_and_pauses(
         ready(ws)
         app = cast(FastAPI, client.app)
         identifier = app.state.conversation.identifier
+        agent = app.state.conversation.config.agent
         prompt(ws, "Started")
         ws.send_json({"method": "clauz3/libraries", "params": {"domains": ["env"]}})
         asked = until(ws, lambda m: m["method"] == "clauz3/confirm_libraries")
@@ -358,6 +376,7 @@ def test_adding_libraries_mid_conversation_needs_confirmation_and_pauses(
         }
         conversation = app.state.conversation
         assert conversation.identifier == identifier
+        assert conversation.config.agent == agent
         assert conversation.config.approvals_paused
         assert conversation.state()["approvalsPaused"]
         # The agent hears about the change once, before the next prompt.
@@ -381,6 +400,45 @@ def test_adding_libraries_mid_conversation_needs_confirmation_and_pauses(
         ws.send_json({"method": "clauz3/select", "params": {"id": identifier}})
         until(ws, lambda m: m["method"] == "clauz3/restore")
         ready(ws)
+        assert app.state.conversation.config.approvals_paused
+        assert app.state.conversation.config.agent == agent
+
+
+@pytest.mark.parametrize("client", ["codex"], indirect=True)
+def test_provider_switch_and_library_changes_preserve_identity(
+    client: TestClient,
+) -> None:
+    client.get("/ui/login?key=decide")
+    install(client, "stdlib:env")
+    with client.websocket_connect("ws://127.0.0.1/api/chat/acp", headers=ORIGIN) as ws:
+        ready(ws)
+        app = cast(FastAPI, client.app)
+        original = app.state.conversation.identifier
+        # Even an empty chat with the same libraries must switch providers.
+        ws.send_json(
+            {"method": "clauz3/new", "params": {"agent": "opencode", "domains": []}}
+        )
+        until(ws, lambda m: m["method"] == "clauz3/restore")
+        ready(ws)
+        identifier = app.state.conversation.identifier
+        assert identifier != original
+        assert app.state.conversation.config.agent == "opencode"
+        prompt(ws, "Started")
+        change(ws, ["env"], confirm=True)
+        assert app.state.conversation.config.agent == "opencode"
+        assert app.state.conversation.identifier == identifier
+        assert app.state.conversation.config.approvals_paused
+        prompt(ws, "Continue")
+        assert "added env" in str(app.state.conversation.history)
+        ws.send_json({"method": "clauz3/select", "params": {"id": original}})
+        until(ws, lambda m: m["method"] == "clauz3/restore")
+        ready(ws)
+        assert app.state.conversation.config.agent == "codex"
+        ws.send_json({"method": "clauz3/select", "params": {"id": identifier}})
+        until(ws, lambda m: m["method"] == "clauz3/restore")
+        ready(ws)
+        assert app.state.conversation.config.agent == "opencode"
+        assert app.state.conversation.config.libraries == ["env"]
         assert app.state.conversation.config.approvals_paused
 
 

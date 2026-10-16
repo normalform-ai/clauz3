@@ -11,6 +11,7 @@ import asyncio
 import hashlib
 import json
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -28,6 +29,7 @@ from pydantic import BaseModel
 
 from clauz3.libraries.install import InstallError
 from clauz3.libraries.workspace import WorkspaceLibraries
+from clauz3.sessions import providers
 from clauz3.sessions.files import browse
 from clauz3.sessions.history import ConversationStore
 from clauz3.sessions.runs import STATUS_FILE_ENV
@@ -52,6 +54,9 @@ LIBRARIES_CHANGED = (
 
 
 class ChatConfig(BaseModel):
+    agent: str = "claude"
+    unrestricted: bool = False
+    select_provider: bool = False
     command: list[str]
     cwd: str
     bridge: list[str]
@@ -72,8 +77,11 @@ class ChatConfig(BaseModel):
     prompt: str | None = None
 
 
-def check_adapter(executable: str) -> None:
-    """Unknown releases must be reviewed before trusting their SDK forwarding."""
+def adapter_problem(executable: str) -> str:
+    """Why this adapter cannot be trusted, or an empty string if it can.
+
+    Unknown releases must be reviewed before trusting their SDK forwarding.
+    """
     try:
         result = subprocess.run(
             [executable, "--version"],
@@ -82,13 +90,19 @@ def check_adapter(executable: str) -> None:
             timeout=15,
             env=agent_environment(),
         )
-    except subprocess.TimeoutExpired as exc:
-        raise ValueError("ACP adapter version check timed out") from exc
+    except subprocess.TimeoutExpired:
+        return "ACP adapter version check timed out"
     if result.returncode or result.stdout.strip() != ADAPTER_VERSION:
-        raise ValueError(
+        return (
             f"UI requires claude-agent-acp {ADAPTER_VERSION}; install with "
             f"npm install -g @agentclientprotocol/claude-agent-acp@{ADAPTER_VERSION}"
         )
+    return ""
+
+
+def check_adapter(executable: str) -> None:
+    if problem := adapter_problem(executable):
+        raise ValueError(problem)
 
 
 def agent_environment() -> dict[str, str]:
@@ -108,6 +122,7 @@ def session_parameters(
 ) -> dict[str, Any]:
     from clauz3.sessions.launcher import SESSION_INSTRUCTIONS
 
+    providers.check_mode(config.agent, config.unrestricted, browser_ui=True)
     options: dict[str, Any] = {
         "tools": [],
         "allowedTools": list(SESSION_TOOLS),
@@ -132,7 +147,7 @@ def session_parameters(
     }
     if config.model:
         options["model"] = config.model
-    return {
+    parameters: dict[str, Any] = {
         "cwd": config.cwd,
         "mcpServers": [
             {
@@ -153,8 +168,19 @@ def session_parameters(
                 ],
             }
         ],
-        "_meta": {"claudeCode": {"options": options}},
     }
+    if config.agent == "claude":
+        # The existing Claude browser contract remains restricted.
+        parameters["_meta"] = {"claudeCode": {"options": options}}
+    elif config.agent in {"agy", "pi"}:
+        parameters["_meta"] = {
+            "clauz3": {
+                "model": config.model,
+                "instructions": SESSION_INSTRUCTIONS,
+                "unrestricted": config.unrestricted,
+            }
+        }
+    return parameters
 
 
 class Conversation:
@@ -165,16 +191,25 @@ class Conversation:
         saved: dict[str, Any] | None = None,
     ) -> None:
         self.config = config
+        self.provider_inventory = (
+            providers.inventory(config.unrestricted) if config.select_provider else []
+        )
         self.store = store
         self.identifier = saved["id"] if saved else store.create() if store else ""
         self.resume_id = (
             saved["state"].get("sessionId") if saved and saved["history"] else None
         )
         self.loading = False
+        # The conversation's own mode, not the server's: a saved chat keeps its
+        # mode until an agent session actually runs under this server's flag.
+        self.unrestricted = (
+            bool(saved["state"].get("unrestricted")) if saved else config.unrestricted
+        )
         self.saved_state = ""
         self.process: asyncio.subprocess.Process | None = None
         self.tasks: list[asyncio.Task[None]] = []
         self.pending: dict[int, asyncio.Future[dict[str, Any]]] = {}
+        self.bridge_calls: set[str] = set()
         self.history: list[dict[str, Any]] = []
         self.history_bytes = 0
         self.history_limited = bool(saved and saved["state"].get("historyLimited"))
@@ -187,6 +222,7 @@ class Conversation:
         self.next_id = 0
         self.session_id: str | None = None
         self.turn = 0
+        self.saw_turn_output = False
         self.busy = False
         self.ended = False
         self.closed = False
@@ -223,6 +259,7 @@ class Conversation:
     def persist(self) -> None:
         if self.store:
             state = self.state()
+            state.pop("providers")
             state["sessionId"] = self.session_id or self.resume_id
             state["libraryChanges"] = self.library_changes
             encoded = json.dumps(state)
@@ -252,7 +289,12 @@ class Conversation:
         return records
 
     def state(self) -> dict[str, Any]:
+        selected = providers.PROVIDERS.get(self.config.agent)
         return {
+            "agent": self.config.agent,
+            "agentLabel": selected.label if selected else self.config.agent,
+            "unrestricted": self.unrestricted,
+            "providers": self.provider_inventory,
             "conversationId": self.identifier,
             "sessionId": self.session_id,
             "busy": self.busy,
@@ -268,11 +310,20 @@ class Conversation:
             "librariesChanged": self.config.libraries_changed,
             "approvalsPaused": self.config.approvals_paused,
             "showLibraries": self.config.show_libraries,
+            "requestedModel": self.config.model,
             "model": self.config.model or "Agent default",
             "runs": self.runs(),
         }
 
     def publish(self, message: dict[str, Any], *, retain: bool = True) -> None:
+        if message.get("method") == "session/update":
+            params = message.get("params")
+            update = params.get("update") if isinstance(params, dict) else None
+            if isinstance(update, dict) and update.get("sessionUpdate") in (
+                "agent_message_chunk",
+                "tool_call",
+            ):
+                self.saw_turn_output = True
         if retain:
             size = len(json.dumps(message).encode())
             if self.history_limited or self.history_bytes + size > MAX_HISTORY:
@@ -330,6 +381,36 @@ class Conversation:
         finally:
             self.pending.pop(identifier, None)
 
+    def bridge_permission(self, params: object) -> dict[str, str]:
+        # Codex correlates MCP approvals with previously announced tool calls.
+        # Never grant native permissions or infer identity from display titles.
+        if not isinstance(params, dict):
+            return {"outcome": "cancelled"}
+        meta, call, options = (
+            params.get("_meta"),
+            params.get("toolCall"),
+            params.get("options"),
+        )
+        if (
+            self.config.agent == "codex"
+            and self.config.unrestricted
+            and params.get("sessionId") == self.session_id
+            and isinstance(meta, dict)
+            and meta.get("is_mcp_tool_approval") is True
+            and isinstance(call, dict)
+            and isinstance(call.get("toolCallId"), str)
+            and call["toolCallId"] in self.bridge_calls
+            and isinstance(options, list)
+        ):
+            for option in options:
+                if (
+                    isinstance(option, dict)
+                    and option.get("kind") == "allow_once"
+                    and isinstance(option.get("optionId"), str)
+                ):
+                    return {"outcome": "selected", "optionId": option["optionId"]}
+        return {"outcome": "cancelled"}
+
     async def read_agent(self) -> None:
         assert self.process and self.process.stdout
         try:
@@ -340,10 +421,11 @@ class Conversation:
                 method = message.get("method")
                 identifier = message.get("id")
                 if method and identifier is not None:
+                    permission = self.bridge_permission(message.get("params", {}))
                     # The six MCP tools are preallowed at SDK configuration time.
                     # Unexpected permission requests never become approval grants.
                     response = (
-                        {"result": {"outcome": {"outcome": "cancelled"}}}
+                        {"result": {"outcome": permission}}
                         if method == "session/request_permission"
                         else {
                             "error": {
@@ -353,7 +435,10 @@ class Conversation:
                         }
                     )
                     await self.write({"jsonrpc": "2.0", "id": identifier, **response})
-                    if method == "session/request_permission":
+                    if (
+                        method == "session/request_permission"
+                        and permission["outcome"] == "cancelled"
+                    ):
                         self.publish(
                             {
                                 "method": "clauz3/notice",
@@ -366,6 +451,19 @@ class Conversation:
                             }
                         )
                 elif method == "session/update":
+                    params = message.get("params")
+                    update = params.get("update") if isinstance(params, dict) else None
+                    if not isinstance(update, dict):
+                        continue
+                    raw = update.get("rawInput", {})
+                    if (
+                        self.config.agent == "codex"
+                        and isinstance(raw, dict)
+                        and raw.get("server") == "clauz3"
+                        and f"mcp__clauz3__{raw.get('tool')}" in SESSION_TOOLS
+                        and isinstance(update.get("toolCallId"), str)
+                    ):
+                        self.bridge_calls.add(update["toolCallId"])
                     if not self.loading:
                         self.publish(message)
                 elif type(identifier) is int and identifier in self.pending:
@@ -407,7 +505,22 @@ class Conversation:
                 self.error = self.config.startup_error
                 await self.close()
                 return
+            try:
+                providers.check_mode(
+                    self.config.agent, self.config.unrestricted, browser_ui=True
+                )
+                providers.check_runtime(
+                    self.config.agent, self.config.command, self.config.unrestricted
+                )
+            except ValueError as exc:
+                self.error = str(exc)
+                await self.close()
+                return
             env = agent_environment()
+            if self.config.agent == "opencode":
+                env["OPENCODE_CONFIG_CONTENT"] = json.dumps(
+                    {"permission": {"clauz3_*": "allow"}}
+                )
             read_fd, self.lifetime = os.pipe()
             try:
                 self.lifetime_directory = tempfile.TemporaryDirectory(
@@ -438,6 +551,32 @@ class Conversation:
                 self.lifetime_server = await asyncio.start_unix_server(
                     bridge_connected, path=lifetime_socket
                 )
+                if self.config.agent in {"agy", "pi"}:
+                    # The host removes private bridge files even when Stop kills
+                    # the adapter before its own cleanup can run.
+                    env["CLAUZ3_NATIVE_DIRECTORY"] = self.lifetime_directory.name
+                if self.config.agent == "codex":
+                    from clauz3.sessions.launcher import SESSION_INSTRUCTIONS
+
+                    bridge = session_parameters(self.config, lifetime_socket)[
+                        "mcpServers"
+                    ][0]
+                    env["CODEX_CONFIG"] = json.dumps(
+                        {
+                            "developer_instructions": SESSION_INSTRUCTIONS,
+                            "mcp_servers": {
+                                "clauz3": {
+                                    "command": bridge["command"],
+                                    "args": bridge["args"],
+                                    "env": {
+                                        item["name"]: item["value"]
+                                        for item in bridge["env"]
+                                    },
+                                }
+                            },
+                        }
+                    )
+                    env["INITIAL_AGENT_MODE"] = "read-only"
                 self.process = await asyncio.create_subprocess_exec(
                     sys.executable,
                     "-P",
@@ -507,6 +646,16 @@ class Conversation:
                         ):
                             raise ValueError("Invalid ACP session ID")
                         self.session_id = session["sessionId"]
+                    self.unrestricted = self.config.unrestricted
+                if self.config.model and self.config.agent in {"codex", "opencode"}:
+                    async with asyncio.timeout(30):
+                        await self.call(
+                            "session/set_model",
+                            {
+                                "sessionId": self.session_id,
+                                "modelId": self.config.model,
+                            },
+                        )
                 self.changed()
                 if dropped := self.config.dropped_libraries:
                     it = "it" if len(dropped) == 1 else "them"
@@ -527,7 +676,7 @@ class Conversation:
                     self.submit(self.config.prompt)
             except Exception as exc:
                 self.error = self.error or (
-                    str(exc) or "Agent startup timed out. Check Claude authentication."
+                    str(exc) or "Agent startup timed out. Check agent authentication."
                 )
                 await self.close()
             finally:
@@ -558,11 +707,17 @@ class Conversation:
             raise ValueError(HISTORY_NOTICE)
         self.publish(message)
         self.turn += 1
+        self.saw_turn_output = False
+        self.bridge_calls.clear()
         self.busy = True
         self.changed()
         self.tasks.append(asyncio.create_task(self.prompt(text)))
 
     async def prompt(self, text: str) -> None:
+        if self.config.agent == "opencode" and self.turn == 1:
+            from clauz3.sessions.launcher import SESSION_INSTRUCTIONS
+
+            text = SESSION_INSTRUCTIONS + "\nUser request:\n" + text
         note = (
             "[clauz3] Your Clauz3 libraries changed: "
             + "; ".join(self.library_changes)
@@ -582,6 +737,19 @@ class Conversation:
                     ],
                 },
             )
+            if self.config.agent != "claude" and not self.saw_turn_output:
+                self.publish(
+                    {
+                        "method": "clauz3/notice",
+                        "params": {
+                            "text": (
+                                "The agent returned no response. Check its "
+                                "authentication and model selection; use --model "
+                                "to select an available model."
+                            )
+                        },
+                    }
+                )
             self.publish({"method": "clauz3/turn_end", "params": result})
         except (OSError, ValueError) as exc:
             self.error = str(exc)
@@ -605,9 +773,6 @@ class Conversation:
             self.lifetime_server.close()
             await self.lifetime_server.wait_closed()
             self.lifetime_server = None
-        if self.lifetime_directory is not None:
-            self.lifetime_directory.cleanup()
-            self.lifetime_directory = None
         if self.lifetime is not None:
             os.close(self.lifetime)
             self.lifetime = None
@@ -615,6 +780,9 @@ class Conversation:
             with suppress(ProcessLookupError):
                 os.killpg(self.process.pid, signal.SIGKILL)
             await self.process.wait()
+        if self.lifetime_directory is not None:
+            self.lifetime_directory.cleanup()
+            self.lifetime_directory = None
         for future in self.pending.values():
             if not future.done():
                 future.set_exception(ValueError("Conversation stopped"))
@@ -670,11 +838,70 @@ def install_chat(
         saved: dict[str, Any] | None,
         domains: list[str] | None = None,
         *,
+        agent: str | None = None,
         accept_changes: bool = False,
         pause: bool = False,
+        adapter: str | None = None,
     ) -> ChatConfig:
+        """Build the config for a new or saved conversation.
+
+        ``adapter`` is the Claude adapter check already run off the event loop
+        by ``adapter_check``; ``None`` checks here, before the UI is serving.
+        """
+        selected_agent = (
+            saved["state"].get("agent", "claude") if saved else agent or config.agent
+        )
+        base = config
+        if saved:
+            base = config.model_copy(
+                update={
+                    "agent": selected_agent,
+                    "model": saved["state"].get("requestedModel"),
+                    "approvals_paused": bool(saved["state"].get("approvalsPaused")),
+                    "libraries": saved["state"].get("libraries", config.libraries),
+                    "library_fingerprint": saved["state"].get("libraryFingerprint", ""),
+                }
+            )
+        try:
+            if saved and saved["state"].get("unrestricted") and not config.unrestricted:
+                raise ValueError(
+                    "This conversation requires --unrestricted; restart "
+                    "with that flag or start a new conversation."
+                )
+            providers.check_mode(selected_agent, config.unrestricted, browser_ui=True)
+            if selected_agent != config.agent:
+                if not config.select_provider:
+                    raise ValueError("Provider switching is unavailable")
+                command = providers.command(selected_agent)
+                providers.check_runtime(selected_agent, command, config.unrestricted)
+                if selected_agent == "claude":
+                    if adapter is None:
+                        check_adapter(command[0])
+                    elif adapter:
+                        raise ValueError(adapter)
+                base = base.model_copy(
+                    update={
+                        "agent": selected_agent,
+                        "command": command,
+                        "model": base.model if saved else None,
+                    }
+                )
+            if saved:
+                base = base.model_copy(
+                    update={"model": saved["state"].get("requestedModel")}
+                )
+        except (OSError, ValueError) as exc:
+            if not saved:
+                raise
+            return base.model_copy(
+                update={
+                    "agent": selected_agent,
+                    "startup_error": str(exc),
+                    "prompt": None,
+                }
+            )
         if manager is None:
-            return config.model_copy(update={"prompt": None}) if saved else config
+            return base.model_copy(update={"prompt": None}) if saved else base
         state = saved["state"] if saved else {}
         paused = pause or bool(state.get("approvalsPaused"))
         previous = state.get("libraryFingerprint")
@@ -691,7 +918,7 @@ def install_chat(
             if saved and not accept_changes and not unchanged(domains, previous):
                 if activate_libraries:
                     activate_libraries([], False)
-                return config.model_copy(
+                return base.model_copy(
                     update={
                         "libraries": domains,
                         "startup_error": LIBRARIES_CHANGED,
@@ -716,7 +943,7 @@ def install_chat(
                 bridge += config.bridge[index : index + 2]
             if activate_libraries:
                 activate_libraries(roots, paused)
-            return config.model_copy(
+            return base.model_copy(
                 update={
                     "libraries": sorted(domains),
                     "library_fingerprint": fingerprint,
@@ -729,7 +956,7 @@ def install_chat(
         except (OSError, ValueError) as exc:
             if activate_libraries:
                 activate_libraries([], False)
-            return config.model_copy(
+            return base.model_copy(
                 update={
                     "libraries": domains or [],
                     "startup_error": str(exc),
@@ -738,6 +965,15 @@ def install_chat(
                     "prompt": None,
                 }
             )
+
+    async def adapter_check(agent: str) -> str | None:
+        """Check the Claude adapter in a thread before switching to it."""
+        if agent != "claude" or agent == config.agent or not config.select_provider:
+            return None
+        executable = shutil.which(providers.provider(agent).executable)
+        if executable is None:
+            return None  # selected_config reports the missing runtime.
+        return await asyncio.to_thread(adapter_problem, executable)
 
     def unchanged(domains: list[str], fingerprint: str | None) -> bool:
         """Whether every library is still installed with the recorded files."""
@@ -1026,9 +1262,19 @@ def install_chat(
                                 and not conversation.closed
                             ):
                                 continue
-                            store.load(identifier)
-                            await replace(identifier, selected_config)
+                            selected = store.load(identifier)
+                            adapter = await adapter_check(
+                                selected["state"].get("agent", "claude")
+                            )
+                            await replace(
+                                identifier, partial(selected_config, adapter=adapter)
+                            )
                             continue
+                        requested_agent = params.get("agent", config.agent)
+                        providers.provider(requested_agent)
+                        providers.check_mode(
+                            requested_agent, config.unrestricted, browser_ui=True
+                        )
                         domains = (
                             None
                             if manager is None or params.get("domains") is None
@@ -1043,7 +1289,8 @@ def install_chat(
                             else domains
                         )
                         if (
-                            not conversation.history
+                            requested_agent == conversation.config.agent
+                            and not conversation.history
                             and not conversation.ended
                             and not conversation.history_limited
                             and (
@@ -1058,7 +1305,24 @@ def install_chat(
                             # with unused chats. A changed selection still starts
                             # a new agent with freshly constructed authority.
                             continue
-                        await replace(None, partial(selected_config, domains=domains))
+                        if requested_agent != config.agent:
+                            # Refuse an unavailable runtime before stopping this chat.
+                            candidate = providers.command(requested_agent)
+                            providers.check_runtime(
+                                requested_agent, candidate, config.unrestricted
+                            )
+                        adapter = await adapter_check(requested_agent)
+                        if adapter:
+                            raise ValueError(adapter)
+                        await replace(
+                            None,
+                            partial(
+                                selected_config,
+                                domains=domains,
+                                agent=requested_agent,
+                                adapter=adapter,
+                            ),
+                        )
                     elif method == "clauz3/libraries":
                         idle()
                         if manager is None:
@@ -1091,6 +1355,7 @@ def install_chat(
                                 }
                             )
                             continue
+                        adapter = await adapter_check(conversation.config.agent)
                         await replace(
                             conversation.identifier,
                             partial(
@@ -1098,6 +1363,7 @@ def install_chat(
                                 domains=domains,
                                 accept_changes=True,
                                 pause=started and widening,
+                                adapter=adapter,
                             ),
                         )
                         if started:

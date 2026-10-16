@@ -87,12 +87,12 @@
             : active
               ? "Action in progress"
               : state.busy
-                ? "Claude is working…"
+                ? `${state.agentLabel || "Agent"} is working…`
                 : state.historyLimited
                   ? "Transcript storage full · start a new conversation"
                   : state.sessionId
                     ? "Ready"
-                    : "Starting Claude…";
+                    : `Starting ${state.agentLabel || "agent"}…`;
     $("resume-recovery").hidden = !state.resumeError && !state.librariesChanged;
     $("approvals-paused").hidden = !state.approvalsPaused;
     $("resume-detail").textContent = state.resumeError || "";
@@ -260,7 +260,27 @@
     $("project-path").textContent = state.cwd || "";
     $("project-name").textContent =
       (state.cwd || "").split("/").filter(Boolean).pop() || "Your project";
-    $("model").textContent = `Claude · ${state.model || "default"}`;
+    $("model").textContent = `${state.agentLabel || "Claude"} · ${state.model || "default"}`;
+    $("prompt-label").textContent = `Message ${state.agentLabel || "agent"}`;
+    $("unrestricted-mode").hidden = !state.unrestricted;
+    $("confinement").textContent = state.unrestricted
+      ? "Unrestricted: native tools can bypass proofs and approval."
+      : "Your approval controls effects.";
+    const selector = $("agent-select");
+    if (selector.dataset.agent !== state.agent) {
+      selector.replaceChildren(...(state.providers || []).map((provider) => {
+        const option = text("option", `${provider.label}${provider.available ? "" : " (not installed)"}${provider.modeHint ? ` (${provider.modeHint})` : ""}`);
+        option.value = provider.id;
+        option.disabled = !provider.available || !provider.enabled;
+        return option;
+      }));
+      selector.value = state.agent || "claude";
+      selector.dataset.agent = state.agent;
+    }
+    selector.hidden = !(state.providers || []).length;
+    $("agent-select-label").hidden = selector.hidden;
+    $("agent-install").hidden = selector.hidden;
+    $("agent-install-list").replaceChildren(...(state.providers || []).filter(p => !p.available).map(p => text("li", `${p.label}: ${p.install}`)));
     const key = `clauz3-draft:${state.cwd}:${state.conversationId}`;
     if (draftKey !== key) {
       draftKey = key;
@@ -479,7 +499,7 @@
   $("new").addEventListener("click", () => {
     notice("");
     navigate("/ui");
-    send("clauz3/new");
+    send("clauz3/new", { agent: $("agent-select").value || state.agent || "claude" });
   });
   $("resume-new").addEventListener("click", () => $("new").click());
   log.addEventListener("click", (event) => {
@@ -610,7 +630,11 @@
   document.addEventListener("clauz3:send", (event) => {
     notice("");
     navigate("/ui");
-    send(event.detail.method, event.detail.params);
+    const params = { ...event.detail.params };
+    if (event.detail.method === "clauz3/new") {
+      params.agent = $("agent-select").value || state.agent || "claude";
+    }
+    send(event.detail.method, params);
   });
   window.addEventListener("popstate", showView);
   $("history-search").addEventListener("input", renderHistory);

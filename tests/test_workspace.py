@@ -106,7 +106,7 @@ def test_authentication_and_origin(client: TestClient) -> None:
             ) as rejected,
         ):
             rejected.receive_json()
-    assert "Message Claude" in client.get("/ui").text
+    assert "Message agent" in client.get("/ui").text
     assert client.get("/ui/assets/workspace.js").status_code == 200
     assert client.get("/ui/assets/markdown.js").status_code == 200
     assert client.get("/ui/assets/chat.py").status_code == 404
@@ -225,6 +225,11 @@ def test_restricted_sdk_options(config: ChatConfig) -> None:
         ("stop", "normal"),
         ("approved_once", "libraries"),
         ("approved_once", "history_limit"),
+        ("approved_once", "codex"),
+        ("rejected", "codex"),
+        ("approved_once", "pi"),
+        ("rejected", "pi"),
+        ("stop", "pi"),
     ],
 )
 def test_real_mcp_proof_inline_approval_and_receipt(
@@ -255,6 +260,25 @@ def test_real_mcp_proof_inline_approval_and_receipt(
         str(project),
         str(project / "tools/email/trusted"),
     ]
+    if mode == "codex":
+        config.agent = "codex"
+        config.unrestricted = True
+        config.command.append("--generic")
+    if mode == "pi":
+        from clauz3.sessions import providers
+
+        executable = shutil.which("pi")
+        if executable is None:
+            pytest.skip("Optional pinned Pi runtime is not installed")
+        try:
+            providers.pi_sdk(executable)
+        except ValueError:
+            pytest.skip("Optional pinned Pi runtime is not installed")
+        # Only replace the ACP transport/model, not the SDK, bridge or approvals.
+        # pi_proof.mjs invokes the real restricted SDK with a scripted model.
+        monkeypatch.setattr(providers, "check_runtime", lambda *args: None)
+        config.agent = "pi"
+        config.command.extend(["--generic", "--pi-sdk", executable])
     config.manage_libraries = mode == "libraries"
     config.libraries = [] if config.manage_libraries else ["email"]
     signing, verifying = generate_keypair()

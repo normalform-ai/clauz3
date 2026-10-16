@@ -15,6 +15,9 @@
       <div class="eyebrow">WORKSPACE</div>
       <h2 id="project-name">Your project</h2>
       <p id="project-path" class="path"></p>
+      <label id="agent-select-label" for="agent-select">Agent for new conversations</label>
+      <select id="agent-select" aria-label="Agent for new conversations"></select>
+      <details id="agent-install"><summary>Optional agent setup</summary><ul id="agent-install-list"></ul></details>
       <button id="new" class="new-button" disabled>＋ New conversation</button>
       <nav>
         <a class="selected" href="/ui">◉ Conversation</a
@@ -36,7 +39,7 @@
         <span class="shield">✓</span>
         <div>
           Proof before execution
-          <p class="muted">Your approval controls effects.</p>
+          <p id="confinement" class="muted">Your approval controls effects.</p>
         </div>
       </div>
     </aside>
@@ -48,7 +51,7 @@
             <h1 id="conversation-title">New conversation</h1>
           </div>
           <div class="header-actions">
-            <span id="model" class="model">Claude</span>
+            <span id="model" class="model">Agent</span>
             <button
               id="files-toggle"
               aria-expanded="false"
@@ -75,6 +78,7 @@
             Stop
           </button>
         </div>
+        <p id="unrestricted-mode" hidden>Unrestricted mode · Native agent tools can bypass Clauz3 proofs and approval.</p>
         <p id="notice" role="alert" hidden></p>
         <div id="resume-recovery" hidden>
           <button id="libraries-continue" hidden>
@@ -116,7 +120,7 @@
               <p id="library-confirm-title"></p>
               <p>
                 Earlier messages may include text from files or web pages
-                Claude read. To keep that text from steering new or changed
+                the agent read. To keep that text from steering new or changed
                 tools, automatic approvals are paused for the rest of this
                 conversation, so you approve each action yourself. New
                 conversations aren't affected.
@@ -131,7 +135,7 @@
               ><button type="button" id="library-menu-apply">Apply</button>
             </div>
           </div>
-          <label for="prompt">Message Claude</label
+          <label id="prompt-label" for="prompt">Message agent</label
           ><textarea
             id="prompt"
             rows="3"

@@ -3,6 +3,7 @@
 import asyncio
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -54,6 +55,30 @@ async def main() -> None:
             )
 
             def run() -> str:
+                if "--pi-sdk" in sys.argv:
+                    from clauz3.sessions.providers import pi_sdk
+
+                    executable = sys.argv[sys.argv.index("--pi-sdk") + 1]
+                    result = subprocess.run(
+                        ["node", str(Path(__file__).with_name("pi_proof.mjs"))],
+                        input=json.dumps(
+                            {
+                                "sdk": str(pi_sdk(executable)),
+                                "source": source,
+                                "bridge": {
+                                    **bridge,
+                                    "env": {
+                                        e["name"]: e["value"] for e in bridge["env"]
+                                    },
+                                },
+                            }
+                        ),
+                        capture_output=True,
+                        text=True,
+                        timeout=60,
+                        check=True,
+                    )
+                    return result.stdout
                 with MCPClient(
                     command=bridge["command"],
                     args=bridge["args"],
@@ -125,11 +150,14 @@ async def main() -> None:
             )
         elif method in {"session/new", "session/load"}:
             params = message["params"]
-            options = params["_meta"]["claudeCode"]["options"]
-            assert options["tools"] == [] and options["settingSources"] == []
-            assert options["strictMcpConfig"] is True
-            assert options["settings"]["disableAllHooks"] is True
-            assert options["allowDangerouslySkipPermissions"] is False
+            if "--generic" in sys.argv:
+                assert "claudeCode" not in params.get("_meta", {})
+            else:
+                options = params["_meta"]["claudeCode"]["options"]
+                assert options["tools"] == [] and options["settingSources"] == []
+                assert options["strictMcpConfig"] is True
+                assert options["settings"]["disableAllHooks"] is True
+                assert options["allowDangerouslySkipPermissions"] is False
             assert len(params["mcpServers"]) == 1
             bridge = params["mcpServers"][0]
             assert not any(
@@ -163,6 +191,8 @@ async def main() -> None:
                     }
                 )
             emit({"id": message["id"], "result": {"sessionId": "fixture"}})
+        elif method == "session/set_model":
+            emit({"id": message["id"], "result": {}})
         elif method == "session/prompt":
             task = asyncio.create_task(answer(message))
             active.add(task)

@@ -92,9 +92,14 @@ submission/approver tokens automatically, and stops the service when the agent
 exits. Claude Code must already be installed and signed in. See the
 [quickstart](docs/quickstart.md) and [start reference](docs/reference/cli.md#clauz3-start).
 
-The first launcher supports Claude Code on macOS and Linux. `--unrestricted`
-enables native Claude tools for debugging, with Claude's normal permission
-prompts; those tools can bypass the clauz3 approval flow.
+Both the UI and CLI support `claude`, `codex`, `agy` (Antigravity), `opencode`,
+and `pi` on macOS and Linux. Claude and Pi support restricted sessions; Codex,
+Antigravity, and OpenCode require explicit `--unrestricted` opt-in. See
+[agent setup](docs/reference/cli.md#clauz3-ui) for optional runtimes and
+authentication. In `clauz3 start claude`, `--unrestricted` enables native Claude
+tools for debugging, with Claude's normal permission prompts; those tools can
+bypass the clauz3 approval flow. Claude's browser integration remains restricted
+and rejects `--unrestricted`.
 
 Projects are split into two layers:
 

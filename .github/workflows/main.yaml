@@ -191,6 +191,26 @@ jobs:
       - name: Run test suite
         run: just test
 
+  pi-confinement:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6.4.3
+        with:
+          python-version: "3.14"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24"
+      - name: Install optional pinned Pi SDK
+        run: npm install -g @earendil-works/pi-coding-agent@0.82.1
+      - name: Install project
+        run: uv sync --dev
+      - name: Check confinement and signed approval without model credentials
+        run: uv run pytest tests/test_pi_confinement.py tests/test_workspace.py
+
   # Runs alongside the test matrix rather than after it, on one Python
   # version: the sweep checks prover soundness over the corpus, which
   # is unlikely to depend on the interpreter version.
