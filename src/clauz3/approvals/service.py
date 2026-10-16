@@ -25,9 +25,16 @@ from clauz3.approvals.authority import (
 )
 from clauz3.approvals.client import (
     APPROVAL_SERVICE_ENV,
-    APPROVED_DECISIONS,
     request_id_from_payload,
     sign_approval_receipt,
+)
+from clauz3.approvals.decisions import (
+    REMEMBERABLE_DECISIONS,
+    USER_DECISIONS,
+    Decision,
+    UnknownDecisionError,
+    is_approved,
+    parse_decision,
 )
 from clauz3.approvals.descriptions import render_guarantees
 from clauz3.approvals.policy import (
@@ -473,7 +480,7 @@ def create_approval_app(
                     raise HTTPException(status_code=403, detail=str(exc)) from exc
                 if (
                     decision is not None
-                    and decision.decision == "auto_approved"
+                    and decision.decision is Decision.AUTO_APPROVED
                     and approvals_paused
                 ):
                     record["approvals_paused"] = True
@@ -510,9 +517,9 @@ def create_approval_app(
                     rule = None
                 if rule is not None:
                     action = (
-                        "auto_approved"
+                        Decision.AUTO_APPROVED
                         if rule["decision"] == "allow"
-                        else "auto_rejected"
+                        else Decision.AUTO_REJECTED
                     )
                     response = _approval_response(
                         request_id=request_id,
@@ -595,9 +602,13 @@ def create_approval_app(
     ) -> dict[str, object]:
         _check_origin(origin)
         _check_approver(authorization, session)
-        decision = payload.get("decision")
-        if not isinstance(decision, str) or not decision:
-            raise HTTPException(status_code=400, detail="decision must be a string")
+        # Issue #62: an unknown string is a protocol error, not a denial. Refuse
+        # it before touching the record or the profile, so nothing is stored
+        # and the runner keeps waiting for a real decision.
+        try:
+            decision = parse_decision(payload.get("decision"), allowed=USER_DECISIONS)
+        except UnknownDecisionError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
         feedback = _optional_text(payload.get("feedback"))
         receipt = _optional_text(payload.get("receipt"))
@@ -618,19 +629,14 @@ def create_approval_app(
                 record=record,
             )
             remember = payload.get("remember") is True or (
-                profile is not None and decision == "approved_remember"
+                profile is not None and decision is Decision.APPROVED_REMEMBER
             )
             if remember and (profile is None or not record.get("profile_eligible")):
                 raise HTTPException(400, "this request cannot be remembered")
             if profile is not None:
                 if "approval" in record:
                     raise HTTPException(409, "this request has already been decided")
-                if remember and decision not in {
-                    "approved_once",
-                    "approved_remember",
-                    "rejected",
-                    "rejected_contract",
-                }:
+                if remember and decision not in REMEMBERABLE_DECISIONS:
                     raise HTTPException(
                         400, "only approval or rejection can be remembered"
                     )
@@ -692,25 +698,25 @@ def _approver_login_required() -> HTMLResponse:
 def _approval_response(
     *,
     request_id: str,
-    decision: str,
+    decision: Decision,
     feedback: str | None,
     receipt: str | None,
     record: Mapping[str, object],
 ) -> dict[str, object]:
     response: dict[str, object] = {
-        "decision": decision,
+        "decision": decision.value,
         "request_id": request_id,
     }
     if feedback:
         response["feedback"] = feedback
-    if decision in APPROVED_DECISIONS:
+    if decision.approved:
         response["receipt"] = _decision_receipt(request_id, decision, receipt, record)
     return response
 
 
 def _decision_receipt(
     request_id: str,
-    decision: str,
+    decision: Decision,
     explicit: str | None,
     record: Mapping[str, object],
 ) -> str:
@@ -741,8 +747,7 @@ def _optional_text(value: object) -> str | None:
 
 
 def _status_for_decision(approval: Mapping[str, object]) -> str:
-    decision = approval.get("decision")
-    if decision in APPROVED_DECISIONS:
+    if is_approved(approval.get("decision")):
         return "approved"
     return "denied"
 

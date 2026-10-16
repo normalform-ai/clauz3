@@ -11,6 +11,7 @@ import pytest
 from clauz3._vendor.deal_solver import Conclusion
 from clauz3._vendor.deal_solver._funcs import FUNCTIONS
 from clauz3.approvals.client import ApprovalResponse
+from clauz3.approvals.decisions import Decision
 from clauz3.imports_policy import build_policy
 from clauz3.interp import TrustedBoundaryError, UnsupportedNode, execute
 from clauz3.prover import ProverConfigError, prove_path
@@ -163,7 +164,7 @@ def test_stale_registration_does_not_disable_a_later_unused_import(
         == ()
     )
 
-    approve = Mock(return_value=ApprovalResponse(decision="denied"))
+    approve = Mock(return_value=ApprovalResponse(decision=Decision.REJECTED))
     executor = Mock(side_effect=AssertionError("a denied program cannot execute"))
     monkeypatch.setattr("clauz3.runner.submit_approval_request", approve)
     monkeypatch.setattr("clauz3.runner._execute_source", executor)

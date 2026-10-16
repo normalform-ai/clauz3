@@ -22,6 +22,7 @@ from clauz3.approvals.client import (
     load_mock_config,
     serve_mock_approval_service,
 )
+from clauz3.approvals.decisions import UnknownDecisionError
 from clauz3.approvals.policy import (
     ApprovalPolicyError,
     evaluate_policy,
@@ -707,7 +708,7 @@ def _mock_approval_service(args: argparse.Namespace) -> int:
         serve_mock_approval_service(config, host=args.host, port=args.port)
     except KeyboardInterrupt:
         return 130
-    except ApprovalServiceError as exc:
+    except (ApprovalServiceError, UnknownDecisionError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     return 0

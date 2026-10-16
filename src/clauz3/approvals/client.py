@@ -13,6 +13,14 @@ from typing import cast
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from clauz3.approvals.decisions import (
+    APPROVED_DECISIONS as APPROVED_DECISIONS,  # re-exported for compatibility
+)
+from clauz3.approvals.decisions import (
+    Decision,
+    UnknownDecisionError,
+    parse_decision,
+)
 from clauz3.approvals.receipts import consent_digest, sign_receipt, signing_key
 
 APPROVAL_SERVICE_ENV = "CLAUZ3_APPROVAL_SERVICE"
@@ -22,7 +30,6 @@ APPROVAL_URL_ENV = "CLAUZ3_APPROVAL_URL"
 APPROVAL_TOKEN_ENV = "CLAUZ3_APPROVAL_TOKEN"
 APPROVAL_DECISION_TOKEN_ENV = "CLAUZ3_APPROVAL_DECISION_TOKEN"
 APPROVAL_CONFIG = Path(".clauz3/approval-service.json")
-APPROVED_DECISIONS = {"approved_once", "approved_remember", "auto_approved"}
 DEFAULT_APPROVAL_TIMEOUT = 300.0
 #: How long a signed receipt remains valid after issuance, in seconds.
 DEFAULT_RECEIPT_TTL = 300.0
@@ -34,14 +41,18 @@ class ApprovalServiceError(Exception):
 
 @dataclass(frozen=True)
 class ApprovalResponse:
-    decision: str
+    decision: Decision
     request_id: str | None = None
     receipt: str | None = None
     feedback: str | None = None
 
+    def __post_init__(self) -> None:
+        # Fail closed for callers that bypass type checking with a plain string.
+        object.__setattr__(self, "decision", parse_decision(self.decision))
+
     @property
     def approved(self) -> bool:
-        return self.decision in APPROVED_DECISIONS
+        return self.decision.approved
 
 
 def configured_service_url(*, cwd: Path | None = None) -> str | None:
@@ -98,9 +109,10 @@ def submit_approval_request(
     except URLError as exc:
         raise ApprovalServiceError(f"approval service is unavailable: {exc}") from exc
 
-    decision = response_payload.get("decision")
-    if not isinstance(decision, str) or not decision:
-        raise ApprovalServiceError("approval response must contain a decision")
+    try:
+        decision = parse_decision(response_payload.get("decision"))
+    except UnknownDecisionError as exc:
+        raise ApprovalServiceError(f"invalid approval response: {exc}") from exc
     request_id = _optional_str(response_payload.get("request_id"))
     receipt = _optional_str(response_payload.get("receipt"))
     feedback = _optional_str(response_payload.get("feedback"))
@@ -144,6 +156,9 @@ class MockApprovalServer:
         host: str = "127.0.0.1",
         port: int = 0,
     ) -> None:
+        # Refuse a misspelled scripted decision here, not inside the handler
+        # thread once a runner is already waiting on the reply.
+        _mock_decision(config)
         self.requests: list[dict[str, object]] = []
         handler = _make_handler(config=dict(config), records=self.requests)
         self._server = ThreadingHTTPServer((host, port), handler)
@@ -240,23 +255,20 @@ def approval_response_from_config(
     actual_hash = request_payload.get("program_sha256")
     if required_hash is not None and actual_hash != required_hash:
         return {
-            "decision": "rejected",
+            "decision": Decision.REJECTED.value,
             "request_id": request_id,
             "feedback": "program hash did not match mock approval config",
         }
 
-    decision = config.get("decision", "approved_once")
-    if not isinstance(decision, str):
-        decision = "rejected"
-
+    decision = _mock_decision(config)
     response: dict[str, object] = {
-        "decision": decision,
+        "decision": decision.value,
         "request_id": request_id,
     }
     feedback = config.get("feedback")
     if isinstance(feedback, str):
         response["feedback"] = feedback
-    if decision in APPROVED_DECISIONS:
+    if decision.approved:
         response["receipt"] = _mock_receipt(
             config=config,
             request_id=request_id,
@@ -266,12 +278,26 @@ def approval_response_from_config(
     return response
 
 
+def _mock_decision(config: Mapping[str, object]) -> Decision:
+    """The decision a mock config scripts; ``approved_once`` when omitted.
+
+    >>> _mock_decision({})
+    <Decision.APPROVED_ONCE: 'approved_once'>
+    >>> _mock_decision({"decision": "approved"})  # doctest: +ELLIPSIS
+    Traceback (most recent call last):
+        ...
+    clauz3.approvals.decisions.UnknownDecisionError: decision 'approved' is not ...
+    """
+
+    return parse_decision(config.get("decision", Decision.APPROVED_ONCE))
+
+
 def _mock_receipt(
     *,
     config: Mapping[str, object],
     request_id: str,
     request_payload: Mapping[str, object],
-    decision: str,
+    decision: Decision,
 ) -> str:
     """Mint the receipt the mock service returns.
 
@@ -301,7 +327,7 @@ def sign_approval_receipt(
     signing_key_b64: str,
     request_id: str,
     request_payload: Mapping[str, object],
-    decision: str,
+    decision: Decision,
 ) -> str:
     """Sign an Ed25519 receipt from a stored request record (mock & real service).
 

@@ -18,6 +18,7 @@ from clauz3.approvals.authority import (
     ApprovedLayer,
     authorize_layer,
 )
+from clauz3.approvals.decisions import Decision
 from clauz3.approvals.policy import ApprovalPolicy, Rule, evaluate_policy
 from clauz3.approvals.receipts import (
     SIGNING_KEY_ENV,
@@ -58,7 +59,11 @@ class LayerFixture:
         return ApprovalPolicy(
             imports=(("checks", self.package + ".contracts"),),
             rules=(
-                Rule("allow", "auto_approved", () if empty else ("checks.silent()",)),
+                Rule(
+                    "allow",
+                    Decision.AUTO_APPROVED,
+                    () if empty else ("checks.silent()",),
+                ),
             ),
         )
 
@@ -366,9 +371,9 @@ def test_cached_approval_belongs_to_the_selected_authorized_layer(
     first = _layer(tmp_path / "a", package=package, allowed_records=1)
     second = _layer(tmp_path / "b", package=package, allowed_records=0)
     layers = (first.approved, second.approved)
-    allow = Rule("allow", "auto_approved", ("checks.silent()",))
+    allow = Rule("allow", Decision.AUTO_APPROVED, ("checks.silent()",))
     rules = (
-        (Rule("deny", "auto_rejected", ("checks.silent()",)), allow)
+        (Rule("deny", Decision.AUTO_REJECTED, ("checks.silent()",)), allow)
         if second_decision == "auto_rejected"
         else (allow,)
     )

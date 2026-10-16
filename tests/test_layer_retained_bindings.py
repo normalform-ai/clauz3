@@ -12,6 +12,7 @@ import pytest
 
 from clauz3._vendor.deal_solver import Conclusion
 from clauz3.approvals.client import ApprovalResponse
+from clauz3.approvals.decisions import Decision
 from clauz3.imports_policy import build_policy
 from clauz3.interp import execute
 from clauz3.prover import ProverConfigError, prove_text
@@ -170,7 +171,7 @@ def test_retained_callable_refused_before_proof_or_approval(
         )
         assert case.effects.decision.__globals__ is vars(case.original)
         assert case.effects.decision() is True
-    approval = Mock(return_value=ApprovalResponse(decision="denied"))
+    approval = Mock(return_value=ApprovalResponse(decision=Decision.REJECTED))
     executor = Mock(side_effect=AssertionError("execution must not begin"))
     monkeypatch.setattr("clauz3.runner.submit_approval_request", approval)
     monkeypatch.setattr("clauz3.runner._execute_source", executor)
