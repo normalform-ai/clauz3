@@ -430,6 +430,14 @@ def test_deferred_trusted_import_still_resolves_at_call_time(tmp_path: Path) -> 
         ("attribute-assign", "    obj.attr = 1"),
         ("delete", "    del x"),
         ("try", "    try:\n        pass\n    except ValueError:\n        pass"),
+        # ``Starred``, ``Slice`` and ``Keyword`` are scaffolding only where
+        # their reader is: a starred *target*, a slice under a *loaded*
+        # subscript, a *named* call argument.
+        ("call-starred", "    print(*[1, 2])"),
+        ("list-starred", "    xs = [*[1], 1]"),
+        ("slice-assign", "    xs = [1, 2, 3]\n    xs[0:2] = [1, 2]"),
+        ("call-double-starred", "    d = {'a': 1}\n    print(**d)"),
+        ("dict-double-starred", "    d = {'a': 1}\n    e = dict(**d)"),
     ],
 )
 def test_constructs_outside_the_subset_are_refused_before_approval(
@@ -447,3 +455,41 @@ def test_constructs_outside_the_subset_are_refused_before_approval(
     """
     with pytest.raises(RunConfigError, match="not part of the proved subset"):
         _validate(f"def main() -> None:\n{body}\n")
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "    xs = [1, 2, 3]\n    ys = xs[0:2]",
+        "    xs = [1, 2, 3]\n    ys = xs[::2]",
+        "    a, *b = (1, 2, 3)",
+        "    print('a', sep='')",
+    ],
+)
+def test_scaffolding_in_its_read_position_still_passes_the_pre_flight(
+    body: str,
+) -> None:
+    """The positions the handlers actually read ``Slice``/``Starred``/``Keyword``."""
+    _validate(f"def main() -> None:\n{body}\n")
+
+
+@pytest.mark.parametrize(
+    "signature",
+    ["x: int", "x: int, y: int = 1"],
+)
+def test_a_target_that_needs_arguments_is_refused_before_approval(
+    signature: str,
+) -> None:
+    """``execute`` calls the target with no arguments; ``main(x)`` cannot bind.
+
+    The pre-flight resolved the target but never bound it, so a parameterised
+    ``main`` proved, was approved, consumed the receipt nonce and only then
+    failed in ``_bind_arguments``.
+    """
+    with pytest.raises(RunConfigError, match=r"main\(\): missing argument 'x'"):
+        _validate(f"def main({signature}) -> None:\n    pass\n")
+
+
+def test_a_target_whose_parameters_all_default_passes_the_pre_flight() -> None:
+    """Binding with no arguments succeeds, so ``execute`` can call it."""
+    _validate("def main(x: int = 1) -> None:\n    pass\n")
