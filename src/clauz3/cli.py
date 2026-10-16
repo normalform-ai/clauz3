@@ -158,10 +158,7 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     prove.add_argument("entry", type=Path, nargs="+", metavar="ENTRY")
-    _add_trusted_root_args(prove)
-    _add_import_root_args(prove)
-    _add_allow_import_args(prove)
-    prove.add_argument("--target", default="main")
+    _add_prove_args(prove)
     prove.set_defaults(handler=_prove)
 
     run = subparsers.add_parser(
@@ -178,10 +175,7 @@ def _build_parser() -> argparse.ArgumentParser:
         nargs="?",
         help="program path, or stdin when omitted or '-'",
     )
-    _add_trusted_root_args(run)
-    _add_import_root_args(run)
-    _add_allow_import_args(run)
-    run.add_argument("--target", default="main")
+    _add_prove_args(run)
     run.add_argument(
         "--approval-timeout",
         default=DEFAULT_APPROVAL_TIMEOUT,
@@ -426,6 +420,14 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     config.set_defaults(handler=_config)
     return parser
+
+
+def _add_prove_args(parser: argparse.ArgumentParser) -> None:
+    """Add the options shared by every command that proves an entry file."""
+    _add_trusted_root_args(parser)
+    _add_import_root_args(parser)
+    _add_allow_import_args(parser)
+    parser.add_argument("--target", default="main")
 
 
 def _add_trusted_root_args(parser: argparse.ArgumentParser) -> None:

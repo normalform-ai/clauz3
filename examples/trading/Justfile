@@ -1,44 +1,18 @@
 
 trading_trusted := "tools/trading/trusted"
 prove := "uv run clauz3 prove --trusted-root " + trading_trusted
+# Proves each case in one process: *_pass.py must prove, *_fail.py must not.
+prove-cases := "uv run python -m clauz3._prove_cases --trusted-root " + trading_trusted
 
 test: lint cases
 
 lint:
     uv run clauz3 lint {{trading_trusted}}/effects.py
 
-cases: approved-sale-pass no-sales-pass trading-no-guarantees-pass row-mixing-hole-pass literal-sale-fail unapproved-source-fail quantity-mismatch-fail orders-too-tight-fail sells-with-none-fail wrong-desk-fail
-
-approved-sale-pass:
-    {{prove}} cases/approved_sale_pass.py
-
-no-sales-pass:
-    {{prove}} cases/no_sales_pass.py
-
-trading-no-guarantees-pass:
-    {{prove}} cases/trading_no_guarantees_pass.py
-
-# A documented hole, pinned so it is a tested fact rather than a prose claim.
-# If this starts failing, the prover gained row-identity binding: close the
-# "Row mixing" bullet in docs/examples/trading.md, the README row, and the
-# contracts module docstring in the same commit.
-row-mixing-hole-pass:
-    {{prove}} cases/row_mixing_hole_pass.py
-
-literal-sale-fail:
-    if {{prove}} cases/literal_sale_fail.py; then exit 1; fi
-
-unapproved-source-fail:
-    if {{prove}} cases/unapproved_source_fail.py; then exit 1; fi
-
-quantity-mismatch-fail:
-    if {{prove}} cases/quantity_mismatch_fail.py; then exit 1; fi
-
-orders-too-tight-fail:
-    if {{prove}} cases/orders_too_tight_fail.py; then exit 1; fi
-
-sells-with-none-fail:
-    if {{prove}} cases/sells_with_none_fail.py; then exit 1; fi
-
-wrong-desk-fail:
-    if {{prove}} cases/wrong_desk_fail.py; then exit 1; fi
+# row_mixing_hole_pass.py:
+#   A documented hole, pinned so it is a tested fact rather than a prose claim.
+#   If this starts failing, the prover gained row-identity binding: close the
+#   "Row mixing" bullet in docs/examples/trading.md, the README row, and the
+#   contracts module docstring in the same commit.
+cases:
+    {{prove-cases}} cases/*_pass.py cases/*_fail.py

@@ -3,69 +3,18 @@
 # `clauz3 test` overrides CLAUZ3 so the bundled suite also runs from an
 # installed wheel, where `uv` is absent.
 clauz3 := env_var_or_default("CLAUZ3", "uv run clauz3")
+python := env_var_or_default("PYTHON", "uv run python")
 
 trusted := "../tools/filesystem/trusted"
 effects := trusted + "/effects.py"
 prove := clauz3 + " prove --trusted-root " + trusted + " --import-root .."
+# Proves each case in one process: *_pass.py must prove, *_fail.py must not.
+prove-cases := python + " -m clauz3._prove_cases --trusted-root " + trusted + " --import-root .."
 
 test: lint cases
 
 lint:
     {{clauz3}} lint {{effects}}
 
-cases: line-counting only-write-under-pass only-write-under-fail only-write-under-branch-pass never-write-under-pass never-write-under-fail never-read-under-pass never-read-under-fail read-only-pass read-only-fail only-read-under-pass writes-at-most-pass writes-at-most-fail bare-contract-import-pass bare-contract-import-read-only-fail bare-contract-import-aliased-fail bare-contract-import-only-write-under-fail
-
-only-write-under-pass:
-    {{prove}} cases/only_write_under_pass.py
-
-only-write-under-fail:
-    if {{prove}} cases/only_write_under_fail.py; then exit 1; fi
-
-only-write-under-branch-pass:
-    {{prove}} cases/only_write_under_branch_pass.py
-
-never-write-under-pass:
-    {{prove}} cases/never_write_under_pass.py
-
-never-write-under-fail:
-    if {{prove}} cases/never_write_under_fail.py; then exit 1; fi
-
-never-read-under-pass:
-    {{prove}} cases/never_read_under_pass.py
-
-never-read-under-fail:
-    if {{prove}} cases/never_read_under_fail.py; then exit 1; fi
-
-read-only-pass:
-    {{prove}} cases/read_only_pass.py
-
-read-only-fail:
-    if {{prove}} cases/read_only_fail.py; then exit 1; fi
-
-only-read-under-pass:
-    {{prove}} cases/only_read_under_pass.py
-
-writes-at-most-pass:
-    {{prove}} cases/writes_at_most_pass.py
-
-writes-at-most-fail:
-    if {{prove}} cases/writes_at_most_fail.py; then exit 1; fi
-
-bare-contract-import-pass:
-    {{prove}} cases/bare_contract_import_pass.py
-
-bare-contract-import-read-only-fail:
-    if {{prove}} cases/bare_contract_import_read_only_fail.py; then exit 1; fi
-
-bare-contract-import-aliased-fail:
-    if {{prove}} cases/bare_contract_import_aliased_fail.py; then exit 1; fi
-
-bare-contract-import-only-write-under-fail:
-    if {{prove}} cases/bare_contract_import_only_write_under_fail.py; then exit 1; fi
-
-line-counting:
-    {{prove}} cases/count_lines_pass.py
-    if {{prove}} cases/count_lines_outside_fail.py; then exit 1; fi
-    if {{prove}} cases/count_lines_no_reads_fail.py; then exit 1; fi
-    {{prove}} cases/count_newlines_pass.py
-    if {{prove}} cases/count_newlines_write_fail.py; then exit 1; fi
+cases:
+    {{prove-cases}} cases/*_pass.py cases/*_fail.py

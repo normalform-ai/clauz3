@@ -2,74 +2,18 @@
 # `clauz3 test` overrides CLAUZ3 so the bundled suite also runs from an
 # installed wheel, where `uv` is absent.
 clauz3 := env_var_or_default("CLAUZ3", "uv run clauz3")
+python := env_var_or_default("PYTHON", "uv run python")
 
 trusted := "../tools/coreutils/trusted"
 effects := trusted + "/effects.py"
 prove := clauz3 + " prove --trusted-root " + trusted + " --import-root .."
+# Proves each case in one process: *_pass.py must prove, *_fail.py must not.
+prove-cases := python + " -m clauz3._prove_cases --trusted-root " + trusted + " --import-root .."
 
 test: lint cases
 
 lint:
     {{clauz3}} lint {{effects}}
 
-cases: only-delete-under-pass only-delete-under-fail never-delete-under-pass never-delete-under-fail deletes-at-most-pass deletes-at-most-fail no-deletes-pass no-deletes-fail only-move-under-pass only-move-under-fail never-copy-from-under-pass never-copy-from-under-fail only-copy-under-pass only-copy-under-fail only-modes-pass only-modes-fail no-chmods-pass no-chmods-fail only-create-under-pass only-create-under-fail
-
-only-delete-under-pass:
-    {{prove}} cases/only_delete_under_pass.py
-
-only-delete-under-fail:
-    if {{prove}} cases/only_delete_under_fail.py; then exit 1; fi
-
-never-delete-under-pass:
-    {{prove}} cases/never_delete_under_pass.py
-
-never-delete-under-fail:
-    if {{prove}} cases/never_delete_under_fail.py; then exit 1; fi
-
-deletes-at-most-pass:
-    {{prove}} cases/deletes_at_most_pass.py
-
-deletes-at-most-fail:
-    if {{prove}} cases/deletes_at_most_fail.py; then exit 1; fi
-
-no-deletes-pass:
-    {{prove}} cases/no_deletes_pass.py
-
-no-deletes-fail:
-    if {{prove}} cases/no_deletes_fail.py; then exit 1; fi
-
-only-move-under-pass:
-    {{prove}} cases/only_move_under_pass.py
-
-only-move-under-fail:
-    if {{prove}} cases/only_move_under_fail.py; then exit 1; fi
-
-never-copy-from-under-pass:
-    {{prove}} cases/never_copy_from_under_pass.py
-
-never-copy-from-under-fail:
-    if {{prove}} cases/never_copy_from_under_fail.py; then exit 1; fi
-
-only-copy-under-pass:
-    {{prove}} cases/only_copy_under_pass.py
-
-only-copy-under-fail:
-    if {{prove}} cases/only_copy_under_fail.py; then exit 1; fi
-
-only-modes-pass:
-    {{prove}} cases/only_modes_pass.py
-
-only-modes-fail:
-    if {{prove}} cases/only_modes_fail.py; then exit 1; fi
-
-no-chmods-pass:
-    {{prove}} cases/no_chmods_pass.py
-
-no-chmods-fail:
-    if {{prove}} cases/no_chmods_fail.py; then exit 1; fi
-
-only-create-under-pass:
-    {{prove}} cases/only_create_under_pass.py
-
-only-create-under-fail:
-    if {{prove}} cases/only_create_under_fail.py; then exit 1; fi
+cases:
+    {{prove-cases}} cases/*_pass.py cases/*_fail.py
