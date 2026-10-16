@@ -373,6 +373,35 @@ def test_bridge_probe_timeout_does_not_launch_agent(
     assert "MCP bridge startup check timed out" in capsys.readouterr().err
 
 
+def test_session_bridge_receives_nested_domain(
+    project: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An org-namespaced install reaches the session bridge as a trusted root."""
+    nested = project / ".clauz3/tools/acme/lims/trusted"
+    nested.mkdir(parents=True)
+    (nested / "effects.py").write_text(
+        "import clauz3\n\n\n@clauz3.trusted\ndef pipette(plate: str) -> None:\n"
+        "    pass\n"
+    )
+    fake_agent(tmp_path, monkeypatch, "raise AssertionError('must not launch')\n")
+    seen: list[list[Path]] = []
+
+    def bridge(cwd: Path, roots: list[Path]) -> list[str]:
+        seen.append(roots)
+        return [sys.executable, "-c", "print('not JSON')"]
+
+    monkeypatch.setattr(launcher, "_bridge_command", bridge)
+    assert main(["start", "claude", "--no-browser"]) == 2
+    assert seen == [
+        [
+            project.resolve() / ".clauz3/tools/acme/lims/trusted",
+            project.resolve() / ".clauz3/tools/email/trusted",
+        ]
+    ]
+
+
 @pytest.mark.parametrize("choice", ["1", "4"])
 def test_start_first_run_chooser(
     tmp_path: Path,

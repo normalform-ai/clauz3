@@ -31,8 +31,10 @@ from clauz3.libraries.discovery import (
 from clauz3.libraries.layout import (
     authored_tools,
     ensure_project_dir,
+    has_symlink_component,
     installed_tools,
     project_dir,
+    trusted_dirs,
 )
 from clauz3.source import is_remote_source, resolve_remote_source
 
@@ -100,9 +102,7 @@ def install_layer(
                 )
             if not (source_tools / selected / "trusted").is_dir():
                 raise InstallError(f"global library is not installed: {selected}")
-            if _has_symlink_component(
-                source_tools / selected / "trusted", source_tools
-            ):
+            if has_symlink_component(source_tools / selected / "trusted", source_tools):
                 raise InstallError(f"refusing to install symlinked layer: {selected}")
             domains = [selected]
         else:
@@ -354,26 +354,8 @@ def _reject_symlinks(root: Path) -> None:
 def _discover_domains(tools_dir: Path) -> list[str]:
     return [
         trusted.parent.relative_to(tools_dir).as_posix()
-        for trusted in sorted(tools_dir.rglob("trusted"))
-        if trusted.is_dir() and not _has_symlink_component(trusted, tools_dir)
+        for trusted in trusted_dirs(tools_dir)
     ]
-
-
-def _has_symlink_component(path: Path, base: Path) -> bool:
-    """True if ``path`` is, or is reached through, a symlink below ``base``.
-
-    Prevents a symlinked ``trusted`` directory (or a symlinked parent) from
-    being discovered as an installable domain. This is belt-and-suspenders, not
-    the load-bearing check: any domain it filters out is one the per-domain
-    ``_reject_symlinks`` would later reject anyway (fail-closed either way).
-    Discovery is not the security boundary — ``_reject_symlinks`` is.
-    """
-    current = path
-    while current != base and base in current.parents:
-        if current.is_symlink():
-            return True
-        current = current.parent
-    return False
 
 
 def _write_skill(into: Path, domain: str, installed: Path, globally: bool) -> Path:

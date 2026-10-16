@@ -433,6 +433,14 @@ clauz3 tools [--trusted-root PATH ...] [--trusted-roots PATH ...]
 Useful for confirming that a trusted layer is discoverable and that its
 `@contract` helpers register as expected.
 
+Without `--trusted-root`, `tools` (like `run`, `policy-check` and `start`)
+discovers every `tools/<domain>/trusted` and `tools/<org>/<domain>/trusted`
+below each import root, by the same rule `install` uses; see
+[Publishing trusted layers](../how-to/publish-layers.md#repository-layout).
+Each item is shown by its path below `tools/`, which is its import path:
+`effect acme/lims/trusted/effects.py:pipette(plate)` is importable from
+`tools.acme.lims.trusted.effects`.
+
 ## `clauz3 approval-service`
 
 Start a localhost FastAPI approval service with REST endpoints and a browser
