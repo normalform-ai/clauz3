@@ -1301,6 +1301,9 @@ def install_chat(
                             requested_agent == conversation.config.agent
                             and not conversation.history
                             and not conversation.ended
+                            # A chat that cannot start (e.g. a mode refusal)
+                            # is never reused, so New always recovers.
+                            and not conversation.config.startup_error
                             and not conversation.history_limited
                             and (
                                 manager is None

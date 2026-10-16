@@ -514,6 +514,53 @@ def test_restricted_chat_keeps_its_mode_on_an_unrestricted_server(
     assert store.load(identifier)["state"]["unrestricted"] is False
 
 
+@pytest.mark.parametrize("saved_mode", [{"unrestricted": False}, {}])
+def test_new_recovers_from_refused_empty_chat(
+    tmp_path: Path, saved_mode: dict[str, bool]
+) -> None:
+    """New must not reuse an empty chat that cannot start."""
+    from clauz3.sessions.history import ConversationStore
+
+    store = ConversationStore(tmp_path / "conversations.sqlite", str(tmp_path))
+    identifier = store.create()
+    store.save(identifier, {"agent": "codex", **saved_mode})
+    app = create_approval_app(
+        auth_token="submit", decision_token="decide", chat_config=config(tmp_path)
+    )
+    with TestClient(
+        app, base_url="http://127.0.0.1", client=("127.0.0.1", 12345)
+    ) as client:
+        client.get("/ui/login?key=decide")
+        refused = app.state.conversation
+        assert refused.identifier == identifier
+        assert not refused.history
+        assert "started in restricted mode" in refused.config.startup_error
+        with client.websocket_connect(
+            "ws://127.0.0.1/api/chat/acp", headers={"Origin": "http://127.0.0.1"}
+        ) as ws:
+            for _ in range(80):
+                message = ws.receive_json()
+                if message["method"] == "clauz3/state" and message["params"]["ended"]:
+                    assert "started in restricted mode" in message["params"]["error"]
+                    break
+            else:
+                raise AssertionError("Refusal was not shown")
+            assert refused.process is None
+            ws.send_json({"method": "clauz3/new", "params": {"agent": "codex"}})
+            for _ in range(80):
+                message = ws.receive_json()
+                state = message.get("params", {})
+                if message["method"] == "clauz3/state" and state.get("sessionId"):
+                    break
+            else:
+                raise AssertionError("New did not start a fresh conversation")
+            fresh = app.state.conversation
+            assert state["conversationId"] == fresh.identifier != identifier
+            assert not fresh.config.startup_error and not state["error"]
+            assert state["unrestricted"] is True
+    assert not store.load(identifier)["state"].get("unrestricted")
+
+
 def test_new_unrestricted_conversation_is_labelled_unrestricted(
     tmp_path: Path,
 ) -> None:
