@@ -58,6 +58,7 @@ nav:
   - How-to guides:
     - Defend against malicious repos: how-to/malware-repo-defense.md
     - Install trusted layers: how-to/install-layers.md
+    - Publish trusted layers: how-to/publish-layers.md
     - Avoid vacuous proofs: how-to/vacuous-proofs.md
     - Run the approval service: how-to/approval-service.md
     - Integration testing: how-to/integration-testing.md

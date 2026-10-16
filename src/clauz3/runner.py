@@ -34,6 +34,7 @@ from clauz3.imports_policy import (
     validate_imports,
 )
 from clauz3.layer_state import LayerStateError
+from clauz3.libraries.layout import TOOLS_PACKAGE, trusted_dirs
 from clauz3.policy import compute_coverage, load_domain_policies
 from clauz3.prover import (
     ProofResult,
@@ -87,6 +88,11 @@ class ApprovalDeniedError(Exception):
 def discover_trusted_roots(*, import_roots: Iterable[Path]) -> list[Path]:
     """Discover default trusted roots such as tools/email/trusted.
 
+    Domains may be org-namespaced, as in ``tools/acme/lims/trusted``. Each
+    import root's ``tools/`` is walked with
+    :func:`clauz3.libraries.layout.trusted_dirs`, the rule ``clauz3 install``
+    uses, so whatever install copies is found here and nothing else is.
+
     Import roots are taken literally, like everywhere else in the library API;
     pass ``expand_import_roots([project])`` to include the project's installed
     libraries under ``.clauz3/tools``.
@@ -95,10 +101,7 @@ def discover_trusted_roots(*, import_roots: Iterable[Path]) -> list[Path]:
     roots: list[Path] = []
     seen: set[Path] = set()
     for import_root in import_roots:
-        tools_dir = import_root / "tools"
-        if not tools_dir.is_dir():
-            continue
-        for candidate in sorted(tools_dir.glob("*/trusted")):
+        for candidate in trusted_dirs(Path(import_root) / TOOLS_PACKAGE):
             resolved = candidate.resolve()
             if resolved in seen:
                 continue

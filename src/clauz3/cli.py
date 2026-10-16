@@ -43,7 +43,7 @@ from clauz3.libraries.discovery import (
     library_records,
 )
 from clauz3.libraries.install import InstallError, install_library
-from clauz3.libraries.layout import LayoutError, expand_import_roots
+from clauz3.libraries.layout import TOOLS_PACKAGE, LayoutError, expand_import_roots
 from clauz3.libtest import LibTestError, run_lib_tests
 from clauz3.lint import LintError, format_violations, lint_paths
 from clauz3.prover import ProofResult, ProverConfigError, prove_path
@@ -638,7 +638,9 @@ def _tools(args: argparse.Namespace) -> int:
         return 0
 
     for root in trusted_roots:
-        for item in _iter_trusted_items(root):
+        for item in _iter_trusted_items(
+            root, base=_listing_base(root, import_roots=import_roots)
+        ):
             print(item)
     return 0
 
@@ -883,8 +885,26 @@ def _lint(args: argparse.Namespace) -> int:
 _CONTRACT_DECORATORS = frozenset({"contract", "clauz3.spec.contract"})
 
 
-def _iter_trusted_items(root: Path) -> list[str]:
+def _listing_base(root: Path, *, import_roots: list[Path]) -> Path:
+    """The directory a ``clauz3 tools`` path is shown relative to.
+
+    For a root under an import root's ``tools/`` package that is ``tools/``
+    itself, so the shown path is the import path: ``email/trusted/...`` is
+    ``tools.email.trusted`` and ``acme/lims/trusted/...`` is
+    ``tools.acme.lims.trusted``. A root outside every import root keeps the
+    flat-layout display, relative to its grandparent.
+    """
+    resolved = root.resolve()
+    for import_root in import_roots:
+        tools = (Path(import_root) / TOOLS_PACKAGE).resolve()
+        if resolved.is_relative_to(tools):
+            return tools
+    return resolved.parent.parent
+
+
+def _iter_trusted_items(root: Path, *, base: Path) -> list[str]:
     items: list[str] = []
+    root = root.resolve()
     for path in sorted(root.rglob("*.py")):
         if path.name == "__init__.py":
             continue
@@ -897,7 +917,7 @@ def _iter_trusted_items(root: Path) -> list[str]:
                 _decorator_name(decorator) for decorator in node.decorator_list
             ]
             signature = _signature(node)
-            rel_path = path.relative_to(root.parent.parent)
+            rel_path = path.relative_to(base).as_posix()
             if decorators_mod.is_trusted_effect(node, aliases):
                 items.append(f"effect {rel_path}:{node.name}{signature}")
             if any(name in _CONTRACT_DECORATORS for name in decorators):
