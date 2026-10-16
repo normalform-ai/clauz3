@@ -118,9 +118,19 @@ def run_source(
     approval_timeout: float | None = None,
     extra_allowed_imports: Iterable[str] = (),
     step_budget: int = interp.DEFAULT_STEP_BUDGET,
+    effect_log: list[interp.Effect] | None = None,
 ) -> RunOutcome:
-    """Prove, request approval for, and execute an inline program."""
+    """Prove, request approval for, and execute an inline program.
 
+    ``effect_log``, when given, receives each trusted call as the program makes
+    it -- the only record of what fired when the run then fails.
+    """
+
+    if step_budget < 1:
+        # A budget that can never run anything would otherwise prove, request
+        # approval, consume the single-use receipt nonce and abort on the
+        # first step.
+        raise RunConfigError(f"step budget must be at least 1, got {step_budget}")
     proof_monitor.phase("checking")
     import_root_list = [Path(path) for path in import_roots]
     trusted_root_list = [Path(path) for path in trusted_roots]
@@ -205,6 +215,7 @@ def run_source(
                 receipt=approval.receipt,
                 policy=policy,
                 step_budget=step_budget,
+                effect_log=effect_log,
             )
     except LayerStateError as exc:
         raise RunConfigError(_with_source(source_name, exc)) from exc
@@ -512,6 +523,7 @@ def _execute_source(
     receipt: str,
     policy: ImportPolicy,
     step_budget: int = interp.DEFAULT_STEP_BUDGET,
+    effect_log: list[interp.Effect] | None = None,
 ) -> tuple[tuple[str, tuple[Any, ...], dict[str, Any]], ...]:
     """Run a proved, approved program on the subset interpreter.
 
@@ -538,6 +550,7 @@ def _execute_source(
                 target=target,
                 import_roots=import_roots,
                 step_budget=step_budget,
+                effect_log=effect_log,
             )
         except interp.ProgramFault as exc:
             # Ordered before the base class on purpose. A proved, approved

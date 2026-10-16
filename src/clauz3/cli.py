@@ -6,7 +6,7 @@ import json
 import os
 import secrets
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import cast
 
@@ -187,7 +187,7 @@ def _build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--step-budget",
         default=interp.DEFAULT_STEP_BUDGET,
-        type=int,
+        type=_positive_int,
         help=(
             "maximum nodes the interpreter may evaluate "
             f"(default: {interp.DEFAULT_STEP_BUDGET}). Exhausting it aborts a "
@@ -567,6 +567,7 @@ def _resume(args: argparse.Namespace) -> int:
 
 
 def _run(args: argparse.Namespace) -> int:
+    effects: list[interp.Effect] = []
     try:
         source, source_name, import_roots = _read_run_program(
             program=args.program,
@@ -584,6 +585,7 @@ def _run(args: argparse.Namespace) -> int:
             approval_timeout=args.approval_timeout,
             extra_allowed_imports=args.extra_allowed_imports,
             step_budget=args.step_budget,
+            effect_log=effects,
         )
     except ProofDeadlineExceeded as exc:
         print(
@@ -599,6 +601,8 @@ def _run(args: argparse.Namespace) -> int:
         # A proved, approved program that raised at run time. Exit 1, the same
         # code the ``exec`` path produced for an uncaught Python exception --
         # not the exit 2 that means "this source should not have been run".
+        # Some effects may already have fired; say which.
+        _print_effects(effects)
         print(f"runtime error: {exc}", file=sys.stderr)
         return 1
     except ApprovalDeniedError as exc:
@@ -613,9 +617,17 @@ def _run(args: argparse.Namespace) -> int:
         RunConfigError,
         ReceiptError,
     ) as exc:
+        # Usually raised before anything ran; a post-approval subset refusal
+        # can follow effects that already fired, and then they are listed.
+        if effects:
+            _print_effects(effects)
         print(f"error: {exc}", file=sys.stderr)
         return 2
     except Exception as exc:
+        # A trusted layer raising propagates unchanged, after its own call was
+        # recorded -- the effect that partly happened is in the list.
+        if effects:
+            _print_effects(effects)
         print(f"runtime error: {exc}", file=sys.stderr)
         return 1
 
@@ -624,7 +636,45 @@ def _run(args: argparse.Namespace) -> int:
         f"approval: {outcome.approval.decision} receipt={outcome.approval.receipt}",
     )
     print(f"executed: {args.target}")
+    _print_effects(outcome.effects)
     return 0
+
+
+def _positive_int(text: str) -> int:
+    """``argparse`` type for ``--step-budget``: an integer of at least 1.
+
+    Checked at parse time, before stdin is read or approval requested; the
+    same floor is enforced by ``run_source`` and ``interp.execute`` for
+    library callers.
+
+    >>> _positive_int("3")
+    3
+    >>> _positive_int("0")
+    Traceback (most recent call last):
+    ...
+    argparse.ArgumentTypeError: must be at least 1
+    """
+    value = int(text)
+    if value < 1:
+        raise argparse.ArgumentTypeError("must be at least 1")
+    return value
+
+
+def _print_effects(effects: Sequence[interp.Effect]) -> None:
+    """Show the trusted calls the program actually made, in order.
+
+    Every value here already crossed ``marshal_out``, so it is subset data and
+    ``repr`` is safe.
+
+    >>> _print_effects([("m.send", ("bob",), {"retry": False})])
+    effects: 1
+      m.send('bob', retry=False)
+    """
+    print(f"effects: {len(effects)}")
+    for qualname, args, kwargs in effects:
+        rendered = [repr(arg) for arg in args]
+        rendered += [f"{key}={value!r}" for key, value in kwargs.items()]
+        print(f"  {qualname}({', '.join(rendered)})")
 
 
 def _tools(args: argparse.Namespace) -> int:

@@ -343,11 +343,14 @@ body while running another. It now calls the same `_load_module` /
 `_resolve_target` pair `execute` does. Re-deriving an answer that must match is
 how these two ended up out of step in the first place.
 
-**Nothing calls `target_node` yet.** Closing #97 means changing how the prover
-selects the theorem, which is a different change from replacing the runtime, and
-doing it here would mean editing the prover in a PR about the executor. What
-landed is the executor half — the half that is easy to get subtly wrong — with
-tests pinning the rebinding cases and the module-level effect gate.
+**`target_node` runs on every `clauz3 run`.** `runner._preflight_structure`
+calls it before `prove_text`, and that call executes module level for real —
+under the inertness gates, so nothing effectful fires, but including real
+imports of every trusted layer the program names. What is *not* wired up is the
+prover: closing #97 means changing how the prover selects the theorem, which is
+a different change from replacing the runtime. What landed is the executor half
+— the half that is easy to get subtly wrong — with tests pinning the rebinding
+cases and the module-level effect gate.
 
 ## The trusted boundary is where the risk moves
 

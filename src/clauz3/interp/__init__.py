@@ -17,6 +17,7 @@ from .errors import (
 )
 from .interpreter import (
     DEFAULT_STEP_BUDGET,
+    Effect,
     Outcome,
     check_module_level,
     eval_expr,
@@ -28,6 +29,7 @@ from .interpreter import (
 
 __all__ = [
     "DEFAULT_STEP_BUDGET",
+    "Effect",
     "ExecutionLimitExceeded",
     "InterpError",
     "NameResolutionError",

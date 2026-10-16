@@ -86,8 +86,12 @@ $ clauz3 run --trusted-root tools/home/trusted cases/dining_room_pass.py   # bef
 main: proved! assertion, guarantee, guarantee
 approval: approved_once receipt=...
 executed: main
+effects: 1
+  tools.home.trusted.effects.set_thermostat('Dining Room', 68)
 
 $ clauz3 run --trusted-root tools/home/trusted cases/dining_room_pass.py   # after
+effects: 1
+  tools.home.trusted.effects.set_thermostat('Dining Room', 68)
 runtime error: no zone 'Dining Room'; bridge has ['bedroom', 'dining room', 'living room']
 ```
 
