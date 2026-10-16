@@ -712,6 +712,11 @@ def target_node(
 
     File-backed trusted imports must already be loaded by the checked trusted
     layer context. This static pass never imports an entry-selected module.
+
+    The target is also bound to the empty argument list :func:`execute` calls
+    it with, through the same :func:`_bind_arguments`, so ``def main(x): ...``
+    is refused here -- before the approval round trip -- rather than after the
+    receipt nonce was consumed.
     """
     program = Program(
         source_name=source_name,
@@ -721,7 +726,16 @@ def target_node(
     )
     with _program_layer(source, program):
         _load_module(source, source_name=source_name, program=program)
-        return _resolve_target(program, target=target, source_name=source_name).node
+        func = _resolve_target(program, target=target, source_name=source_name)
+        _bind_arguments(
+            func.node.args,
+            args=[],
+            kwargs={},
+            defaults=func.defaults,
+            closure=func.closure,
+            what=f"{func.name}()",
+        )
+        return func.node
 
 
 def check_module_level(

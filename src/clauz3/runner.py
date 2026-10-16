@@ -405,7 +405,8 @@ def _preflight_structure(
     1. **Module level and target resolution.** ``interp.target_node`` runs
        exactly the module body ``execute`` would -- under the same
        ``_require_inert`` gates, so nothing effectful can fire -- and resolves
-       the target without calling it.
+       the target and binds it to the empty argument list without calling it,
+       so a ``main`` that needs arguments is refused here.
     2. **Subset vocabulary.** Every node in the tree must have a handler in one
        of the two registries. This is the same fail-closed rule ``execute``
        applies, hoisted to a static walk.
@@ -427,16 +428,7 @@ def _preflight_structure(
             except astroid.AstroidSyntaxError as exc:
                 raise RunConfigError(f"{source_name}: {exc}") from exc
 
-            known = interp.eval_expr.node_types | interp.eval_stmt.node_types
-            for node in module.body:
-                for child in (node, *node.nodes_of_class(astroid.NodeNG)):
-                    if type(child) in known or isinstance(child, _STRUCTURAL_NODES):
-                        continue
-                    raise RunConfigError(
-                        f"{source_name}: {type(child).__name__} is not part of the "
-                        "proved subset, so the program could not be run "
-                        "even if it proved",
-                    )
+            _preflight_nodes(module, source_name=source_name)
 
             try:
                 # Static target resolution binds only trusted modules whose files were
@@ -490,19 +482,71 @@ def _with_source(source_name: str, exc: Exception) -> str:
 #: approval round trip and after the nonce was consumed -- the exact residue
 #: this function exists to remove.
 #:
-#: ``Starred`` goes the other way and was missing: ``_unpack`` and
-#: ``_is_inert_target`` both read it deliberately, so ``A, *B = (1, 2, 3)``
-#: ran under ``interp.execute`` and was refused by ``clauz3 run``.
+#: ``Starred``, ``Slice`` and ``Keyword`` are deliberately absent: their
+#: readers are position-specific, so a flat ``isinstance`` exemption is too
+#: wide for them. :func:`_is_scaffolding` handles all three.
 _STRUCTURAL_NODES: tuple[type[astroid.NodeNG], ...] = (
     astroid.Module,  # the tree root
     astroid.Arguments,  # read by _bind_arguments / _eval_defaults
     astroid.AssignName,  # read by _assign_to
-    astroid.Starred,  # read by _unpack and _is_inert_target
     astroid.Comprehension,  # read by the comprehension handlers
-    astroid.Keyword,  # read by _call_arguments
     astroid.Decorators,  # read by _check_decorators
-    astroid.Slice,  # read by _expr_subscript
 )
+
+
+def _is_scaffolding(node: astroid.NodeNG) -> bool:
+    """True when a handler reads ``node`` directly *in the position it occupies*.
+
+    ``_unpack`` and ``_is_inert_target`` read a ``Starred`` only as an
+    assignment *target* (``A, *B = (1, 2, 3)``); ``_expr_subscript`` reads a
+    ``Slice`` only under a subscript being *loaded* (``xs[0:2]``); and
+    ``_expr_call`` reads a ``Keyword`` only as a named argument (``f(a=1)``),
+    refusing ``**`` unpacking. Exempting the three flat let ``f(*xs)``,
+    ``[*xs, 1]``, ``xs[0:2] = [1, 2]`` and ``f(**d)`` through the pre-flight,
+    to be refused by the interpreter after the approval round trip.
+
+    >>> call = astroid.extract_node("f(*xs, a=1, **d)")
+    >>> [_is_scaffolding(arg) for arg in call.args]
+    [False]
+    >>> [_is_scaffolding(keyword) for keyword in call.keywords]
+    [True, False]
+    >>> target = astroid.extract_node("a, *b = c").targets[0].elts[1]
+    >>> _is_scaffolding(target)
+    True
+    >>> _is_scaffolding(astroid.extract_node("xs[0:2]").slice)
+    True
+    >>> _is_scaffolding(astroid.extract_node("xs[0:2] = ys").targets[0].slice)
+    False
+    """
+    if isinstance(node, _STRUCTURAL_NODES):
+        return True
+    if isinstance(node, astroid.Starred):
+        return node.ctx is astroid.Context.Store
+    if isinstance(node, astroid.Slice):
+        parent = node.parent
+        return (
+            isinstance(parent, astroid.Subscript) and parent.ctx is astroid.Context.Load
+        )
+    if isinstance(node, astroid.Keyword):
+        return isinstance(node.parent, astroid.Call) and node.arg is not None
+    return False
+
+
+def _preflight_nodes(module: astroid.Module, *, source_name: str) -> None:
+    """Refuse any node with no handler that is not scaffolding a handler reads.
+
+    The same fail-closed rule ``interp.execute`` applies, hoisted to a static
+    walk so it runs before proving and before the approval round trip.
+    """
+    known = interp.eval_expr.node_types | interp.eval_stmt.node_types
+    for node in module.body:
+        for child in (node, *node.nodes_of_class(astroid.NodeNG)):
+            if type(child) in known or _is_scaffolding(child):
+                continue
+            raise RunConfigError(
+                f"{source_name}: {type(child).__name__} is not part of the "
+                "proved subset, so the program could not be run even if it proved",
+            )
 
 
 def _execute_source(
