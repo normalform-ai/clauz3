@@ -74,24 +74,12 @@ summary:focus-visible {
   height: 100vh;
 }
 .brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 25px;
-  font-weight: 700;
-  letter-spacing: -1px;
-  color: #1a4738;
+  display: block;
   margin-bottom: 52px;
 }
-.brand-mark {
-  display: grid;
-  place-items: center;
-  background: #23573f;
-  color: white;
-  border-radius: 11px;
-  width: 37px;
-  height: 37px;
-  font-size: 23px;
+.brand img {
+  display: block;
+  height: 48px;
 }
 .eyebrow {
   font-size: 10px;
@@ -226,9 +214,8 @@ header .eyebrow {
   padding: 60px 10px 52px;
 }
 .welcome-mark {
-  font-family: Georgia, serif;
-  font-size: 38px;
-  color: #467358;
+  width: 48px;
+  height: 48px;
   margin-bottom: 20px;
 }
 #welcome h2 {
@@ -594,13 +581,10 @@ pre {
     border-bottom: 1px solid var(--line);
   }
   .brand {
-    font-size: 20px;
     margin: 0 0 12px;
   }
-  .brand-mark {
-    width: 29px;
-    height: 29px;
-    font-size: 18px;
+  .brand img {
+    height: 36px;
   }
   .sidebar > .eyebrow,
   .sidebar h2,
