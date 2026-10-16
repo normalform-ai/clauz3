@@ -24,11 +24,103 @@ clauz3 ui claude
 # `clauz3 ui` also defaults to Claude.
 ```
 
+Other coding tools are available in both frontends:
+
+```bash
+clauz3 ui codex --unrestricted
+clauz3 start codex --unrestricted
+clauz3 ui agy --unrestricted
+clauz3 start opencode --unrestricted --model PROVIDER/MODEL
+clauz3 ui pi
+clauz3 start pi
+```
+
+| Agent | Optional runtime | Authentication |
+| --- | --- | --- |
+| `claude` | UI: `npm install -g @agentclientprotocol/claude-agent-acp@0.89.1`; terminal: Claude Code | Sign in with Claude Code. |
+| `codex` | `npm install -g @agentclientprotocol/codex-acp@2.2.2` | Existing Codex/ChatGPT login, or the adapter's supported API-key environment. |
+| `agy` | [Antigravity CLI](https://antigravity.google/download) | Sign in with `agy`; permit the Clauz3 MCP tools as described below. |
+| `opencode` | `npm install -g opencode-ai` | `opencode auth login`, or a configured provider key; select a usable `--model provider/model`. |
+| `pi` | `npm install -g @earendil-works/pi-coding-agent@0.82.1` | Sign in using Pi's `/login`; OAuth and literal API keys are reused. |
+
+Only install the runtime you use. These are optional external executables;
+Clauz3 does **not** add provider SDKs to its Python dependencies or install npm
+packages automatically. Codex's ACP package carries its compatible SDK/runtime.
+Restricted Pi uses the installed runtime's supported SDK and a packaged Clauz3
+MCP client; unrestricted Pi uses RPC and a Clauz3 extension. Antigravity uses
+stream-json. No separate Pi or Antigravity ACP wrapper is required.
+
+Codex, Antigravity, and OpenCode currently require `--unrestricted`. Their native tools,
+loaded user configuration, and extensions have **not** been verified as a
+Clauz3 confinement boundary. Native effects may bypass proofs and approval.
+Clauz3 `run` still requires its proof and signed approval. No provider receives
+the approval signing key or decision credential. Unexpected native ACP
+permission requests are denied, not automatically approved; Codex's correlated
+requests for the six Clauz3 MCP tools receive single-call permission only.
+
+**Restricted Pi:** the reviewed SDK version is pinned, and startup rejects any
+other version. Its exact tool allowlist contains only the six Clauz3 bridge
+tools; native read, shell, edit, write, and additional tools are not executable.
+An empty resource loader disables global/project extensions, packages, context
+files, prompt templates, and native skills. Clauz3 supplies its selected skill
+documents through the bridge. Settings are constructed in memory, copying only
+`defaultProvider` and `defaultModel` from Pi's global settings; `--model
+provider/model` overrides these. Custom model definitions and remote model
+catalog loading are disabled. OAuth credentials remain in Pi's existing auth
+file; credential shell commands are refused. Node preload hooks and provider
+endpoint overrides are not inherited. Sessions resume with the same restriction;
+changing between restricted and unrestricted Pi requires a new conversation.
+This confines agent tools, rather than sandboxing the trusted Pi SDK process.
+
+**Codex:** the official TypeScript SDK wraps the CLI and does not expose the
+exact tool allowlist required here. Sandbox and approval controls alone do not
+establish this boundary. Clauz3 does not build or maintain a patched Codex
+runtime; see the [integration investigation](../todos/codex-launcher.md).
+For OpenAI models with restricted tools today, Pi also supports a Codex/ChatGPT
+provider: sign in through Pi's `/login`, then use, for example,
+`clauz3 ui pi --model openai-codex/gpt-5.4`. This uses Pi as the agent harness
+and Pi's own saved OAuth credentials, rather than the Codex CLI session.
+
+The browser's **Agent for new conversations** selector changes the provider
+when you press **New conversation**. Saved chats retain their own provider and
+model. The UI identifies unrestricted mode throughout the session. A restricted
+server cannot resume an unrestricted chat; its transcript remains readable.
+Use `--model` at launch to override the selected provider's model. A provider
+switch starts with that provider's default model instead of carrying a model
+name from another provider.
+
+Claude's browser integration is always restricted: `clauz3 ui claude
+--unrestricted` is rejected, and Claude is disabled in the provider selector
+of an unrestricted workspace. Start a separate `clauz3 ui claude` workspace
+for restricted Claude, or use `clauz3 start claude --unrestricted` for native
+Claude terminal tools.
+
+Antigravity's headless permissions need these entries in `permissions.allow`
+in `~/.gemini/antigravity-cli/settings.json` (merge with existing settings):
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "mcp(clauz3/run)", "mcp(clauz3/status)", "mcp(clauz3/tools)",
+      "mcp(clauz3/libraries)", "mcp(clauz3/list_skills)", "mcp(clauz3/read_skill)"
+    ]
+  }
+}
+```
+
+Clauz3 does not edit this user-wide file. Denials are reported with setup
+instructions. Antigravity has no invocation-local MCP flag, so its subprocess
+runs in a private temporary workspace containing the bridge configuration;
+the bridge executes against the original project and selected libraries.
+Use Clauz3 tools for project access. Existing OAuth credentials remain in their
+normal location. Temporary bridge configuration is removed on normal exit.
+
 Run from the project directory. The command uses the same selected skill
 snapshots, approval policies, and remembered approval profile as `clauz3 start`.
 Library setup happens in the browser; an empty folder or `--setup` opens
 **Libraries** directly. Supported flags are `--setup`, `--skills-dir` (repeatable),
-`--policy`, `--model`, `--prompt`, `--port`, and `--no-browser`. The last flag
+`--policy`, `--model`, `--prompt`, `--port`, `--unrestricted`, and `--no-browser`. The last flag
 prints the private login URL instead of opening it. The server binds only to
 `127.0.0.1`. Press Ctrl-C in the terminal to stop it.
 
@@ -50,8 +142,8 @@ still need the setup shown in the review.
 One agent conversation and one connected browser tab are active at a time.
 Reloads preserve the running agent. **New conversation** saves the previous
 chat, and the sidebar lets you search, rename, and reopen earlier conversations.
-Selecting a chat resumes its saved Claude context and library selection with
-fresh restricted credentials. If those library files have changed, its transcript
+Selecting a chat resumes its saved agent context and library selection with
+fresh submission credentials. If those library files have changed, its transcript
 remains available; start a new conversation to use the changed tools. **Stop**
 terminates the agent and workers; completed effects are not undone. Wait or stop before switching an active task.
 
@@ -71,7 +163,7 @@ tool set, only the six Clauz3 MCP tools, strict MCP configuration, empty setting
 sources, and disabled hooks, plugins, connectors, and slash commands. Unexpected
 ACP permission requests are refused: they cannot replace signed Clauz3 approval.
 The browser cannot select an executable, working directory, additional MCP
-servers, or SDK options. As with `start`, this is harness confinement rather
+servers, or SDK options. In restricted Claude mode, this is harness confinement rather
 than an OS sandbox against other processes running as the same user.
 
 Text prompts are supported. Attachments, agent slash commands, model switching
@@ -97,19 +189,23 @@ libraries, or continue without tools. Selection is made by the user; the agent
 cannot install libraries. Existing project libraries are preserved.
 
 Without a terminal, install libraries first with `clauz3 install`; there is no
-implicit installation or prompt on piped input. This first launcher supports
-Claude Code on macOS and Linux; other harnesses are not yet supported.
+implicit installation or prompt on piped input. macOS and Linux are supported.
+Claude uses its native terminal interface. Other providers use a line-oriented
+Clauz3 terminal client over the same conversation host as the UI: type a prompt,
+wait for the response, and use `/exit`, EOF, or Ctrl-C to stop. Piped prompts are
+processed sequentially. The printed `clauz3 resume ID` command restores the
+provider and conversation with fresh bridge credentials.
 
 | Option | Description |
 | --- | --- |
 | `--no-browser` | Print the private approver URL without opening a browser. |
 | `--port PORT` | Bind localhost on this port; default `0` chooses a free port. |
 | `--policy PATH` | Use an operator-authored approval policy, with the installed roots authorized automatically. |
-| `--model NAME` | Select the Claude model. |
+| `--model NAME` | Select the agent model (provider-specific name). |
 | `--prompt TEXT` | Start the interactive session with this prompt. |
 | `--skills-dir DIR` | Select inert skill documents from a folder; repeat for additional folders. |
 | `--setup` | Reopen the library chooser for a project that already has tools. |
-| `--unrestricted` | Debug with native Claude tools enabled and normal Claude permission prompts. These tools can bypass clauz3. |
+| `--unrestricted` | Enable native tools that can bypass Clauz3. Required for Codex, Antigravity, and OpenCode; optional debug mode for Claude and Pi. |
 
 The launcher creates fresh signing keys and separate submission and approver
 tokens. The agent receives only the submission token and public verifying key;
@@ -119,7 +215,7 @@ edits are needed. The service must become ready before the agent starts; it
 stops on agent exit, Ctrl-C, or SIGTERM. A service failure stops the agent.
 Agent exit codes are preserved (`130` for interruption, `143` for SIGTERM).
 
-Before launching Claude, it checks that the MCP bridge can initialize and
+Before launching an agent, it checks that the MCP bridge can initialize and
 expose its selected session tools using the same Python installation. A broken
 bridge stops startup with the underlying error. The MCP SDK dependency is
 restricted to the supported 1.x series, including fresh `uvx` installations.

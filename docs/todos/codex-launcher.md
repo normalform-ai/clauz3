@@ -1,11 +1,12 @@
 # Restricted Codex launcher: configuration gap
 
 Follow-up to [#264](https://github.com/cmungall/agent-deal/issues/264).
-Research snapshot: 2026-10-09, installed `codex-cli 0.162.0`.
+Research snapshot: 2026-10-14, installed `codex-cli 0.162.1`.
 
 The intended interface remains `clauz3 start codex`, with the same owned MCP
 bridge, library selection, fresh approval service and credential separation
-as the Claude adapter. No Codex adapter is enabled yet.
+as the Claude adapter. An experimental adapter is available in UI and CLI with
+explicit `--unrestricted`; restricted Codex remains gated.
 
 The available interfaces inspected were `codex --help`, `codex features list`,
 `codex debug models --bundled`, and the stable and experimental JSON schemas
@@ -29,7 +30,15 @@ future Codex version or integration can provide it. Do not implement this by
 listing today's native tool names in a denylist, changing model metadata to
 hide tools, or relying on the prompt to prevent their use.
 
-Before enabling the adapter:
+The official [TypeScript SDK](https://github.com/openai/codex/tree/main/sdk/typescript)
+wraps the CLI and exposes sandbox, approval, and configuration options, but no
+exact native/MCP tool allowlist. Codex's Rust extension API contains an internal
+`ToolPolicy` allowlist, captured at thread creation; the inspected public CLI,
+SDK, and app-server interface do not expose it. Surfacing it would require a
+custom runtime build and ongoing maintenance. This project will not maintain
+that fork. Revisit when a supported interface exposes the required boundary.
+
+Before enabling restricted mode:
 
 1. Identify a supported tool allowlist and configuration-isolation boundary,
    or an app-server execution gateway that can enforce it independently of
@@ -44,6 +53,6 @@ Before enabling the adapter:
    do not silently substitute a permissive/debug session when restrictions
    cannot be enforced.
 
-For now, `start codex` remains an unsupported-agent error. The implemented
-Claude launcher and selected read-only skill documents do not depend on the
-outcome of this investigation.
+For now, `start codex` fails with guidance to opt into `--unrestricted` or use
+Claude/Pi. Their restricted integrations and selected read-only skill documents
+do not depend on the outcome of this investigation.

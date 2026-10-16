@@ -1217,3 +1217,32 @@ input[role="switch"]:focus-visible {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+
+#agent-select {
+  width: 100%;
+  padding: 8px;
+  margin: 6px 0;
+  background: #fff;
+  color: inherit;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+#agent-select-label, #agent-install {
+  font-size: 12px;
+}
+#agent-install {
+  margin-bottom: 8px;
+  overflow-wrap: anywhere;
+}
+#agent-install-list {
+  padding-left: 16px;
+}
+#unrestricted-mode {
+  padding: 10px 14px;
+  margin: 8px 0;
+  border: 1px solid #ebd4b5;
+  border-radius: 8px;
+  background: #fff7e9;
+  color: #795529;
+  font-size: 12px;
+}

@@ -259,8 +259,7 @@ def test_missing_agent_and_tools(
     with pytest.raises(launcher.StartError, match="no installed tools"):
         launcher.start_session(agent="claude")
     assert main(["start", "claude", "--port", "65536"]) == 2
-    with pytest.raises(SystemExit):
-        main(["start", "codex"])
+    assert main(["start", "codex"]) == 2  # Explicit unrestricted opt-in required.
 
 
 @pytest.mark.parametrize(
@@ -876,7 +875,7 @@ def test_ui_launches_workspace_and_cleans_up(
         opener = build_opener(HTTPCookieProcessor(cookies))
         with opener.open(url, timeout=5) as response:
             page = response.read().decode()
-        assert "Message Claude" in page
+        assert "Message agent" in page
         assert "workspace.js" in page
         assert "?key=" not in page
         origin = url.split("/ui/login")[0]

@@ -79,7 +79,7 @@ def _build_parser() -> argparse.ArgumentParser:
     start = subparsers.add_parser(
         "start", help="start an approval service and a restricted agent session"
     )
-    start.add_argument("agent", choices=["claude"])
+    start.add_argument("agent", choices=["claude", "codex", "agy", "opencode", "pi"])
     start.add_argument(
         "--no-browser",
         action="store_true",
@@ -115,7 +115,12 @@ def _build_parser() -> argparse.ArgumentParser:
     ui = subparsers.add_parser(
         "ui", help="open a unified agent conversation and approval workspace"
     )
-    ui.add_argument("agent", choices=["claude"], nargs="?", default="claude")
+    ui.add_argument(
+        "agent",
+        choices=["claude", "codex", "agy", "opencode", "pi"],
+        nargs="?",
+        default="claude",
+    )
     ui.add_argument(
         "--no-browser",
         action="store_true",
@@ -140,7 +145,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default=[],
         help="select inert SKILL.md documents from a folder (repeatable)",
     )
-    ui.set_defaults(handler=_start, unrestricted=False, browser_ui=True)
+    ui.add_argument(
+        "--unrestricted",
+        action="store_true",
+        help="allow providers whose native tools can bypass Clauz3 approval",
+    )
+    ui.set_defaults(handler=_start, browser_ui=True)
     resume = subparsers.add_parser(
         "resume", help="resume a managed session with a fresh approval service"
     )
