@@ -4,6 +4,7 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
+from clauz3.approvals.decisions import USER_DECISIONS, Decision
 from clauz3.approvals.service import create_approval_app
 
 
@@ -281,6 +282,85 @@ def test_approval_service_returns_existing_decision_for_retried_request_ids() ->
     assert requests[0]["request_id"] == "clr_retry"
     assert requests[0]["target"] == "second"
     assert requests[0]["approval"] == decision.json()
+
+
+@pytest.mark.parametrize("decision", sorted(USER_DECISIONS))
+def test_approval_service_accepts_each_user_decision_exactly(
+    decision: Decision,
+) -> None:
+    client = TestClient(create_approval_app())
+    request_id = f"clr_{decision.value}"
+
+    thread = threading.Thread(
+        target=lambda: client.post("/requests", json={"request_id": request_id})
+    )
+    thread.start()
+    _wait_for_record(client, request_id)
+
+    response = client.post(
+        f"/requests/{request_id}/decision", json={"decision": decision.value}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["decision"] == decision.value
+    assert ("receipt" in body) == decision.approved
+    thread.join(timeout=5)
+    assert not thread.is_alive()
+    expected_status = "approved" if decision.approved else "denied"
+    assert client.get(f"/requests/{request_id}").json()["status"] == expected_status
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "approved",
+        "approve",
+        "Approved_Once",
+        "auto_approved",
+        "auto_rejected",
+        "",
+        None,
+    ],
+)
+def test_approval_service_refuses_unknown_decision_and_keeps_request_pending(
+    value: object,
+) -> None:
+    # Issue #62: an unknown decision was answered 200 and read as a denial.
+    client = TestClient(create_approval_app())
+    responses: list[dict[str, object]] = []
+
+    def submit() -> None:
+        response = client.post("/requests", json={"request_id": "clr_unknown"})
+        responses.append(response.json())
+
+    thread = threading.Thread(target=submit)
+    thread.start()
+    _wait_for_record(client, "clr_unknown")
+
+    refused = client.post(
+        "/api/requests/clr_unknown/decision", json={"decision": value}
+    )
+
+    assert refused.status_code == 400
+    detail = refused.json()["detail"]
+    assert repr(value) in detail
+    assert "approved_once" in detail
+    # Nothing was recorded, and the runner's POST is still waiting for a real
+    # decision: an unknown string is neither an approval nor a denial.
+    record = client.get("/requests/clr_unknown").json()
+    assert record["status"] == "pending"
+    assert "approval" not in record
+    assert thread.is_alive()
+    assert responses == []
+
+    decided = client.post(
+        "/api/requests/clr_unknown/decision", json={"decision": "rejected"}
+    )
+    assert decided.status_code == 200
+    thread.join(timeout=5)
+    assert not thread.is_alive()
+    assert responses == [decided.json()]
 
 
 def _wait_for_record(client: TestClient, request_id: str) -> None:

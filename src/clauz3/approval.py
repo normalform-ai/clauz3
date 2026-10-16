@@ -6,7 +6,6 @@ from clauz3.approvals.client import (
     APPROVAL_SERVICE_ENV,
     APPROVAL_TOKEN_ENV,
     APPROVAL_URL_ENV,
-    APPROVED_DECISIONS,
     DEFAULT_APPROVAL_TIMEOUT,
     DEFAULT_RECEIPT_TTL,
     ApprovalResponse,
@@ -20,6 +19,7 @@ from clauz3.approvals.client import (
     sign_approval_receipt,
     submit_approval_request,
 )
+from clauz3.approvals.decisions import APPROVED_DECISIONS
 
 __all__ = [
     "APPROVAL_CONFIG",

@@ -36,6 +36,7 @@ from clauz3.libraries.install import InstallError
 from clauz3.libraries.layout import domain_name, expand_import_roots
 from clauz3.libraries.setup import choose_libraries
 from clauz3.runner import discover_trusted_roots
+from clauz3.sessions import providers
 from clauz3.sessions.records import (
     SessionRecord,
     load_session,
@@ -302,15 +303,28 @@ def start_session(
     _resume: SessionRecord | None = None,
 ) -> int:
     """Start in the current directory, returning the agent's exit status."""
-    if agent != "claude":
-        raise StartError(f"unsupported agent: {agent}; supported agents: claude")
+    try:
+        providers.check_mode(agent, unrestricted, browser_ui=browser_ui)
+    except ValueError as exc:
+        raise StartError(str(exc)) from exc
+    use_acp = browser_ui or agent != "claude"
     if os.name != "posix":
         raise StartError("clauz3 start currently supports macOS and Linux")
     try:
         proof_timeout()
     except ValueError as exc:
         raise StartError(str(exc)) from exc
-    executable = shutil.which("claude-agent-acp" if browser_ui else agent)
+    executable: str | None
+    if agent != "claude":
+        try:
+            agent_command = providers.command(agent)
+            providers.check_runtime(agent, agent_command, unrestricted)
+        except ValueError as exc:
+            raise StartError(str(exc)) from exc
+        executable = agent_command[0]
+    else:
+        executable = shutil.which("claude-agent-acp" if browser_ui else agent)
+        agent_command = [executable] if executable else []
     if executable is None:
         if browser_ui:
             raise StartError(
@@ -318,7 +332,7 @@ def start_session(
                 "@agentclientprotocol/claude-agent-acp@0.89.1"
             )
         raise StartError("claude is not on PATH; install Claude Code and sign in first")
-    if browser_ui:
+    if browser_ui and agent == "claude":
         from clauz3.sessions.chat import check_adapter
 
         try:
@@ -369,7 +383,7 @@ def start_session(
                 + ", ".join(changed)
                 + " changed; use clauz3 start to review a new session selection"
             )
-    if not browser_ui:
+    if not use_acp:
         _check_claude_version(executable)
     record = _resume or SessionRecord(
         session_id=str(uuid4()),
@@ -422,8 +436,8 @@ def start_session(
                 "MCP bridge checked: run, tools, libraries, status, "
                 "list_skills, read_skill. "
                 + (
-                    "Agent slash commands are disabled in the browser workspace. "
-                    if browser_ui
+                    "Agent slash commands are disabled in this workspace. "
+                    if use_acp
                     else "Use /mcp for connection diagnostics. "
                 )
                 + "Use list_skills/read_skill for selected documentation.",
@@ -446,12 +460,15 @@ def start_session(
                 APPROVAL_DECISION_TOKEN_ENV: decision,
                 SIGNING_KEY_ENV: signing,
             }
-            if browser_ui:
+            if use_acp:
                 config_path = Path(session_directory) / "ui.json"
                 config_path.write_text(
                     json.dumps(
                         {
-                            "command": [executable],
+                            "agent": agent,
+                            "unrestricted": unrestricted,
+                            "select_provider": browser_ui,
+                            "command": agent_command,
                             "cwd": str(cwd),
                             "bridge": _session_bridge_command(
                                 cwd, roots, skills_snapshot
@@ -467,7 +484,8 @@ def start_session(
                     )
                 )
                 config_path.chmod(0o600)
-                service_env["CLAUZ3_UI_CONFIG"] = str(config_path)
+                if browser_ui:
+                    service_env["CLAUZ3_UI_CONFIG"] = str(config_path)
             service_command = [
                 sys.executable,
                 "-P",
@@ -535,17 +553,29 @@ def start_session(
                     save_session(record)
                 print(f"Clauz3 session: {record.session_id}", file=sys.stderr)
                 harness = subprocess.Popen(
-                    _claude_command(
-                        executable,
-                        cwd=cwd,
-                        roots=roots,
-                        env=runner_env,
-                        model=model,
-                        prompt=prompt,
-                        unrestricted=unrestricted,
-                        skills_snapshot=skills_snapshot,
-                        session_id=record.session_id,
-                        resume=_resume is not None,
+                    (
+                        [
+                            sys.executable,
+                            "-P",
+                            "-m",
+                            "clauz3.sessions.terminal",
+                            str(config_path),
+                            record.session_id,
+                            *(["--resume"] if _resume else []),
+                        ]
+                        if use_acp
+                        else _claude_command(
+                            executable,
+                            cwd=cwd,
+                            roots=roots,
+                            env=runner_env,
+                            model=model,
+                            prompt=prompt,
+                            unrestricted=unrestricted,
+                            skills_snapshot=skills_snapshot,
+                            session_id=record.session_id,
+                            resume=_resume is not None,
+                        )
                     ),
                     cwd=cwd,
                     env={

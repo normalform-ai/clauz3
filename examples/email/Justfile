@@ -13,7 +13,7 @@ lint:
 # alias_import_fail.py:
 #   Issue #129: the guarantee is spelled through an import alias. Before the fix
 #   the decorator was dropped and this printed "proved!".
-cases: aug-assign-skip aug-assign-rewritten-fail
+cases: while-loop-skip aug-assign-fail aug-assign-rewritten-fail
     {{prove-cases}} cases/*_pass.py cases/*_fail.py
 
 policy: policy-auto-pass policy-auto-reject policy-ask
@@ -34,8 +34,12 @@ case1-fail:
     if {{prove}} cases/only_bob_fail.py; then exit 1; fi
 
 # Distinguish unsupported syntax from a refuted guarantee.
-aug-assign-skip:
-    out=$({{prove}} cases/aug_assign_skip.py 2>&1); status=$?; echo "$out"; test $status -ne 0 && echo "$out" | grep -qF "main: skipped unsupported program body"
+while-loop-skip:
+    out=$({{prove}} cases/while_loop_skip.py 2>&1); status=$?; echo "$out"; test $status -ne 0 && echo "$out" | grep -qF "main: skipped unsupported program body"
+
+# `+=` on a str is proved like its desugaring: a refuted guarantee, not a skip.
+aug-assign-fail:
+    out=$({{prove}} cases/aug_assign_fail.py 2>&1); status=$?; echo "$out"; test $status -ne 0 && echo "$out" | grep -qF "main: failed guarantee"
 
 aug-assign-rewritten-fail:
     out=$({{prove}} cases/aug_assign_rewritten_fail.py 2>&1); status=$?; echo "$out"; test $status -ne 0 && echo "$out" | grep -qF "main: failed guarantee"

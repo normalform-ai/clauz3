@@ -139,12 +139,15 @@ def test_expired_receipt_rejected() -> None:
         )
 
 
-def test_non_approval_decision_rejected() -> None:
+@pytest.mark.parametrize("decision", ["rejected", "approved", "Approved_Once"])
+def test_non_approval_decision_rejected(decision: str) -> None:
+    # A denial, and unknown near-misses of an approval (issue #62), never
+    # authorize a run, even when correctly signed.
     signing, verify = generate_keypair()
-    with pytest.raises(ReceiptError):
+    with pytest.raises(ReceiptError, match="does not authorize execution"):
         verify_receipt(
             verify_key_b64=verify,
-            receipt=_make(signing, decision="rejected"),
+            receipt=_make(signing, decision=decision),
             request_id=RID,
             program_sha256=SHA,
             consent_sha256=CONSENT,

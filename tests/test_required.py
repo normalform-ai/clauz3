@@ -214,7 +214,7 @@ def test_unmonitored_required_policy_marks_unmapped_body_error_as_generated(
     monkeypatch.setattr(
         "clauz3.prover.load_domain_policies", lambda **_: REQUIRED_UNIQUE
     )
-    source = EMAILS_BOB_ONCE + '    value = "hi"\n    value += " there"\n'
+    source = EMAILS_BOB_ONCE + "    while False:\n        pass\n"
     result = _prove(source)[0].proof
     assert result.conclusion == Conclusion.SKIP
     assert result.description == "unsupported program body"

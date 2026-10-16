@@ -85,8 +85,13 @@ The `source` argument may be:
 - a git remote — either the `gh:org/repo` shorthand or a full git URL,
   optionally with `@<ref>` appended.
 
-Every `tools/<domain>/` that contains a `trusted/` package is copied. A local or
-git source with several domains installs all of them. A `global:` selection
+Every `tools/<domain>/` that contains a `trusted/` package is copied, including
+org-namespaced domains such as `tools/acme/lims/trusted/`, which install to
+`.clauz3/tools/acme/lims/`. A local or git source with several domains installs
+all of them. A domain whose directory names are not Python identifiers (such as
+`tools/acme-labs/lims/`) cannot be imported, so it is skipped with a warning;
+see [Publishing trusted layers](publish-layers.md#repository-layout) for the
+full rule. A `global:` selection
 copies only the named domain and its declared dependencies.
 
 Declared library dependencies are installed automatically; for example,

@@ -21,12 +21,11 @@ from typing import Any
 import astroid
 import pytest
 
-from clauz3 import interp
 from clauz3._vendor.deal_solver import Conclusion
 from clauz3.imports_policy import build_policy
 from clauz3.interp import UnsupportedNode, execute
 from clauz3.prover import prove_path
-from clauz3.runner import _STRUCTURAL_NODES, RunConfigError, _preflight_structure
+from clauz3.runner import RunConfigError, _preflight_nodes, _preflight_structure
 
 ROOT = Path(__file__).resolve().parents[1]
 STDLIB = ROOT / "src/clauz3/stdlib"
@@ -172,8 +171,13 @@ def test_preflight_admits_every_case_the_interpreter_runs() -> None:
         import_roots, trusted_roots = _roots_for(case)
         if not import_roots:  # pragma: no cover
             continue
+        # The shipped node gate, without ``target_node``: that half executes
+        # module level for real, and ``test_interpreter_runs_corpus_case``
+        # already covers it. An earlier version carried its own copy of the
+        # walk -- a third statement of the subset that could drift.
+        module = astroid.parse(case.read_text(), path=str(case))
         try:
-            _preflight_nodes(case.read_text(), source_name=str(case))
+            _preflight_nodes(module, source_name=str(case))
         except RunConfigError as exc:
             refused.append(f"{case}: {exc}")
     assert not refused, (
@@ -182,32 +186,13 @@ def test_preflight_admits_every_case_the_interpreter_runs() -> None:
     )
 
 
-def _preflight_nodes(source: str, *, source_name: str) -> None:
-    """The node-type half of ``_preflight_structure``, without importing tools.
-
-    ``_preflight_structure`` also runs ``target_node``, which executes module
-    level for real; ``test_interpreter_runs_corpus_case`` already
-    covers that. This isolates the gate the ``Starred`` regression lived in.
-    """
-    module = astroid.parse(source, path=source_name)
-    known = interp.eval_expr.node_types | interp.eval_stmt.node_types
-    for node in module.body:
-        for child in (node, *node.nodes_of_class(astroid.NodeNG)):
-            if type(child) in known or isinstance(child, _STRUCTURAL_NODES):
-                continue
-            raise RunConfigError(
-                f"{source_name}: {type(child).__name__} is not part of the "
-                "proved subset",
-            )
-
-
 # Interpreter, prover, and shipped preflight refusal reasons. Set equality
 # below prevents adding an untested skip case or retaining a stale exemption.
 _SKIP_REFUSALS = {
-    "examples/email/cases/aug_assign_skip.py": (
-        r"AugAssign is outside the proved subset",
-        r"^unsupported ast node AugAssign at line 17: msg \+=",
-        r"AugAssign is not part of the proved subset",
+    "examples/email/cases/while_loop_skip.py": (
+        r"While is outside the proved subset",
+        r"^unsupported ast node While at line 15: while n < 2",
+        r"While is not part of the proved subset",
     ),
 }
 

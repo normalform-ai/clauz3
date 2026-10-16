@@ -79,6 +79,8 @@ Expected output:
 main: proved! assertion, guarantee
 approval: approved_once receipt=mock-clr_8f32c1
 executed: main
+effects: 1
+  tools.email.trusted.effects.send_email('bob@example.com', 'Report is ready')
 ```
 
 The CLI should not ask the user directly in the agent transcript. It routes

@@ -259,8 +259,7 @@ def test_missing_agent_and_tools(
     with pytest.raises(launcher.StartError, match="no installed tools"):
         launcher.start_session(agent="claude")
     assert main(["start", "claude", "--port", "65536"]) == 2
-    with pytest.raises(SystemExit):
-        main(["start", "codex"])
+    assert main(["start", "codex"]) == 2  # Explicit unrestricted opt-in required.
 
 
 @pytest.mark.parametrize(
@@ -371,6 +370,35 @@ def test_bridge_probe_timeout_does_not_launch_agent(
     )
     assert main(["start", "claude", "--no-browser"]) == 2
     assert "MCP bridge startup check timed out" in capsys.readouterr().err
+
+
+def test_session_bridge_receives_nested_domain(
+    project: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An org-namespaced install reaches the session bridge as a trusted root."""
+    nested = project / ".clauz3/tools/acme/lims/trusted"
+    nested.mkdir(parents=True)
+    (nested / "effects.py").write_text(
+        "import clauz3\n\n\n@clauz3.trusted\ndef pipette(plate: str) -> None:\n"
+        "    pass\n"
+    )
+    fake_agent(tmp_path, monkeypatch, "raise AssertionError('must not launch')\n")
+    seen: list[list[Path]] = []
+
+    def bridge(cwd: Path, roots: list[Path]) -> list[str]:
+        seen.append(roots)
+        return [sys.executable, "-c", "print('not JSON')"]
+
+    monkeypatch.setattr(launcher, "_bridge_command", bridge)
+    assert main(["start", "claude", "--no-browser"]) == 2
+    assert seen == [
+        [
+            project.resolve() / ".clauz3/tools/acme/lims/trusted",
+            project.resolve() / ".clauz3/tools/email/trusted",
+        ]
+    ]
 
 
 @pytest.mark.parametrize("choice", ["1", "4"])
@@ -546,6 +574,9 @@ def test_default_session_accepts_browser_approval(
 ) -> None:
     monkeypatch.setenv("TEST_CASE", str(EMAIL / "cases/only_bob_pass.py"))
     monkeypatch.setenv("CLAUZ3_PROOF_TIMEOUT_SECONDS", "20")
+    # Upper bounds only; a passing run returns in a few seconds. The subprocess
+    # must outlast interpreter start-up, the proof and the approval wait, which
+    # together exceeded the old 15s on a loaded machine.
     fake_agent(
         tmp_path,
         monkeypatch,
@@ -553,9 +584,9 @@ def test_default_session_accepts_browser_approval(
 import os, subprocess, sys
 from pathlib import Path
 result = subprocess.run(
-    [sys.executable, "-P", "-m", "clauz3", "run", "-", "--approval-timeout", "10"],
+    [sys.executable, "-P", "-m", "clauz3", "run", "-", "--approval-timeout", "60"],
     input=Path(os.environ["TEST_CASE"]).read_text(), text=True, capture_output=True,
-    timeout=15,
+    timeout=120,
 )
 assert result.returncode == 0, result.stdout + result.stderr
 assert "approval: approved_once receipt=clz2." in result.stdout, result.stdout
@@ -568,7 +599,7 @@ assert "approval: approved_once receipt=clz2." in result.stdout, result.stdout
             assert login.status == 200
             assert login.url.endswith("/ui")
         base = url.split("/ui/login")[0]
-        deadline = time.monotonic() + 10
+        deadline = time.monotonic() + 90
         while time.monotonic() < deadline:
             with browser.open(base + "/requests", timeout=2) as response:
                 requests = json.load(response)
@@ -844,7 +875,7 @@ def test_ui_launches_workspace_and_cleans_up(
         opener = build_opener(HTTPCookieProcessor(cookies))
         with opener.open(url, timeout=5) as response:
             page = response.read().decode()
-        assert "Message Claude" in page
+        assert "Message agent" in page
         assert "workspace.js" in page
         assert "?key=" not in page
         origin = url.split("/ui/login")[0]

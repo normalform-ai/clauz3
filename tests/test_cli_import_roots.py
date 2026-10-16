@@ -14,6 +14,7 @@ from uuid import uuid4
 import pytest
 
 from clauz3.approvals.client import ApprovalResponse
+from clauz3.approvals.decisions import Decision
 from clauz3.approvals.receipts import (
     VERIFY_KEY_ENV,
     consent_digest,
@@ -102,7 +103,7 @@ def test_cli_prove_then_run_retains_native_provider_and_ordered_roots(
         requests.append(request)
         digest = hashlib.sha256(entry.read_bytes()).hexdigest()
         return ApprovalResponse(
-            decision="approved_once",
+            decision=Decision.APPROVED_ONCE,
             receipt=sign_receipt(
                 signing_key_b64=signing,
                 request_id=str(request["request_id"]),

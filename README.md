@@ -92,9 +92,14 @@ submission/approver tokens automatically, and stops the service when the agent
 exits. Claude Code must already be installed and signed in. See the
 [quickstart](docs/quickstart.md) and [start reference](docs/reference/cli.md#clauz3-start).
 
-The first launcher supports Claude Code on macOS and Linux. `--unrestricted`
-enables native Claude tools for debugging, with Claude's normal permission
-prompts; those tools can bypass the clauz3 approval flow.
+Both the UI and CLI support `claude`, `codex`, `agy` (Antigravity), `opencode`,
+and `pi` on macOS and Linux. Claude and Pi support restricted sessions; Codex,
+Antigravity, and OpenCode require explicit `--unrestricted` opt-in. See
+[agent setup](docs/reference/cli.md#clauz3-ui) for optional runtimes and
+authentication. In `clauz3 start claude`, `--unrestricted` enables native Claude
+tools for debugging, with Claude's normal permission prompts; those tools can
+bypass the clauz3 approval flow. Claude's browser integration remains restricted
+and rejects `--unrestricted`.
 
 Projects are split into two layers:
 
@@ -300,13 +305,13 @@ lack complete conclusion tables; their example recipes check negative cases
 only for rejection. `policy_*.py` files are approval-policy fixtures and are
 excluded from the proof tables.
 
-The email pair `aug_assign_skip.py` and `aug_assign_rewritten_fail.py` shows
-why this distinction matters: `msg += ...` currently leaves the supported
-subset, while `msg = msg + ...` lets the prover refute the same length bound.
-The skip tests pin the prover and interpreter refusal reasons and check the
-runner refuses before requesting approval. Adding augmented-assignment support
-([#139](https://github.com/cmungall/agent-deal/pull/139)) should replace this
-skip fixture with an ordinary refutation.
+The email case `while_loop_skip.py` shows the skip side of that distinction:
+the program is bounded and its guarantee holds, but `while` is outside the
+supported subset, so it skips rather than proves. Its tests pin the prover and
+interpreter refusal reasons and check the runner refuses before requesting
+approval. The pair `aug_assign_fail.py` and `aug_assign_rewritten_fail.py`
+shows the other side: `msg += ...` on a `str` is desugared to
+`msg = msg + ...`, so both spellings are refuted the same way.
 
 ## Skills marketplace
 

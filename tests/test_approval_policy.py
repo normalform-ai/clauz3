@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from clauz3 import interp, layer_state
 from clauz3.approvals.authority import ApprovedLayer
+from clauz3.approvals.decisions import Decision
 from clauz3.approvals.policy import (
     ApprovalPolicy,
     ApprovalPolicyError,
@@ -59,7 +60,9 @@ def _empty_clause_policy() -> ApprovalPolicy:
     # directly. Its empty-conjunction shortcut must still validate the source.
     return ApprovalPolicy(
         imports=(),
-        rules=(Rule(name="empty-clauses", decision="auto_approved", clauses=()),),
+        rules=(
+            Rule(name="empty-clauses", decision=Decision.AUTO_APPROVED, clauses=()),
+        ),
     )
 
 

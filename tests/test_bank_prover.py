@@ -30,6 +30,12 @@ CASES = [
     ),
     ("pay_bill_uncapped_fail.py", Conclusion.FAIL, "guarantee"),
     ("pay_bill_cap_too_tight_fail.py", Conclusion.FAIL, "guarantee"),
+    (
+        "aug_assign_loop_pass.py",
+        Conclusion.OK,
+        "assertion, assertion, assertion, assertion, guarantee",
+    ),
+    ("aug_assign_loop_fail.py", Conclusion.FAIL, "guarantee"),
 ]
 
 

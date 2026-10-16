@@ -6,7 +6,7 @@ import json
 import os
 import secrets
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import cast
 
@@ -22,6 +22,7 @@ from clauz3.approvals.client import (
     load_mock_config,
     serve_mock_approval_service,
 )
+from clauz3.approvals.decisions import UnknownDecisionError
 from clauz3.approvals.policy import (
     ApprovalPolicyError,
     evaluate_policy,
@@ -42,7 +43,7 @@ from clauz3.libraries.discovery import (
     library_records,
 )
 from clauz3.libraries.install import InstallError, install_library
-from clauz3.libraries.layout import LayoutError, expand_import_roots
+from clauz3.libraries.layout import TOOLS_PACKAGE, LayoutError, expand_import_roots
 from clauz3.libtest import LibTestError, run_lib_tests
 from clauz3.lint import LintError, format_violations, lint_paths
 from clauz3.prover import ProofResult, ProverConfigError, prove_path
@@ -78,7 +79,7 @@ def _build_parser() -> argparse.ArgumentParser:
     start = subparsers.add_parser(
         "start", help="start an approval service and a restricted agent session"
     )
-    start.add_argument("agent", choices=["claude"])
+    start.add_argument("agent", choices=["claude", "codex", "agy", "opencode", "pi"])
     start.add_argument(
         "--no-browser",
         action="store_true",
@@ -114,7 +115,12 @@ def _build_parser() -> argparse.ArgumentParser:
     ui = subparsers.add_parser(
         "ui", help="open a unified agent conversation and approval workspace"
     )
-    ui.add_argument("agent", choices=["claude"], nargs="?", default="claude")
+    ui.add_argument(
+        "agent",
+        choices=["claude", "codex", "agy", "opencode", "pi"],
+        nargs="?",
+        default="claude",
+    )
     ui.add_argument(
         "--no-browser",
         action="store_true",
@@ -139,7 +145,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default=[],
         help="select inert SKILL.md documents from a folder (repeatable)",
     )
-    ui.set_defaults(handler=_start, unrestricted=False, browser_ui=True)
+    ui.add_argument(
+        "--unrestricted",
+        action="store_true",
+        help="allow providers whose native tools can bypass Clauz3 approval",
+    )
+    ui.set_defaults(handler=_start, browser_ui=True)
     resume = subparsers.add_parser(
         "resume", help="resume a managed session with a fresh approval service"
     )
@@ -187,7 +198,7 @@ def _build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--step-budget",
         default=interp.DEFAULT_STEP_BUDGET,
-        type=int,
+        type=_positive_int,
         help=(
             "maximum nodes the interpreter may evaluate "
             f"(default: {interp.DEFAULT_STEP_BUDGET}). Exhausting it aborts a "
@@ -567,6 +578,7 @@ def _resume(args: argparse.Namespace) -> int:
 
 
 def _run(args: argparse.Namespace) -> int:
+    effects: list[interp.Effect] = []
     try:
         source, source_name, import_roots = _read_run_program(
             program=args.program,
@@ -584,6 +596,7 @@ def _run(args: argparse.Namespace) -> int:
             approval_timeout=args.approval_timeout,
             extra_allowed_imports=args.extra_allowed_imports,
             step_budget=args.step_budget,
+            effect_log=effects,
         )
     except ProofDeadlineExceeded as exc:
         print(
@@ -599,6 +612,8 @@ def _run(args: argparse.Namespace) -> int:
         # A proved, approved program that raised at run time. Exit 1, the same
         # code the ``exec`` path produced for an uncaught Python exception --
         # not the exit 2 that means "this source should not have been run".
+        # Some effects may already have fired; say which.
+        _print_effects(effects)
         print(f"runtime error: {exc}", file=sys.stderr)
         return 1
     except ApprovalDeniedError as exc:
@@ -613,9 +628,17 @@ def _run(args: argparse.Namespace) -> int:
         RunConfigError,
         ReceiptError,
     ) as exc:
+        # Usually raised before anything ran; a post-approval subset refusal
+        # can follow effects that already fired, and then they are listed.
+        if effects:
+            _print_effects(effects)
         print(f"error: {exc}", file=sys.stderr)
         return 2
     except Exception as exc:
+        # A trusted layer raising propagates unchanged, after its own call was
+        # recorded -- the effect that partly happened is in the list.
+        if effects:
+            _print_effects(effects)
         print(f"runtime error: {exc}", file=sys.stderr)
         return 1
 
@@ -624,7 +647,45 @@ def _run(args: argparse.Namespace) -> int:
         f"approval: {outcome.approval.decision} receipt={outcome.approval.receipt}",
     )
     print(f"executed: {args.target}")
+    _print_effects(outcome.effects)
     return 0
+
+
+def _positive_int(text: str) -> int:
+    """``argparse`` type for ``--step-budget``: an integer of at least 1.
+
+    Checked at parse time, before stdin is read or approval requested; the
+    same floor is enforced by ``run_source`` and ``interp.execute`` for
+    library callers.
+
+    >>> _positive_int("3")
+    3
+    >>> _positive_int("0")
+    Traceback (most recent call last):
+    ...
+    argparse.ArgumentTypeError: must be at least 1
+    """
+    value = int(text)
+    if value < 1:
+        raise argparse.ArgumentTypeError("must be at least 1")
+    return value
+
+
+def _print_effects(effects: Sequence[interp.Effect]) -> None:
+    """Show the trusted calls the program actually made, in order.
+
+    Every value here already crossed ``marshal_out``, so it is subset data and
+    ``repr`` is safe.
+
+    >>> _print_effects([("m.send", ("bob",), {"retry": False})])
+    effects: 1
+      m.send('bob', retry=False)
+    """
+    print(f"effects: {len(effects)}")
+    for qualname, args, kwargs in effects:
+        rendered = [repr(arg) for arg in args]
+        rendered += [f"{key}={value!r}" for key, value in kwargs.items()]
+        print(f"  {qualname}({', '.join(rendered)})")
 
 
 def _tools(args: argparse.Namespace) -> int:
@@ -637,7 +698,9 @@ def _tools(args: argparse.Namespace) -> int:
         return 0
 
     for root in trusted_roots:
-        for item in _iter_trusted_items(root):
+        for item in _iter_trusted_items(
+            root, base=_listing_base(root, import_roots=import_roots)
+        ):
             print(item)
     return 0
 
@@ -709,7 +772,7 @@ def _mock_approval_service(args: argparse.Namespace) -> int:
         serve_mock_approval_service(config, host=args.host, port=args.port)
     except KeyboardInterrupt:
         return 130
-    except ApprovalServiceError as exc:
+    except (ApprovalServiceError, UnknownDecisionError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     return 0
@@ -882,8 +945,26 @@ def _lint(args: argparse.Namespace) -> int:
 _CONTRACT_DECORATORS = frozenset({"contract", "clauz3.spec.contract"})
 
 
-def _iter_trusted_items(root: Path) -> list[str]:
+def _listing_base(root: Path, *, import_roots: list[Path]) -> Path:
+    """The directory a ``clauz3 tools`` path is shown relative to.
+
+    For a root under an import root's ``tools/`` package that is ``tools/``
+    itself, so the shown path is the import path: ``email/trusted/...`` is
+    ``tools.email.trusted`` and ``acme/lims/trusted/...`` is
+    ``tools.acme.lims.trusted``. A root outside every import root keeps the
+    flat-layout display, relative to its grandparent.
+    """
+    resolved = root.resolve()
+    for import_root in import_roots:
+        tools = (Path(import_root) / TOOLS_PACKAGE).resolve()
+        if resolved.is_relative_to(tools):
+            return tools
+    return resolved.parent.parent
+
+
+def _iter_trusted_items(root: Path, *, base: Path) -> list[str]:
     items: list[str] = []
+    root = root.resolve()
     for path in sorted(root.rglob("*.py")):
         if path.name == "__init__.py":
             continue
@@ -896,7 +977,7 @@ def _iter_trusted_items(root: Path) -> list[str]:
                 _decorator_name(decorator) for decorator in node.decorator_list
             ]
             signature = _signature(node)
-            rel_path = path.relative_to(root.parent.parent)
+            rel_path = path.relative_to(base).as_posix()
             if decorators_mod.is_trusted_effect(node, aliases):
                 items.append(f"effect {rel_path}:{node.name}{signature}")
             if any(name in _CONTRACT_DECORATORS for name in decorators):

@@ -11,13 +11,21 @@ from ._ast import infer
 from ._context import Context, ExceptionInfo, ReturnInfo
 from ._context._branch import merge_branch_layers
 from ._context._trace import BOOLEAN_OPERAND, GUARDED_EXPRESSION, QUANTIFIED_LOOP_BODY
-from ._eval_expr import eval_expr
+from ._eval_expr import apply_bin_op, eval_expr
 from ._exceptions import UnsupportedError
 from ._proxies import FuncSort, NoneSort, if_expr, or_expr, types
 from ._registry import HandlersRegistry
 
 
 eval_stmt: HandlersRegistry[None] = HandlersRegistry()
+
+#: Sorts for which ``x op= y`` is exactly ``x = x op y``: none of the four has an
+#: in-place operator, so the statement rebinds the name and no alias can observe
+#: a change. ``list``/``set``/``dict`` mutate in place and are refused. So is
+#: ``tuple``, although Python's is immutable: ``ListSort`` subclasses
+#: ``VarTupleSort``, so an ``isinstance`` allow-list naming the tuple proxy would
+#: admit lists with it.
+IMMUTABLE_SORTS = (types.bool, types.int, types.float, types.str)
 
 
 def eval_func(node: astroid.FunctionDef, ctx: Context) -> None:
@@ -116,6 +124,37 @@ def eval_assign(node: astroid.Assign, ctx: Context) -> None:
             ctx.scope.set(name=target.name, value=value_ref)
             continue
         raise UnsupportedError("cannot assign to", type(target).__name__)
+
+
+@eval_stmt.register(astroid.AugAssign)
+def eval_aug_assign(node: astroid.AugAssign, ctx: Context) -> None:
+    """``x op= y`` as ``x = x op y``, for a bound target of an immutable sort.
+
+    The target is resolved and checked before ``node.value`` is evaluated, in
+    Python's own order, so a refused statement contributes no facts. Inside a
+    for-loop over a trusted query the statement never reaches here with an
+    outer target: ``_reject_loop_carried_state`` refuses the loop first, since
+    the body is evaluated once and an accumulator would hold one iteration.
+    """
+    target = node.target
+    if not isinstance(target, astroid.AssignName):
+        raise UnsupportedError(
+            "augmented assignment target must be a name, not",
+            type(target).__name__,
+        )
+    current = ctx.scope.get(name=target.name)
+    if current is None:
+        raise UnsupportedError("cannot resolve name", target.name)
+    if not isinstance(current, IMMUTABLE_SORTS):
+        raise UnsupportedError(
+            "augmented assignment is only supported for bool, int, float and "
+            "str targets, which are rebound rather than mutated in place; got",
+            current.type_name,
+        )
+    value = eval_expr(node=node.value, ctx=ctx)
+    result = apply_bin_op(node.op.removesuffix("="), current, value, ctx=ctx)
+    ctx.ownership.bind(target.name, result, ctx=ctx)
+    ctx.scope.set(name=target.name, value=result)
 
 
 @eval_stmt.register(astroid.Return)

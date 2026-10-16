@@ -3,11 +3,13 @@ import sys
 from collections.abc import Iterable
 from importlib.machinery import ModuleSpec
 from pathlib import Path
+from typing import Any
 
 import pytest
 from _pytest.capture import CaptureFixture
 from _pytest.monkeypatch import MonkeyPatch
 
+from clauz3 import interp
 from clauz3.approvals.client import APPROVAL_SERVICE_ENV, MockApprovalServer
 from clauz3.approvals.receipts import SIGNING_KEY_ENV, VERIFY_KEY_ENV, generate_keypair
 from clauz3.cli import main
@@ -52,9 +54,8 @@ def main() -> None:
 
 
 # A SKIP whose cause is permanent: direct recursion fails closed by design
-# (see test_function_control_flow.py), unlike the AugAssign gap that
-# examples/email/cases/aug_assign_skip.py documents, which #109 intends to
-# close. Anchoring here keeps this parity test alive when that handler lands.
+# (see test_function_control_flow.py). The AugAssign gap this test used to sit
+# beside is closed (#109); anchoring on recursion kept it alive through that.
 SKIPPED_SOURCE = """
 import clauz3
 from tools.email.trusted import contracts as emails
@@ -108,7 +109,124 @@ def test_clauz3_run_from_stdin_approved(
             "missing_recommended": [],
         }
     ]
-    assert "main: proved!" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "main: proved!" in out
+    # ``RunOutcome.effects`` carried the observed effect sequence and nothing
+    # showed it to the operator.
+    assert (
+        "executed: main\n"
+        "effects: 1\n"
+        "  tools.email.trusted.effects.send_email('bob@example.com', "
+        "'Report is ready')\n"
+    ) in out
+
+
+@pytest.mark.parametrize(
+    ("fault", "message"),
+    [
+        (RuntimeError("smtp down"), "runtime error: smtp down"),
+        (
+            interp.ProgramError("smtp down", kind="OSError"),
+            "runtime error: <stdin>: OSError: smtp down",
+        ),
+    ],
+)
+def test_clauz3_run_lists_effects_that_fired_before_a_failure(
+    monkeypatch: MonkeyPatch,
+    capsys: CaptureFixture[str],
+    fault: Exception,
+    message: str,
+) -> None:
+    """A run that fails mid-way still reports what already happened.
+
+    The trusted call is recorded before it is dispatched, so an effect that
+    raised -- a trusted layer's own exception propagates unchanged, a program
+    fault becomes ``RunProgramError`` -- is listed even though no
+    ``RunOutcome`` comes back.
+    """
+    from clauz3 import runner
+
+    real_execute = interp.execute
+
+    def raising(*args: object, **kwargs: object) -> None:
+        raise fault
+
+    def execute(*args: Any, **kwargs: Any) -> interp.Outcome:
+        return real_execute(*args, trusted_dispatch=raising, **kwargs)
+
+    monkeypatch.setattr(runner.interp, "execute", execute)  # type: ignore[attr-defined]
+
+    with MockApprovalServer(config={"decision": "approved_once"}) as server:
+        monkeypatch.setenv(APPROVAL_SERVICE_ENV, server.url)
+        monkeypatch.setattr(sys, "stdin", io.StringIO(PASSING_SOURCE))
+        result = main(
+            [
+                "run",
+                "--trusted-root",
+                str(TRUSTED_ROOT),
+                "--import-root",
+                str(EMAIL_ROOT),
+            ]
+        )
+
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "executed:" not in captured.out
+    assert (
+        "effects: 1\n"
+        "  tools.email.trusted.effects.send_email('bob@example.com', "
+        "'Report is ready')\n"
+    ) in captured.out
+    assert message in captured.err
+
+
+def test_step_budget_below_one_is_a_usage_error_before_anything_runs(
+    monkeypatch: MonkeyPatch,
+    capsys: CaptureFixture[str],
+) -> None:
+    """``--step-budget 0`` cannot run anything, so it fails at parse time.
+
+    It used to prove, request approval, wait for the human, consume the
+    single-use receipt nonce, and only then abort on the first ``frame.step()``.
+    """
+    with MockApprovalServer(config={"decision": "approved_once"}) as server:
+        monkeypatch.setenv(APPROVAL_SERVICE_ENV, server.url)
+        monkeypatch.setattr(sys, "stdin", io.StringIO(PASSING_SOURCE))
+        with pytest.raises(SystemExit) as excinfo:
+            main(
+                [
+                    "run",
+                    "--step-budget",
+                    "0",
+                    "--trusted-root",
+                    str(TRUSTED_ROOT),
+                    "--import-root",
+                    str(EMAIL_ROOT),
+                ]
+            )
+
+    assert excinfo.value.code == 2
+    assert server.requests == []
+    assert "--step-budget: must be at least 1" in capsys.readouterr().err
+
+
+def test_run_source_refuses_a_step_budget_below_one_before_approval() -> None:
+    """The floor holds for library callers too, not only the CLI parser."""
+    from clauz3.runner import RunConfigError, run_source
+
+    with (
+        MockApprovalServer(config={"decision": "approved_once"}) as server,
+        pytest.raises(RunConfigError, match="at least 1"),
+    ):
+        run_source(
+            PASSING_SOURCE,
+            source_name="<stdin>",
+            trusted_roots=[TRUSTED_ROOT],
+            import_roots=[EMAIL_ROOT],
+            approval_service_url=server.url,
+            step_budget=0,
+        )
+    assert server.requests == []
 
 
 def test_clauz3_run_discovers_trusted_roots_from_repo(
@@ -226,11 +344,11 @@ def test_clauz3_run_does_not_submit_skipped_proof(
     assert "main: skipped unsupported program body" in capsys.readouterr().out
 
 
-def test_clauz3_run_refuses_aug_assign_case_at_preflight(
+def test_clauz3_run_refuses_while_skip_case_at_preflight(
     monkeypatch: MonkeyPatch,
     capsys: CaptureFixture[str],
 ) -> None:
-    """The shipped AugAssign skip case is refused by the *shipped* preflight.
+    """The shipped ``while`` skip case is refused by the *shipped* preflight.
 
     On the run path ``_preflight_structure`` runs before the prover, so this
     case exits 2 as a config refusal and never reaches the SKIP gate that
@@ -239,7 +357,7 @@ def test_clauz3_run_refuses_aug_assign_case_at_preflight(
     exit-code contract, and the no-approval-request property together --
     rather than a test-local model of the gate (see test_interp_corpus.py).
     """
-    source = (EMAIL_ROOT / "cases" / "aug_assign_skip.py").read_text()
+    source = (EMAIL_ROOT / "cases" / "while_loop_skip.py").read_text()
     with MockApprovalServer(config={"decision": "approved_once"}) as server:
         monkeypatch.setenv(APPROVAL_SERVICE_ENV, server.url)
         monkeypatch.setattr(sys, "stdin", io.StringIO(source))
@@ -256,7 +374,47 @@ def test_clauz3_run_refuses_aug_assign_case_at_preflight(
 
     assert result == 2
     assert server.requests == []
-    assert "AugAssign" in capsys.readouterr().err
+    assert "While" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("case_name", "status", "requests", "message"),
+    [
+        ("aug_assign_pass.py", 0, 1, "main: proved!"),
+        ("aug_assign_fail.py", 1, 0, "main: failed guarantee"),
+    ],
+)
+def test_clauz3_run_proves_aug_assign_cases(
+    monkeypatch: MonkeyPatch,
+    capsys: CaptureFixture[str],
+    case_name: str,
+    status: int,
+    requests: int,
+    message: str,
+) -> None:
+    """``msg += ...`` passes the preflight and is decided by the prover (#109).
+
+    The pass case is submitted for approval and runs; the fail case is
+    refuted and never reaches the approval service.
+    """
+    source = (EMAIL_ROOT / "cases" / case_name).read_text()
+    with MockApprovalServer(config={"decision": "approved_once"}) as server:
+        monkeypatch.setenv(APPROVAL_SERVICE_ENV, server.url)
+        monkeypatch.setattr(sys, "stdin", io.StringIO(source))
+
+        result = main(
+            [
+                "run",
+                "--trusted-root",
+                str(TRUSTED_ROOT),
+                "--import-root",
+                str(EMAIL_ROOT),
+            ]
+        )
+
+    assert result == status
+    assert len(server.requests) == requests
+    assert message in capsys.readouterr().out
 
 
 def test_clauz3_run_rejects_direct_side_effect_import(

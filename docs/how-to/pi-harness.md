@@ -198,7 +198,13 @@ Expected output includes:
 main: proved! assertion, guarantee, guarantee
 approval: approved_once receipt=...
 executed: main
+effects: 1
+  tools.email.trusted.effects.send_email('bob@example.com', 'Report is ready')
 ```
+
+The `effects:` block lists every trusted call the program made, in order. A
+run that fails after some effects fired still prints it, so you can see what
+already happened.
 
 ## Running In Another User Repo
 

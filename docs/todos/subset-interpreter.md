@@ -241,8 +241,10 @@ vocabulary those 254 files actually use is 18 node types.
 **expression registries are identical** — 16 node types, no difference in
 either direction. The statement registries differ by three nodes, each with a
 recorded reason (`ClassDef`/`AnnAssign` interpreter-only, `Global`
-prover-only; `AugAssign` was removed from the interpreter for being runnable
-but unprovable). A future divergence in either direction fails that test:
+prover-only). `AugAssign` was once interpreter-only -- runnable but unprovable
+-- and was removed until the prover gained a matching handler (#109); both now
+desugar it for the same four immutable sorts. A future divergence in either
+direction fails that test:
 a node the prover learns but the interpreter cannot run is a gap; a node the
 interpreter would run but the prover cannot reason about is a hole.
 
@@ -343,11 +345,14 @@ body while running another. It now calls the same `_load_module` /
 `_resolve_target` pair `execute` does. Re-deriving an answer that must match is
 how these two ended up out of step in the first place.
 
-**Nothing calls `target_node` yet.** Closing #97 means changing how the prover
-selects the theorem, which is a different change from replacing the runtime, and
-doing it here would mean editing the prover in a PR about the executor. What
-landed is the executor half — the half that is easy to get subtly wrong — with
-tests pinning the rebinding cases and the module-level effect gate.
+**`target_node` runs on every `clauz3 run`.** `runner._preflight_structure`
+calls it before `prove_text`, and that call executes module level for real —
+under the inertness gates, so nothing effectful fires, but including real
+imports of every trusted layer the program names. What is *not* wired up is the
+prover: closing #97 means changing how the prover selects the theorem, which is
+a different change from replacing the runtime. What landed is the executor half
+— the half that is easy to get subtly wrong — with tests pinning the rebinding
+cases and the module-level effect gate.
 
 ## The trusted boundary is where the risk moves
 

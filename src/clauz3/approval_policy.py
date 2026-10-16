@@ -1,7 +1,7 @@
 """Compatibility imports; prefer :mod:`clauz3.approvals.policy`."""
 
+from clauz3.approvals.decisions import AUTO_DECISIONS
 from clauz3.approvals.policy import (
-    AUTO_DECISIONS,
     ApprovalPolicy,
     ApprovalPolicyError,
     PolicyDecision,

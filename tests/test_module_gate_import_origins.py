@@ -16,6 +16,7 @@ import clauz3
 from clauz3 import interp
 from clauz3._vendor.deal_solver import Conclusion
 from clauz3.approvals.authority import ApprovedLayer
+from clauz3.approvals.decisions import Decision
 from clauz3.approvals.policy import ApprovalPolicy, Rule, evaluate_policy
 from clauz3.imports_policy import build_policy
 from clauz3.interp import library_origins
@@ -299,7 +300,7 @@ def _policy(package: Path, *, empty: bool = False) -> ApprovalPolicy:
         rules=(
             Rule(
                 name="allow",
-                decision="auto_approved",
+                decision=Decision.AUTO_APPROVED,
                 clauses=() if empty else ("pol.only_bob()",),
             ),
         ),

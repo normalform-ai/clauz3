@@ -35,11 +35,11 @@ STMT_INTERPRETER_ONLY = {
     astroid.AnnAssign,
 }
 
-# ``AugAssign`` is deliberately absent from both. An earlier draft registered
-# it here and justified it as "desugared to ``x = x + 1``, tracked prover-side
-# as issue #109" -- but the prover registers no handler at all, so ``x += 1``
-# was runnable and unprovable, exactly the ``sorted`` mistake in the statement
-# table. Removed until the prover models it.
+# ``AugAssign`` is registered on both sides, and both desugar ``x op= y`` to
+# ``x = x op y`` for exactly the same four immutable sorts (#109). An earlier
+# interpreter draft registered it alone, with the prover side "tracked as
+# #109" -- runnable and unprovable, the ``sorted`` mistake in the statement
+# table -- and was removed until the prover caught up.
 
 
 #: Statements the prover reasons about that the interpreter does not run.
