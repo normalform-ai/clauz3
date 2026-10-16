@@ -830,10 +830,83 @@ def test_closures_and_comprehensions_still_read_enclosing_names() -> None:
     ]
 
 
-def test_augmented_assignment_is_not_in_the_subset() -> None:
-    """The prover registers no ``AugAssign`` handler, so neither does this."""
-    with pytest.raises(UnsupportedNode, match="AugAssign"):
-        run("def main():\n    x = 1\n    x += 1\n    return x\n")
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        ("x = 7\n    x += 3", 10),
+        ("x = 7\n    x -= 2", 5),
+        ("x = 7\n    x *= 2", 14),
+        ("x = 7\n    x /= 2", 3.5),
+        ("x = 7\n    x //= 2", 3),
+        ("x = 7\n    x %= 4", 3),
+        ("x = 7\n    x **= 2", 49),
+        ("x = 7\n    x &= 3", 3),
+        ("x = 7\n    x |= 8", 15),
+        ("x = 7\n    x ^= 1", 6),
+        ("x = 7\n    x <<= 1", 14),
+        ("x = 7\n    x >>= 1", 3),
+        ("x = 2.5\n    x *= 2", 5.0),
+        ("x = 'hi'\n    x += '!'", "hi!"),
+        ("x = True\n    x += 1", 2),
+    ],
+)
+def test_augmented_assignment_rebinds_immutable_values(
+    body: str, expected: Any
+) -> None:
+    """``x op= y`` is ``x = x op y`` for the four sorts the prover desugars (#109).
+
+    All twelve augmented operators are covered, matching the prover-side table
+    in ``tests/test_aug_assign.py``; ``/=`` is the one that changes the sort.
+    """
+    value = run(f"def main():\n    {body}\n    return x\n").value
+    assert value == expected
+    assert type(value) is type(expected)
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "xs = [1]\n    xs += [2]",
+        "s = {1}\n    s |= {2}",
+        "d = {1: 2}\n    d |= {3: 4}",
+        "t = (1,)\n    t += (2,)",
+        "xs = [1]\n    xs[0] += 1",
+    ],
+)
+def test_augmented_assignment_outside_the_immutable_sorts_is_refused(body: str) -> None:
+    """Containers and subscripts are refused by ``eval_aug_assign``; so here."""
+    with pytest.raises(UnsupportedNode, match="augmented assignment"):
+        run(f"def main():\n    {body}\n    return 1\n")
+
+
+def test_augmented_assignment_to_an_unbound_name_is_unbound_local() -> None:
+    """``LIMIT += 1`` makes ``LIMIT`` local, so CPython never reads the global."""
+    with pytest.raises(ProgramError, match="LIMIT") as excinfo:
+        run("LIMIT = 10\n\ndef main():\n    LIMIT += 1\n    return LIMIT\n")
+    assert excinfo.value.kind == "UnboundLocalError"
+
+
+def test_refused_augmented_assignment_evaluates_no_operand() -> None:
+    """The target is checked before the value is evaluated, as in the prover.
+
+    Otherwise ``xs += [send_email(...)]`` would fire the effect and then be
+    refused -- an effect the proof never saw, on a program that never ran.
+    """
+    fired: list[str] = []
+
+    def dispatch(qualname: str, func: Any, args: Any, kwargs: Any) -> None:
+        fired.append(qualname)
+
+    source = (
+        "from tools.email.trusted.effects import send_email\n"
+        "\n"
+        "def main() -> None:\n"
+        "    xs = []\n"
+        "    xs += [send_email('bob@example.com', 'hello')]\n"
+    )
+    with pytest.raises(UnsupportedNode, match="augmented assignment"):
+        run(source, dispatch=dispatch)
+    assert fired == []
 
 
 def test_annotated_assignment_inside_a_body_is_refused() -> None:
@@ -908,7 +981,7 @@ def test_constructs_the_prover_refuses_inside_its_handlers(
     walks the body rejecting ``Return``. ``ClassDef`` has no prover handler at
     all. All four ran here and skipped there: the same "the prover happened to
     choke is not the same as the executor cannot run it" gap that removed
-    ``sorted`` and ``AugAssign``, one level deeper.
+    ``sorted`` (and, until #109, ``AugAssign``), one level deeper.
     """
     with pytest.raises(UnsupportedNode):
         run(source)

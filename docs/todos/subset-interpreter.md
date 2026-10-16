@@ -241,8 +241,10 @@ vocabulary those 254 files actually use is 18 node types.
 **expression registries are identical** — 16 node types, no difference in
 either direction. The statement registries differ by three nodes, each with a
 recorded reason (`ClassDef`/`AnnAssign` interpreter-only, `Global`
-prover-only; `AugAssign` was removed from the interpreter for being runnable
-but unprovable). A future divergence in either direction fails that test:
+prover-only). `AugAssign` was once interpreter-only -- runnable but unprovable
+-- and was removed until the prover gained a matching handler (#109); both now
+desugar it for the same four immutable sorts. A future divergence in either
+direction fails that test:
 a node the prover learns but the interpreter cannot run is a gap; a node the
 interpreter would run but the prover cannot reason about is a hole.
 

@@ -371,6 +371,14 @@ Inside functions, the current evaluator supports:
 - expression statements
 - assignment to a local name: `x = expr`
 - assignment to an indexed container item: `xs[i] = value`
+- augmented assignment to a local name already bound in the current function
+  (an earlier assignment or a parameter) whose value is a `bool`, `int`,
+  `float` or `str`: `x += expr` is desugared to `x = x + expr`, for all twelve
+  operators (`+= -= *= /= //= %= **= &= |= ^= <<= >>=`). `/=` turns an `int`
+  into a `float`, as in Python. Inside a loop over a query result it is a
+  rebinding of a name bound outside the loop, so it is refused with the other
+  loop-carried state described below; in an unrolled loop it accumulates
+  normally
 - `return expr`
 - `if expr: ... else: ...`
 - `for` loops over literal lists/tuples, `range(N)` with a literal integer, or
@@ -439,7 +447,17 @@ Unsupported statements include:
 - `async` / `await`
 - `match`
 - `del`
-- augmented assignment such as `x += 1`
+- augmented assignment to an unbound name (including a module-level constant
+  such as `LIMIT += 1` inside a function, which is an `UnboundLocalError` in
+  Python), to an attribute, or to a subscript (`xs[i] += 1`)
+- augmented assignment to a `list`, `set` or `dict`: these mutate in place, so
+  rewriting `xs += ys` to `xs = xs + ys` would be unsound under aliasing
+- augmented assignment to a `tuple`. Python's tuple is immutable, so the
+  rewrite would be sound in Python; it is refused because in the solver's sort
+  model a list is a kind of tuple (`ListSort` subclasses `VarTupleSort`), and
+  admitting the tuple sort would admit lists with it
+- augmented assignment at module level, which `clauz3 run` refuses before
+  approval like any other non-declaration statement
 - annotated assignment inside a function, such as `x: int = 1` (literal
   annotated assignments at module scope are admitted)
 - slice assignment

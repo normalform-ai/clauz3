@@ -47,8 +47,8 @@ artifact with its own grammar."
 
 1. **Smaller trusted computing base.** Today the fail-closed guarantee depends
    on the Python-subset evaluator covering every reachable AST construct. That
-   surface is leaky by construction: `for`/`while`, `with`, `try`, `match`, and
-   augmented assignment are unsupported (see
+   surface is leaky by construction: `while`, `with`, `try`, `match`, most
+   `for` shapes, and augmented assignment to containers are unsupported (see
    [python-subset.md](../reference/python-subset.md)), and each gap is a place where
    "unprovable" must be enforced rather than guaranteed. A closed IR grammar
    makes fail-closed *structural*: anything not in the grammar cannot be

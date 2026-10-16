@@ -1441,6 +1441,40 @@ def _assign_to(target: astroid.NodeNG, value: Any, frame: Frame) -> None:
     raise UnsupportedNode(f"cannot assign to {type(target).__name__} in the subset")
 
 
+#: Value types for which ``x op= y`` is exactly ``x = x op y``: none of the four
+#: defines an in-place operator, so CPython rebinds rather than mutates. The
+#: prover's ``eval_aug_assign`` admits the same four sorts (``IMMUTABLE_SORTS``).
+_AUGMENTABLE_TYPES: tuple[type, ...] = (bool, int, float, str)
+
+
+@eval_stmt.register(astroid.AugAssign)
+def _stmt_aug_assign(node: astroid.AugAssign, frame: Frame) -> None:
+    """``x op= y`` as ``x = x op y``, for a bound target of an immutable type.
+
+    Never dispatched at module level (``_exec_module`` lists the statements it
+    runs, and this is not one), so ``_stmt_assign``'s inertness gates have no
+    counterpart here. The target is resolved and checked before the value is
+    evaluated, as in the prover, so a refused statement performs no effect.
+    An unbound target is CPython's ``UnboundLocalError``, raised by ``_lookup``.
+    """
+    target = node.target
+    if not isinstance(target, astroid.AssignName):
+        raise UnsupportedNode(
+            f"augmented assignment to {type(target).__name__} is not in the "
+            "proved subset; the prover's handler accepts only names",
+        )
+    frame.step()
+    current = _lookup(target.name, frame)
+    if not isinstance(current, _AUGMENTABLE_TYPES):
+        raise UnsupportedNode(
+            f"augmented assignment to {type_name(current)} is not in the proved "
+            "subset; the prover desugars it only for bool, int, float and str, "
+            "which are rebound rather than mutated in place",
+        )
+    value = eval_expr(node.value, frame)
+    frame.scope.set(target.name, _binop(node.op.removesuffix("="), current, value))
+
+
 @eval_stmt.register(astroid.Return)
 def _stmt_return(node: astroid.Return, frame: Frame) -> None:
     raise _Return(None if node.value is None else eval_expr(node.value, frame))

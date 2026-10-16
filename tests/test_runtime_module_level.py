@@ -139,6 +139,16 @@ def test_module_level_for_loop_rejected() -> None:
         )
 
 
+def test_module_level_augmented_assignment_rejected() -> None:
+    """``AugAssign`` passes the node-type gate now that both evaluators have a
+    handler (#109), so module level is closed only by ``_exec_module``'s
+    statement allow-list. Pin it, so admitting ``AugAssign`` there is a
+    decision rather than a drift.
+    """
+    with pytest.raises(RunConfigError, match="AugAssign"):
+        _validate(_HEADER + "MAX = 5\nMAX += 1\n\ndef main() -> None:\n    pass\n")
+
+
 def test_effectful_decorator_rejected() -> None:
     # Refused by the decorator gate in ``validate_untrusted_source`` (issue
     # #129: a decorator that does not resolve to ``clauz3.guarantee`` is a
