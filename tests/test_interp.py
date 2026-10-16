@@ -13,6 +13,7 @@ import pytest
 
 from clauz3.imports_policy import ImportPolicy, build_policy
 from clauz3.interp import (
+    DEFAULT_STEP_BUDGET,
     ExecutionLimitExceeded,
     InterpError,
     NameResolutionError,
@@ -46,7 +47,6 @@ def run(
     step_budget: int | None = None,
     **kwargs: Any,
 ) -> Outcome:
-    extra = {} if step_budget is None else {"step_budget": step_budget}
     return execute(
         source,
         source_name="plan.py",
@@ -54,7 +54,7 @@ def run(
         target=target,
         import_roots=[EMAIL_ROOT],
         trusted_dispatch=dispatch,
-        **extra,
+        step_budget=DEFAULT_STEP_BUDGET if step_budget is None else step_budget,
     )
 
 
