@@ -13,6 +13,7 @@ import pytest
 
 from clauz3.imports_policy import ImportPolicy, build_policy
 from clauz3.interp import (
+    DEFAULT_STEP_BUDGET,
     ExecutionLimitExceeded,
     InterpError,
     NameResolutionError,
@@ -46,7 +47,6 @@ def run(
     step_budget: int | None = None,
     **kwargs: Any,
 ) -> Outcome:
-    extra = {} if step_budget is None else {"step_budget": step_budget}
     return execute(
         source,
         source_name="plan.py",
@@ -54,7 +54,7 @@ def run(
         target=target,
         import_roots=[EMAIL_ROOT],
         trusted_dispatch=dispatch,
-        **extra,
+        step_budget=DEFAULT_STEP_BUDGET if step_budget is None else step_budget,
     )
 
 
@@ -1335,3 +1335,80 @@ def test_unreadable_layer_source_exposes_no_constants(tmp_path: Path) -> None:
             _run_against(root, trusted, source)
     finally:
         interpreter._imported_names = original
+
+
+_SENDS_THEN_FAILS = (
+    "from tools.email.trusted.effects import send_email\n"
+    "def main():\n"
+    "    send_email('bob@example.com', 'hi')\n"
+    "    raise ValueError('after the send')\n"
+)
+
+
+def test_effect_log_keeps_what_fired_when_the_run_raises() -> None:
+    """``Outcome.effects`` never arrives for a failed run; the log does."""
+    log: list[Any] = []
+    with pytest.raises(ProgramError, match="after the send"):
+        execute(
+            _SENDS_THEN_FAILS,
+            source_name="plan.py",
+            policy=_policy(),
+            import_roots=[EMAIL_ROOT],
+            trusted_dispatch=lambda qualname, func, args, kwargs: None,
+            effect_log=log,
+        )
+    assert log == [
+        ("tools.email.trusted.effects.send_email", ("bob@example.com", "hi"), {}),
+    ]
+
+
+@pytest.mark.parametrize("budget", [0, -1])
+def test_a_step_budget_below_one_is_refused_before_module_level(budget: int) -> None:
+    """A budget that can never run anything is a caller error, not a fault."""
+    with pytest.raises(ValueError, match="at least 1"):
+        run("def main():\n    return 1\n", step_budget=budget)
+
+
+def test_import_bindings_parse_once_per_source_text(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """One parse per layer source, and an edited (reloaded) layer is re-read.
+
+    ``exposed_names`` reaches ``_imported_names`` once per public constant of a
+    trusted layer, on every ``resolve_module``; each call re-parsed the file.
+    The cache is keyed on the text rather than the module object, so it holds
+    no modules and cannot go stale under ``importlib.reload``.
+    """
+    import types
+
+    import astroid
+
+    import clauz3.interp.interpreter as interpreter
+
+    interpreter._import_bindings.cache_clear()
+    layer = tmp_path / "layer.py"
+    layer.write_text("import os\nfrom pathlib import Path as P\nX = 1\n")
+    module = types.ModuleType("layer_under_test")
+    module.__file__ = str(layer)
+
+    parses: list[str] = []
+    real_parse = astroid.parse
+
+    def counting(code: str, *args: Any, **kwargs: Any) -> Any:
+        parses.append(code)
+        return real_parse(code, *args, **kwargs)
+
+    monkeypatch.setattr(astroid, "parse", counting)
+    assert interpreter._imported_names(module) == frozenset({"os", "P"})
+    assert interpreter._imported_names(module) == frozenset({"os", "P"})
+    assert len(parses) == 1
+
+    # What ``importlib.reload`` would execute: the same module object, new text.
+    layer.write_text("import json\nX = 1\n")
+    assert interpreter._imported_names(module) == frozenset({"json"})
+    assert len(parses) == 2
+
+    # Provenance unknown still fails closed.
+    layer.unlink()
+    assert interpreter._imported_names(module) is None

@@ -27,6 +27,7 @@ Status: prototype. See ``docs/todos/subset-interpreter.md``.
 from __future__ import annotations
 
 import builtins
+import functools
 import math
 import ntpath
 import posixpath
@@ -122,6 +123,9 @@ _LIBRARY_PROVIDERS = {
     }.items()
 }
 
+
+#: One trusted call the program made: ``(qualname, args, kwargs)``.
+Effect = tuple[str, tuple[Any, ...], dict[str, Any]]
 
 #: Replacement for the real trusted call: ``(qualname, func, args, kwargs)``.
 TrustedDispatch = Callable[
@@ -259,9 +263,7 @@ class Program:
     #: record/replay harness is a parameter rather than a patched import.
     trusted_dispatch: TrustedDispatch | None = None
     #: Trusted calls made so far, in order: ``(qualname, args, kwargs)``.
-    effects: list[tuple[str, tuple[Any, ...], dict[str, Any]]] = field(
-        default_factory=list
-    )
+    effects: list[Effect] = field(default_factory=list)
 
     def resolve_module(self, name: str) -> TrustedModule:
         """Import a module on behalf of the interpreted program.
@@ -533,8 +535,32 @@ def _imported_names(module: ModuleType) -> frozenset[str] | None:
     if path is None:
         return None
     try:
-        tree = astroid.parse(Path(path).read_text(), path=path)
-    except (OSError, astroid.AstroidSyntaxError):  # pragma: no cover - defensive
+        source = Path(path).read_text()
+    except OSError:  # pragma: no cover - defensive
+        return None
+    return _import_bindings(source)
+
+
+@functools.lru_cache(maxsize=128)
+def _import_bindings(source: str) -> frozenset[str] | None:
+    r"""Names the ``import`` statements in ``source`` bind; ``None`` if unparsable.
+
+    Memoised on the source *text*, not the module object. ``exposed_names``
+    reaches :func:`_imported_names` once per public constant of a trusted
+    layer, on every ``resolve_module``, and each call re-parsed the whole file.
+    Keying on the text keeps the answer exact under ``importlib.reload`` (the
+    file is re-read every time, so an edited layer is a different key) and
+    retains no module objects; the bound keeps the cache from growing with
+    the process.
+
+    >>> sorted(_import_bindings("import os.path\nfrom a import b as c\nX = 1\n"))
+    ['c', 'os']
+    >>> _import_bindings("import (") is None
+    True
+    """
+    try:
+        tree = astroid.parse(source)
+    except astroid.AstroidSyntaxError:  # pragma: no cover - defensive
         return None
     bound: set[str] = set()
     for statement in tree.nodes_of_class((astroid.Import, astroid.ImportFrom)):
@@ -650,18 +676,27 @@ def execute(
     import_roots: Iterable[Path] = (),
     step_budget: int = DEFAULT_STEP_BUDGET,
     trusted_dispatch: TrustedDispatch | None = None,
+    effect_log: list[Effect] | None = None,
 ) -> Outcome:
     """Interpret ``source`` and call ``target()``.
 
     Raises :class:`InterpError` (or a subclass) for anything the subset does
     not admit, and :class:`ProgramError` if the program itself raises.
+
+    ``effect_log``, when given, receives each trusted call as it is made, so a
+    caller still knows what fired when the run raises instead of returning an
+    :class:`Outcome`. A ``step_budget`` below 1 could never run anything and
+    is refused with ``ValueError`` before module level runs.
     """
+    if step_budget < 1:
+        raise ValueError(f"step_budget must be at least 1, got {step_budget}")
     program = Program(
         source_name=source_name,
         policy=policy,
         import_roots=tuple(Path(root) for root in import_roots),
         step_budget=step_budget,
         trusted_dispatch=trusted_dispatch,
+        effects=[] if effect_log is None else effect_log,
     )
     # Selection spans the actual entry call, including lazy imports inside
     # trusted effects. Another proof cannot swap the layer halfway through.
