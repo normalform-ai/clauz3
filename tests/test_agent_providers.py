@@ -454,22 +454,30 @@ def test_unavailable_or_unrestricted_chat_stays_readable_and_recoverable(
                 raise AssertionError("Could not recover with a new conversation")
 
 
+@pytest.mark.parametrize("agent", ["claude", "pi"])
 @pytest.mark.parametrize("saved_mode", [{"unrestricted": False}, {}])
 def test_restricted_chat_keeps_its_mode_on_an_unrestricted_server(
-    tmp_path: Path, saved_mode: dict[str, bool]
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    agent: str,
+    saved_mode: dict[str, bool],
 ) -> None:
-    """An unrestricted server that auto-loads a restricted chat (including a
-    pre-provider record without the key) must not relabel it unrestricted."""
+    """An unrestricted server refuses to resume a restricted chat (including a
+    pre-provider record without the key) and never relabels it unrestricted."""
     from clauz3.sessions.history import ConversationStore
 
+    # The fixture agent stands in for the pinned Pi runtime.
+    monkeypatch.setattr(providers, "check_runtime", lambda *_: None)
     store = ConversationStore(tmp_path / "conversations.sqlite", str(tmp_path))
     identifier = store.create()
-    store.save(identifier, {"agent": "claude", "sessionId": "saved", **saved_mode})
+    store.save(identifier, {"agent": agent, "sessionId": "saved", **saved_mode})
     message = {"method": "clauz3/user", "params": {"text": "Saved text", "turn": 1}}
     store.append(identifier, message)
 
     unrestricted = create_approval_app(
-        auth_token="submit", decision_token="decide", chat_config=config(tmp_path)
+        auth_token="submit",
+        decision_token="decide",
+        chat_config=config(tmp_path, agent),
     )
     with TestClient(unrestricted) as client:
         conversation = unrestricted.state.conversation
@@ -477,13 +485,19 @@ def test_restricted_chat_keeps_its_mode_on_an_unrestricted_server(
         assert client.portal
         client.portal.call(conversation.start)
         assert conversation.process is None
-        assert "Claude browser sessions" in conversation.error
+        assert conversation.error == (
+            "This conversation was started in restricted mode; restart "
+            "without --unrestricted, or start a new conversation."
+        )
         assert conversation.state()["unrestricted"] is False
         conversation.persist()
-    assert store.load(identifier)["state"]["unrestricted"] is False
+    saved = store.load(identifier)
+    assert saved["state"]["unrestricted"] is False
+    assert saved["history"] == [message]
 
-    cfg = config(tmp_path, "claude").model_copy(update={"unrestricted": False})
-    cfg.command.remove("--generic")
+    cfg = config(tmp_path, agent).model_copy(update={"unrestricted": False})
+    if agent == "claude":
+        cfg.command.remove("--generic")
     restricted = create_approval_app(
         auth_token="submit", decision_token="decide", chat_config=cfg
     )
@@ -497,6 +511,7 @@ def test_restricted_chat_keeps_its_mode_on_an_unrestricted_server(
         assert conversation.session_id == "saved"
         assert conversation.state()["unrestricted"] is False
         client.portal.call(conversation.close)
+    assert store.load(identifier)["state"]["unrestricted"] is False
 
 
 def test_new_unrestricted_conversation_is_labelled_unrestricted(

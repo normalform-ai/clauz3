@@ -201,7 +201,7 @@ class Conversation:
         )
         self.loading = False
         # The conversation's own mode, not the server's: a saved chat keeps its
-        # mode until an agent session actually runs under this server's flag.
+        # mode until a fresh agent session starts under this server's flag.
         self.unrestricted = (
             bool(saved["state"].get("unrestricted")) if saved else config.unrestricted
         )
@@ -646,7 +646,9 @@ class Conversation:
                         ):
                             raise ValueError("Invalid ACP session ID")
                         self.session_id = session["sessionId"]
-                    self.unrestricted = self.config.unrestricted
+                        # Only a fresh agent session takes the server's mode;
+                        # selected_config refuses to resume across modes.
+                        self.unrestricted = self.config.unrestricted
                 if self.config.model and self.config.agent in {"codex", "opencode"}:
                     async with asyncio.timeout(30):
                         await self.call(
@@ -867,6 +869,13 @@ def install_chat(
                 raise ValueError(
                     "This conversation requires --unrestricted; restart "
                     "with that flag or start a new conversation."
+                )
+            if saved and not saved["state"].get("unrestricted") and config.unrestricted:
+                # Symmetric: never resume a restricted chat under unrestricted
+                # agent tools, and never relabel it (a missing key is restricted).
+                raise ValueError(
+                    "This conversation was started in restricted mode; restart "
+                    "without --unrestricted, or start a new conversation."
                 )
             providers.check_mode(selected_agent, config.unrestricted, browser_ui=True)
             if selected_agent != config.agent:
