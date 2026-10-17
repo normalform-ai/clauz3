@@ -7,7 +7,7 @@ UTF-8 files: binary or unreadable files can abort the run, and an error means
 the search is incomplete. Symbolic links are not physical confinement boundaries.
 
 The path guard is deliberately conservative. Paths outside the lexical prefix,
-or containing `..`, `/.` or `//`, are reported as skipped. That includes
+or containing `..`, `/.`, `//` or a backslash, are reported as skipped. That includes
 harmless names such as `report..txt` and hidden files such as `.env`. Any skip
 means the search was partial.
 
@@ -27,6 +27,7 @@ def main() -> None:
             and ".." not in path
             and "/." not in path
             and "//" not in path
+            and "\\" not in path
         ):
             for line in grep("hello", path):
                 print(path, line)

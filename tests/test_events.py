@@ -283,10 +283,15 @@ def _performing_layer(parent: Path, name: str, event: str) -> Path:
     (layer / "effects.py").write_text(
         "import clauz3\n"
         "from clauz3.events import performs\n"
-        f"from {name}.events import Delete, Read\n"
+        f"from {name}.events import Delete, Read, Write\n"
         "@clauz3.trusted\n"
         f"@performs(lambda path: {event}(path))\n"
         "def remove(path: str) -> None:\n"
+        "    pass\n"
+        # Both layers perform Write somewhere, so read_only() is not vacuous.
+        "@clauz3.trusted\n"
+        "@performs(lambda path: Write(path))\n"
+        "def touch(path: str) -> None:\n"
         "    pass\n"
     )
     (layer / "contracts.py").write_text(CONTRACTS.format(pkg=name))
@@ -314,3 +319,16 @@ def test_a_reselected_layer_uses_its_own_performs(tmp_path: Path) -> None:
         layer = layers[label]
         results = prove_text(source, trusted_roots=[layer], import_paths=[layer.parent])
         assert [r.proof.conclusion for r in results] == [expected[label]], label
+
+
+def test_a_contract_over_an_event_nothing_performs_is_refused(
+    tmp_path: Path,
+) -> None:
+    """A tool that lost its @performs must not make read_only() vacuous."""
+
+    effects = EFFECTS.replace("@performs(lambda path: Delete(path))\n", "").replace(
+        "@performs(lambda src, dest: [Read(src), Write(dest)])\n", ""
+    )
+    assert "Write(" not in effects
+    conclusion = _prove(tmp_path, 'remove("/a")', "read_only()", effects=effects)
+    assert conclusion == Conclusion.SKIP

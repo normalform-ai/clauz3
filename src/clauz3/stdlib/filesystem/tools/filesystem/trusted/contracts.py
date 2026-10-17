@@ -15,8 +15,16 @@ Prefix checks are literal string prefixes, not resolved directory containment:
 contracts also refuse an event whose path is a prefix of the forbidden one,
 since that path may be a directory containing it. The effects refuse ``..``,
 ``/./`` and ``//`` so a path cannot be respelled around a prefix, but the check
-stays lexical: ``data/x`` and ``./data/x`` are different strings, and symbolic
-links, hard links and case-insensitive filesystems are not modelled.
+stays lexical. A relative prefix is compared in both its bare and ``./``
+spellings, and ``.`` counts as an ancestor of every relative path, but a
+relative prefix says nothing about an absolute spelling of the same file.
+Symbolic links, hard links and case-insensitive filesystems are not modelled.
+
+``Delete`` means ``remove`` or a ``move``'s source. Overwriting a file with
+``write_file``, ``copy`` or ``move`` is a ``Write``, not a ``Delete``: protect
+contents with ``never_write_under``. Parent directories that ``write_file``,
+``touch`` and ``copy`` create on the way are not ``Create`` events; they lie on
+the path of the ``Write`` that created them.
 
 A few contracts are about one tool's own arguments (``only_pattern``,
 ``only_modes``) and are stated over that tool or event alone.
@@ -45,9 +53,29 @@ def _under(event: type[FsEvent], root: str) -> ContractSpec:
     return event.all(lambda e: e.path.startswith(root))
 
 
+def _spellings(prefix: str) -> tuple[str, str]:
+    """A prefix written bare and with ``./``; the effects admit both spellings.
+
+    >>> _spellings("./data/.env"), _spellings("data"), _spellings("/etc")
+    (('data/.env', './data/.env'), ('data', './data'), ('/etc', '/etc'))
+    """
+    if prefix.startswith("/"):
+        return prefix, prefix
+    bare = prefix.removeprefix("./")
+    return bare, "./" + bare
+
+
 def _never_under(event: type[FsEvent], prefix: str) -> ContractSpec:
+    # An event is refused if its path is under either spelling of the prefix,
+    # or is a prefix of either one: an ancestor directory, including ``.``.
+    bare, dotted = _spellings(prefix)
     return event.all(
-        lambda e: not e.path.startswith(prefix) and not prefix.startswith(e.path)
+        lambda e: (
+            not e.path.startswith(bare)
+            and not e.path.startswith(dotted)
+            and not bare.startswith(e.path)
+            and not dotted.startswith(e.path)
+        )
     )
 
 
@@ -177,7 +205,10 @@ def write_length_at_most(max_chars: int) -> ContractSpec:
 
 @contract(description="No filesystem tool deletes or moves anything away.")
 def no_deletes() -> ContractSpec:
-    """Guarantee nothing is removed, including by moving it."""
+    """Guarantee nothing is removed, including by moving it.
+
+    Overwriting a file is a write, not a delete; see ``never_write_under``.
+    """
     return Delete.empty()
 
 

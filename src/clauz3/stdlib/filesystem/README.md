@@ -52,7 +52,8 @@ as well as writes.
 
 Import from `tools.filesystem.trusted.effects`. Every path argument must be
 non-empty and have no `..` component, no `.` component after the first (`/./`,
-a trailing `/.`) and no empty component (`//`). A leading `./` is allowed.
+a trailing `/.`), no empty component (`//`) and no backslash. A leading `./`
+is allowed.
 
 - `read_file(path) -> str`: read a UTF-8 text file.
 - `read_lines(path) -> list[str]`: read UTF-8 logical lines without
@@ -94,9 +95,17 @@ Import with `from tools.filesystem.trusted import contracts as fs`:
 argument: `only_read_under("test.md")` also admits `test.md.bak`. The effects
 refuse `..`, `/./` and `//` first, so a path cannot satisfy a prefix and then
 traverse outside it at runtime, or be respelled around a `never_*` prefix.
-The check is still lexical: `data/x` and `./data/x` are different strings, so
-write a prefix the way the program writes its paths. Symbolic links, hard links
-and case-insensitive filesystems are not modelled.
+The check is still lexical. A relative prefix is compared in both its bare and
+`./` spellings, and `.` counts as an ancestor of every relative path, so
+`never_delete_under("data")` refuses `remove(".")`. A relative prefix says
+nothing about an absolute spelling of the same file. Backslashes are refused,
+since the library is POSIX. Symbolic links, hard links and case-insensitive
+filesystems are not modelled.
+
+`Delete` means `remove` or a `move`'s source. Overwriting a file with
+`write_file`, `copy` or `move` is a `Write`, not a `Delete`, so protect contents
+with `never_write_under`. Parent directories created on the way by
+`write_file`, `touch` or `copy` are not `Create` events.
 
 Every contract covers this library's tools only. `git`, `rsync` and `db` also
 touch files, and their effects are not filesystem events, so `read_only()` says

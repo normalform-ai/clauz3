@@ -129,12 +129,12 @@ def test_root_path_resolution_can_follow_a_symlink(
     assert Path(result[0]).resolve() == target
 
 
-@pytest.mark.parametrize("path", ["/tmp/x/.", "/tmp//x", "/tmp/./x"])
+@pytest.mark.parametrize("path", ["/tmp/x/.", "/tmp//x", "/tmp/./x", "C:\\tmp\\x"])
 def test_dot_and_empty_segments_are_refused_before_running(
     find_effect: Callable[[str, list[str]], list[str]], path: str
 ) -> None:
     # The precondition refuses the path before the body's own check runs.
-    with pytest.raises(deal.PreContractError, match="current-directory or empty"):
+    with pytest.raises(deal.PreContractError, match=r"\.\., \. or empty segments"):
         find_effect(path, ["-type", "f"])
 
 

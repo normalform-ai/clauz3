@@ -37,10 +37,12 @@ from __future__ import annotations
 import dataclasses
 import inspect
 import sys
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Container, Iterator, Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, ClassVar, TypeVar, cast, dataclass_transform
 
+from clauz3 import spec
 from clauz3.spec import (
     ContractSpec,
     FilteredRelation,
@@ -171,6 +173,7 @@ class EventRelation(Relation):
             yield type(event).__name__, values
 
     def facts(self, ctx: Any) -> list[Any]:
+        self.check_performed()
         derived = []
         for fact in ctx.facts:
             for name, values in self.derive(fact.qualified_name, fact.args):
@@ -178,9 +181,55 @@ class EventRelation(Relation):
                 derived.append(fact._replace(name=name, args=values))
         return derived
 
+    def check_performed(self) -> None:
+        """Refuse an event that no trusted effect of the proof's layer performs.
+
+        As with an unknown effect name, matching nothing is not a safe answer:
+        every contract over the event would hold vacuously, whether because a
+        tool lost its ``@performs`` or because names drifted. Checked only
+        inside a proof, where the layer's files and effects are known.
+        """
+
+        if spec._EFFECT_SIGNATURES is None:
+            return
+        for events in _layer_declarations(spec._EFFECT_SIGNATURES, spec._CHECKED_FILES):
+            for event in events:
+                if self.key in map(_qualified, type(event).__mro__):
+                    return
+        raise RelationError(
+            f"no trusted effect in this proof's layer performs {self.describe()} "
+            "or a subclass of it, so every contract over it would hold vacuously. "
+            "Declare it with @performs on the effects that perform it."
+        )
+
 
 def _qualified(cls: type) -> str:
     return f"{cls.__module__}.{cls.__qualname__}"
+
+
+def _declared(func: object) -> tuple[Event, ...]:
+    """The events ``func`` declares, looking past decorators above ``@performs``."""
+
+    while func is not None:
+        events = getattr(func, PERFORMS_ATTRIBUTE, None)
+        if events is not None:
+            return cast(tuple[Event, ...], events)
+        func = getattr(func, "__wrapped__", None)
+    return ()
+
+
+def _layer_declarations(
+    effects: Container[str], files: Container[str]
+) -> Iterator[tuple[Event, ...]]:
+    """The declarations of the trusted effects in the selected layer's modules."""
+
+    for module in list(sys.modules.values()):
+        source = getattr(module, "__file__", None)
+        if not isinstance(source, str) or str(Path(source).resolve()) not in files:
+            continue
+        for name, value in list(vars(module).items()):
+            if name in effects and callable(value):
+                yield _declared(value)
 
 
 def performed(qualified_name: str) -> tuple[Event, ...]:
@@ -195,13 +244,7 @@ def performed(qualified_name: str) -> tuple[Event, ...]:
     """
 
     module_name, _, name = qualified_name.rpartition(".")
-    func = getattr(sys.modules.get(module_name), name, None)
-    while func is not None:
-        events = getattr(func, PERFORMS_ATTRIBUTE, None)
-        if events is not None:
-            return cast(tuple[Event, ...], events)
-        func = getattr(func, "__wrapped__", None)
-    return ()
+    return _declared(getattr(sys.modules.get(module_name), name, None))
 
 
 def performs(builder: Callable[..., Event | list[Event]]) -> Callable[[F], F]:
