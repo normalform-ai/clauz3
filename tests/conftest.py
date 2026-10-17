@@ -1,4 +1,5 @@
 import importlib
+import importlib.util
 import pathlib
 import sys
 from collections.abc import Callable, Iterator, MutableMapping
@@ -10,6 +11,7 @@ import pytest
 
 from clauz3._vendor.deal_solver._context import Context
 from clauz3._vendor.deal_solver._funcs import FUNCTIONS
+from clauz3.libraries.discovery import Library, catalog
 from clauz3.spec import REGISTERED_CONTRACTS
 
 
@@ -19,6 +21,73 @@ def ctx_factory() -> Callable[[], Context]:
         return Context.make_empty(get_contracts=lambda _: iter(()))
 
     return make
+
+
+@pytest.fixture
+def filesystem_effects(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
+    """The bundled filesystem effects, loaded by path to run their bodies."""
+    root = pathlib.Path(__file__).resolve().parents[1] / "src/clauz3/stdlib/filesystem"
+    # effects.py imports its sibling ``tools.filesystem.trusted.events``.
+    monkeypatch.syspath_prepend(str(root))
+    spec = importlib.util.spec_from_file_location(
+        "filesystem_effects", root / "tools/filesystem/trusted/effects.py"
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.fixture
+def dependent_library(
+    tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+) -> Library:
+    """Catalogue a local ``search`` library that depends on stdlib:filesystem.
+
+    No bundled library declares a dependency, so this adds one to the
+    catalogue every installer and discovery path reads. ``search`` performs
+    the filesystem ``Read`` event, so its own module needs the dependency.
+    """
+    root = tmp_path_factory.mktemp("search-library")
+    trusted = root / "tools/search/trusted"
+    trusted.mkdir(parents=True)
+    (trusted / "effects.py").write_text(
+        "import clauz3\n"
+        "from clauz3.events import performs\n"
+        "from tools.filesystem.trusted.events import Read\n"
+        "\n"
+        "\n"
+        "@clauz3.trusted\n"
+        "@performs(lambda path: Read(path))\n"
+        "def search(pattern: str, path: str) -> list[str]:\n"
+        '    """Return the lines in ``path`` containing ``pattern``."""\n'
+        "    return []\n"
+    )
+    (trusted / "contracts.py").write_text(
+        "from tools.search.trusted.effects import search\n"
+        "\n"
+        "from clauz3.spec import ContractSpec, contract, effect\n"
+        "\n"
+        "Search = effect(search)\n"
+        "\n"
+        "\n"
+        "@contract\n"
+        "def searches_at_most(count: int) -> ContractSpec:\n"
+        '    """Guarantee at most ``count`` searches."""\n'
+        "    return Search.count() <= count\n"
+    )
+    library = Library(
+        source=str(root),
+        description="Search files for a substring.",
+        domains=("search",),
+        dependencies=("stdlib:filesystem",),
+        requirements=("search executable",),
+        visibility="public",
+    )
+    entries = [*catalog(), library]
+    for module in ("discovery", "install", "setup", "workspace"):
+        monkeypatch.setattr(f"clauz3.libraries.{module}.catalog", lambda: entries)
+    return library
 
 
 @pytest.fixture(autouse=True)

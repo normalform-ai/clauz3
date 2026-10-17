@@ -413,9 +413,7 @@ def test_start_first_run_chooser(
     monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
     monkeypatch.setattr("builtins.input", lambda prompt: choice)
     assert main(["start", "claude", "--no-browser"]) == 0
-    assert installed_domains(tmp_path) == (
-        {"filesystem", "find", "grep", "editor"} if choice == "1" else set()
-    )
+    assert installed_domains(tmp_path) == ({"filesystem"} if choice == "1" else set())
 
 
 def test_start_cancel_does_not_launch(

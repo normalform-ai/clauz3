@@ -1,7 +1,7 @@
 """Line counting remains an approved read with explicit text semantics."""
 
-import importlib.util
 from pathlib import Path
+from types import ModuleType
 from typing import cast
 
 import pytest
@@ -47,29 +47,21 @@ def conclusion(text: str) -> Conclusion:
         ("Ω\u2028😀\u0085end", ["Ω", "😀", "end"]),
     ],
 )
-def test_read_lines_runtime(text: str, expected: list[str], tmp_path: Path) -> None:
-    spec = importlib.util.spec_from_file_location(
-        "line_effects", TRUSTED / "effects.py"
-    )
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+def test_read_lines_runtime(
+    text: str, expected: list[str], tmp_path: Path, filesystem_effects: ModuleType
+) -> None:
     path = tmp_path / "input.txt"
     path.write_bytes(text.encode("utf-8"))
-    assert cast(list[str], module.read_lines(str(path))) == expected
+    assert cast(list[str], filesystem_effects.read_lines(str(path))) == expected
 
 
-def test_read_lines_decode_failure_is_not_silently_skipped(tmp_path: Path) -> None:
-    spec = importlib.util.spec_from_file_location(
-        "line_effects", TRUSTED / "effects.py"
-    )
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+def test_read_lines_decode_failure_is_not_silently_skipped(
+    tmp_path: Path, filesystem_effects: ModuleType
+) -> None:
     path = tmp_path / "binary"
     path.write_bytes(b"\xff\n")
     with pytest.raises(UnicodeDecodeError):
-        module.read_lines(str(path))
+        filesystem_effects.read_lines(str(path))
 
 
 @pytest.mark.parametrize("reader", ["read_file", "read_lines"])

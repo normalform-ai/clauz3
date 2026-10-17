@@ -29,7 +29,7 @@ def _write_lib(root: Path, justfile_body: str) -> Path:
 
 def test_resolve_stdlib_tests_dir() -> None:
     with ExitStack() as stack:
-        tests_dir = _resolve_tests_dir("stdlib:grep", stack)
+        tests_dir = _resolve_tests_dir("stdlib:git", stack)
         assert tests_dir.name == "tests"
         assert (tests_dir / "Justfile").is_file()
         assert (tests_dir / "cases").is_dir()
@@ -50,7 +50,7 @@ def test_resolve_tests_dir_directly(tmp_path: Path) -> None:
 def test_run_lib_tests_missing_just(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setattr(shutil, "which", lambda _name: None)
     with pytest.raises(LibTestError, match="was not found on PATH"):
-        run_lib_tests("stdlib:grep")
+        run_lib_tests("stdlib:git")
 
 
 def test_run_lib_tests_missing_source(tmp_path: Path) -> None:
@@ -109,4 +109,4 @@ def test_cli_test_runs_bundled_stdlib_without_uv() -> None:
     # Exercises the injected CLAUZ3 (lint) and PYTHON (batched proof cases)
     # runners against a real bundled suite, so this passes even where `uv` is
     # not on PATH.
-    assert main(["test", "stdlib:grep"]) == 0
+    assert main(["test", "stdlib:env"]) == 0

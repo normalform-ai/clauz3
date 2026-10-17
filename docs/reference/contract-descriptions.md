@@ -33,8 +33,9 @@ changes trusted source identity, so remembered approvals cannot silently match
 a modified library.
 
 The first renderer supports parameters annotated as `str`, `int`, `float`, or
-`bool`, including ordinary postponed annotations. Every parameter must appear
-in the template. Variadic parameters and composite types are unsupported.
+`bool`, or a list of one of these (`list[str]`), including ordinary postponed
+annotations. A list renders as a JSON array. Every parameter must appear in the
+template. Variadic parameters and other composite types are unsupported.
 Existing contracts without a description can continue using any parameter
 types supported by the prover.
 
@@ -76,8 +77,8 @@ even when their generated sentences are equal.
 
 ## Generate the LinkML catalog
 
-All 18 filesystem/editor contracts have templates. Their signatures,
-docstrings, and templates, plus the five effect signatures, generate the
+Every `stdlib:filesystem` contract has a template. Their
+signatures, docstrings, and templates, plus the effect signatures, generate the
 [LinkML catalog](contracts.linkml.json):
 
 ```bash
@@ -85,11 +86,10 @@ just contract-schema
 ```
 
 The exporter reads Python AST without importing or executing library code.
-Its initial catalog scope requires scalar parameter types (`str`, `int`,
-`float`, `bool`) for every exported contract and effect, even those without
-a description. Unsupported signatures stop catalog generation with the Python
-symbol in the error; adding composite parameters to a cataloged library needs
-an exporter extension. This build-time constraint does not restrict the types
+Every exported contract and effect, even one without a description, must use
+those parameter types; a list becomes a `multivalued` slot. Unsupported
+signatures stop catalog generation with the Python symbol in the error; other
+composite parameters in a cataloged library need an exporter extension. This build-time constraint does not restrict the types
 of undescribed contracts in other trusted libraries.
 
 The catalog uses JSON serialization of a LinkML schema, so generation needs

@@ -137,7 +137,6 @@ def test_builtin_guide_requires_no_native_skills_or_libraries(tmp_path: Path) ->
 
 def test_recipe_selection_requires_unchanged_selected_libraries(tmp_path: Path) -> None:
     install_layer("stdlib:filesystem", into=tmp_path)
-    install_layer("stdlib:grep", into=tmp_path)
     roots = discover_trusted_roots(import_roots=expand_import_roots([tmp_path]))
     docs = builtin_documents(tmp_path, roots)
     assert {d.name for d in docs} == {
@@ -146,6 +145,8 @@ def test_recipe_selection_requires_unchanged_selected_libraries(tmp_path: Path) 
         "count-lines",
         "write-and-read",
         "grep-named-files",
+        "list-files",
+        "grep-directory",
     }
     # A similarly named custom library is not a tested version of the recipe.
     effects = tmp_path / ".clauz3/tools/filesystem/trusted/effects.py"

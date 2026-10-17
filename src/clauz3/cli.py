@@ -335,7 +335,7 @@ def _build_parser() -> argparse.ArgumentParser:
     install.add_argument(
         "source",
         help=(
-            "a bundled stdlib tool (such as stdlib:filesystem or stdlib:grep), "
+            "a bundled stdlib tool (such as stdlib:filesystem or stdlib:git), "
             "global:<domain>, a git source, a local project containing tools/, "
             "or a tools/ folder"
         ),
@@ -379,7 +379,7 @@ def _build_parser() -> argparse.ArgumentParser:
     test.add_argument(
         "source",
         help=(
-            "a bundled stdlib tool (such as stdlib:filesystem or stdlib:grep), "
+            "a bundled stdlib tool (such as stdlib:filesystem or stdlib:git), "
             "a local project path containing a tests/ folder, or a tests/ folder"
         ),
     )

@@ -183,8 +183,8 @@ Requires an installed, authenticated Claude Code CLI, version **2.1.283 or
 newer**. The launcher checks the version before starting its services because
 older clients may not enforce the native-command restrictions. In an empty
 project, the launcher offers a library chooser before starting the agent. Press Enter
-to install the recommended File work bundle (`filesystem`, `find`, `grep`,
-`editor`), choose File work + Git/GitHub, select individual bundled or global
+to install the recommended File work bundle (`filesystem`), choose File
+work + Git/GitHub, select individual bundled or global
 libraries, or continue without tools. Selection is made by the user; the agent
 cannot install libraries. Existing project libraries are preserved.
 
@@ -632,17 +632,16 @@ clauz3 install [--into PATH | -g/--global] [--skills] [--force] SOURCE
 | `--skills` | Also generate `.clauz3/skills/<domain>/SKILL.md` (or `skills/<domain>/` in the user-wide store) for each installed domain. |
 | `--force` | Overwrite an existing trusted layer at the destination. |
 
-The CLI also installs declared library dependencies, such as `filesystem` for
-`grep` and `find`. It preserves dependencies already present in the destination,
+The CLI also installs the dependencies a library declares. It preserves dependencies already present in the destination,
 even with `--force`; that flag applies to the requested library. Runtime packages
 and executables (for example DuckDB or `gh`) must be provisioned separately.
 
 Global installation is a reusable user-wide store:
 
 ```bash
-clauz3 install -g stdlib:grep
+clauz3 install -g stdlib:filesystem
 clauz3 libraries global:
-clauz3 install global:grep
+clauz3 install global:filesystem
 ```
 
 The last command copies the selected library and its declared dependencies into

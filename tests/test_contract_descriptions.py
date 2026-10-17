@@ -109,15 +109,15 @@ def test_boolean_is_not_an_integer_and_nonfinite_values_are_unavailable() -> Non
 
 def test_plain_contract_and_unsupported_types_keep_fallback() -> None:
     @contract
-    def helper(values: list[str]) -> ContractSpec:
+    def helper(values: dict[str, str]) -> ContractSpec:
         raise AssertionError
 
-    assert describe_call(helper, args=[["x"]], kwargs={}) is None
+    assert describe_call(helper, args=[{"x": "y"}], kwargs={}) is None
     with pytest.raises(ValueError, match="unsupported description parameter type"):
         parameter_types(inspect.signature(helper))
     # Even malformed metadata attached after registration cannot render a claim.
     setattr(helper, DESCRIPTION_ATTRIBUTE, "Values {values}.")
-    assert describe_call(helper, args=[["x"]], kwargs={}) is None
+    assert describe_call(helper, args=[{"x": "y"}], kwargs={}) is None
     page = render_guarantees(
         {
             "guarantees": ["helper(['x'])"],
@@ -169,12 +169,12 @@ def read(path: str):
     assert classes["SampleRead"]["is_a"] == "EffectCall"
 
 
-def test_bundled_schema_covers_all_filesystem_and_editor_contracts() -> None:
+def test_bundled_schema_covers_all_filesystem_contracts() -> None:
     classes = cast(dict[str, dict[str, object]], bundled_schema()["classes"])
     contracts = [value for value in classes.values() if value.get("is_a") == "Contract"]
     effects = [value for value in classes.values() if value.get("is_a") == "EffectCall"]
-    assert len(contracts) == 18
-    assert len(effects) == 5
+    assert len(contracts) == 21
+    assert len(effects) == 13
     assert all(
         "cnl_template" in cast(dict[str, object], c["annotations"]) for c in contracts
     )
@@ -182,8 +182,7 @@ def test_bundled_schema_covers_all_filesystem_and_editor_contracts() -> None:
         dict[str, object], classes["FilesystemOnlyReadUnder"]["annotations"]
     )
     assert annotations["cnl_template"] == (
-        "Every filesystem.read_file or filesystem.read_lines "
-        "path must start with {root}."
+        "Every file read or directory listed is under {root}."
     )
 
 
@@ -215,7 +214,7 @@ def test_schema_reports_unsupported_signatures_even_without_descriptions(
     source.write_text(
         f"from clauz3 import {decorator}\n"
         f"@{decorator}\n"
-        "def helper(values: list[str]):\n    pass\n",
+        "def helper(values: dict[str, str]):\n    pass\n",
         encoding="utf-8",
     )
     with pytest.raises(
@@ -232,21 +231,17 @@ def test_original_three_guarantees_render_from_the_selected_installed_libraries(
     tmp_path: Path,
 ) -> None:
     stdlib = Path(__file__).resolve().parents[1] / "src/clauz3/stdlib"
-    roots = []
-    for library in ("filesystem", "editor"):
-        shutil.copytree(
-            stdlib / library / "tools" / library,
-            tmp_path / "tools" / library,
-        )
-        roots.append(tmp_path / "tools" / library / "trusted")
+    shutil.copytree(
+        stdlib / "filesystem/tools/filesystem", tmp_path / "tools/filesystem"
+    )
+    roots = [tmp_path / "tools/filesystem/trusted"]
     source = """import clauz3
 from tools.filesystem.trusted import contracts as rules
-from tools.editor.trusted import contracts as editor_rules
 from tools.filesystem.trusted.effects import read_file
 
 @clauz3.guarantee(rules.read_only())
 @clauz3.guarantee(rules.only_read_under(root='test.md'))
-@clauz3.guarantee(editor_rules.no_edits())
+@clauz3.guarantee(rules.no_deletes())
 def main() -> None:
     read_file('test.md.bak')
 """
@@ -255,10 +250,9 @@ def main() -> None:
         assert [proof.proof.conclusion for proof in proofs] == [Conclusion.OK]
         descriptions = contract_descriptions(source=source, target="main")
     assert [entry["text"] for entry in descriptions.values()] == [
-        "No calls to filesystem.write_file are permitted.",
-        "Every filesystem.read_file or filesystem.read_lines "
-        'path must start with "test.md".',
-        "No calls to editor.edit_file or editor.append_file are permitted.",
+        "Nothing on the filesystem is modified.",
+        'Every file read or directory listed is under "test.md".',
+        "Nothing is deleted or moved away.",
     ]
     assert descriptions["rules.only_read_under(root='test.md')"]["parameters"] == {
         "root": "test.md"

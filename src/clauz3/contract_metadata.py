@@ -21,7 +21,18 @@ SCALAR_TYPES: dict[str, type] = {
 
 
 def parameter_types(signature: inspect.Signature) -> dict[str, str]:
-    """The deliberately small typed parameter language supported by CNL v1."""
+    """The deliberately small typed parameter language supported by CNL v1.
+
+    A parameter is a scalar or a list of one scalar type.
+
+    >>> parameter_types(inspect.signature(lambda modes, path: None))
+    Traceback (most recent call last):
+    ...
+    ValueError: unsupported description parameter type: modes
+    >>> def only_modes(path: str, modes: list[int]) -> None: ...
+    >>> parameter_types(inspect.signature(only_modes))
+    {'path': 'str', 'modes': 'list[int]'}
+    """
     result = {}
     for name, parameter in signature.parameters.items():
         if parameter.kind in {parameter.VAR_POSITIONAL, parameter.VAR_KEYWORD}:
@@ -32,6 +43,13 @@ def parameter_types(signature: inspect.Signature) -> dict[str, str]:
                 key
                 for key, scalar in SCALAR_TYPES.items()
                 if annotation is scalar or annotation == key
+            ),
+            None,
+        ) or next(
+            (
+                f"list[{key}]"
+                for key, scalar in SCALAR_TYPES.items()
+                if annotation == list[scalar] or annotation == f"list[{key}]"  # type: ignore[valid-type]
             ),
             None,
         )
@@ -58,10 +76,36 @@ def validate_template(template: str, parameters: Mapping[str, str]) -> None:
 
 
 def format_literal(value: object, kind: str) -> str:
-    """Quote strings and reject coercions (notably bool masquerading as int)."""
-    if type(value) is not SCALAR_TYPES[kind]:
+    """Quote strings and reject coercions (notably bool masquerading as int).
+
+    >>> format_literal([1, 2], "list[int]")
+    '[1, 2]'
+    >>> format_literal([1, True], "list[int]")
+    Traceback (most recent call last):
+    ...
+    ValueError: expected list[int] description parameter
+    """
+    element = element_kind(kind)
+    if element is None:
+        valid = type(value) is SCALAR_TYPES[kind]
+    else:
+        valid = type(value) is list and all(
+            type(item) is SCALAR_TYPES[element] for item in value
+        )
+    if not valid:
         raise ValueError(f"expected {kind} description parameter")
     return json.dumps(value, ensure_ascii=True, allow_nan=False)
+
+
+def element_kind(kind: str) -> str | None:
+    """The scalar kind of a list parameter kind, or ``None`` for a scalar.
+
+    >>> element_kind("list[str]"), element_kind("str")
+    ('str', None)
+    """
+    if kind.startswith("list[") and kind.endswith("]"):
+        return kind[len("list[") : -1]
+    return None
 
 
 def describe_call(

@@ -9,13 +9,13 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-FIND = ROOT / "src/clauz3/stdlib/find/tests"
+FILESYSTEM = ROOT / "src/clauz3/stdlib/filesystem/tests"
 
 
 def _cold_process(script: str, *arguments: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(  # noqa: S603
         [sys.executable, "-c", script, *arguments],
-        cwd=FIND,
+        cwd=FILESYSTEM,
         env={**os.environ, "PYTHONPATH": str(ROOT / "src")},
         capture_output=True,
         text=True,
@@ -70,9 +70,9 @@ def test_cold_cli_proves_bundled_subprocess_layer() -> None:
         "import sys\n"
         "assert 'signal' not in sys.modules\n"
         "from clauz3.cli import main\n"
-        "raise SystemExit(main(['prove', '--trusted-root', '../tools/find/trusted', "
-        "'--import-root', '..', '--import-root', '../../filesystem', "
-        "'cases/only_read_under_pass.py']))\n"
+        "raise SystemExit(main(['prove', '--trusted-root', "
+        "'../tools/filesystem/trusted', '--import-root', '..', "
+        "'cases/find_only_read_under_pass.py']))\n"
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert "main: proved!" in result.stdout

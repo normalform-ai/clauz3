@@ -12,11 +12,11 @@ RECIPES = {
     "read-file": ("Read one UTF-8 file", ("filesystem",)),
     "count-lines": ("Count logical lines, including blank lines", ("filesystem",)),
     "write-and-read": ("Write a file and read it back", ("filesystem",)),
-    "grep-named-files": ("Search two named files", ("filesystem", "grep")),
-    "list-files": ("List all file names", ("filesystem", "find")),
+    "grep-named-files": ("Search two named files", ("filesystem",)),
+    "list-files": ("List all file names", ("filesystem",)),
     "grep-directory": (
         "Search UTF-8 files in a directory, reporting skipped paths",
-        ("filesystem", "find", "grep"),
+        ("filesystem",),
     ),
 }
 

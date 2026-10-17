@@ -5,13 +5,13 @@ from pathlib import Path
 from clauz3.libraries.discovery import catalog, global_catalog, installed_domains
 from clauz3.libraries.install import install_library
 
-FILE_LIBRARIES = ("filesystem", "find", "grep", "editor")
+FILE_LIBRARIES = ("filesystem",)
 
 
 def choose_libraries(project: Path) -> bool:
     """Return False on cancellation, True after selection (possibly empty)."""
     print("Choose libraries to install into this project:")
-    print("  1. File work (recommended): filesystem, find, grep, editor")
+    print("  1. File work (recommended): filesystem")
     print("  2. File work + Git/GitHub: also git, gh (requires those CLIs)")
     print("  3. Choose individual bundled or global libraries")
     print("  4. Continue with currently installed tools only")

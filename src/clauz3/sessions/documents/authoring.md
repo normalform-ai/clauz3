@@ -18,7 +18,7 @@ Read this before your first `run`. These are inert instructions, not permissions
 
 Use `import clauz3`, `from tools.<domain>.trusted.effects import <effect>` and
 `from tools.<domain>.trusted import contracts as rules`. Dotted imports require
-an alias (`import tools.grep.trusted.contracts as rules`). Relative imports,
+an alias (`import tools.filesystem.trusted.contracts as rules`). Relative imports,
 wildcards and unaliased dotted imports are refused. Do not import private
 `clauz3._...` implementation helpers or use `os`, `pathlib`, `subprocess`, file
 `open`, or shell commands in the submitted program. Trusted implementation
@@ -31,8 +31,11 @@ class where required). Module constants, f-strings, computed expressions and
 local lambdas are not valid guarantee arguments. Do not replace real guarantees
 with `...` or `no_guarantees()` to bypass a proof problem.
 
-Choose contracts for each effect's own domain. `filesystem.read_only()` forbids
-that library's `write_file`; it does not constrain editor, git or other effects.
+Choose contracts for each library's own domain. A filesystem contract covers
+every filesystem effect that performs its event: `fs.read_only()` forbids
+`write_file`, `remove`, `copy` and `chmod` alike, and `fs.only_read_under(...)`
+covers `read_file`, `grep` and `find`. It does not constrain git, rsync or other
+libraries' effects.
 Current `only_*_under` contracts use lexical string prefixes. Include the
 trailing separator when you mean a directory; these are not physical symlink
 confinement guarantees. Effect preconditions must hold as well as guarantees.

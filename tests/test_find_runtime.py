@@ -1,9 +1,9 @@
 """The find trusted boundary must never expose find's action language."""
 
-import importlib.util
 import subprocess
 from collections.abc import Callable
 from pathlib import Path
+from types import ModuleType
 from typing import cast
 from unittest.mock import patch
 
@@ -11,16 +11,10 @@ import pytest
 
 
 @pytest.fixture
-def find_effect() -> Callable[[str, list[str]], list[str]]:
-    path = (
-        Path(__file__).resolve().parents[1]
-        / "src/clauz3/stdlib/find/tools/find/trusted/effects.py"
-    )
-    spec = importlib.util.spec_from_file_location("test_find_effect", path)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return cast(Callable[[str, list[str]], list[str]], module.find)
+def find_effect(
+    filesystem_effects: ModuleType,
+) -> Callable[[str, list[str]], list[str]]:
+    return cast(Callable[[str, list[str]], list[str]], filesystem_effects.find)
 
 
 @pytest.mark.parametrize(
