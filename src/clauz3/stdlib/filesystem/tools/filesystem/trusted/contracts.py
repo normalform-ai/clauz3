@@ -43,7 +43,7 @@ from tools.filesystem.trusted.events import (
     WriteText,
 )
 
-from clauz3._path_safety import has_no_parent_segments, has_plain_segments
+from clauz3._path_safety import is_plain_path
 from clauz3.spec import ContractSpec, contract, effect
 from clauz3.spec import no_guarantees as core_no_guarantees
 
@@ -51,27 +51,56 @@ Grep = effect(grep)
 
 
 def _checked(prefix: str) -> str:
-    """Refuse a prefix no effect path can be written as.
+    """Refuse a prefix no effect path can be written as, or the empty prefix.
 
     Every effect refuses ``..``, ``/./``, ``//`` and backslashes, so a policy
     over ``data//secret`` would match nothing while ``data/secret`` stayed
-    unconstrained. Raising here makes the proof a refusal, not a vacuous pass.
+    unconstrained, and ``only_read_under("")`` would admit every path. Raising
+    here makes the proof a refusal, not a vacuous pass.
 
     >>> _checked("data/./secret")
     Traceback (most recent call last):
     ...
     ValueError: path prefix 'data/./secret' is not written the way effect paths are
     """
-    if not (has_no_parent_segments(prefix) and has_plain_segments(prefix)):
+    if not (prefix and is_plain_path(prefix)):
         raise ValueError(
             f"path prefix {prefix!r} is not written the way effect paths are"
         )
     return prefix
 
 
+# Each path contract also checks the event path is plain, the condition
+# ``is_plain_path`` states for the filesystem effects' preconditions. A tool
+# from another layer may perform the same events without that precondition,
+# and a respelled path (``/home/user//.ssh``) would otherwise step around a
+# prefix. Contract lambdas cannot call helpers, so the clauses are inline.
+
+
 def _under(event: type[FsEvent], root: str) -> ContractSpec:
     _checked(root)
-    return event.all(lambda e: e.path.startswith(root))
+    return event.all(
+        lambda e: (
+            "//" not in e.path
+            and "\\" not in e.path
+            # Shortcut first disjuncts, as in is_plain_path, keep the solver
+            # from re-deriving the detail from an agent's simpler guard.
+            and (
+                "/." not in e.path
+                or ("/./" not in e.path and not e.path.endswith("/."))
+            )
+            and (
+                ".." not in e.path
+                or (
+                    "/../" not in e.path
+                    and not e.path.startswith("../")
+                    and not e.path.endswith("/..")
+                    and e.path != ".."
+                )
+            )
+            and e.path.startswith(root)
+        )
+    )
 
 
 def _spellings(prefix: str) -> tuple[str, str]:
@@ -91,15 +120,44 @@ def _spellings(prefix: str) -> tuple[str, str]:
 
 
 def _never_under(event: type[FsEvent], prefix: str) -> ContractSpec:
-    # An event is refused if its path is under either spelling of the prefix,
-    # or is a prefix of either one: an ancestor directory, including ``.``.
+    """Refuse an event at, under, or containing either spelling of ``prefix``.
+
+    An event path written the other way (relative under an absolute prefix,
+    or absolute under a relative one) is refused outright: whether it reaches
+    the prefix depends on the working directory, which a proof cannot see.
+    An event path contains the prefix only at a ``/`` boundary, so
+    ``never_write_under("/repo/notes.md.orig")`` allows ``/repo/notes.md``.
+    """
     bare, dotted = _spellings(_checked(prefix))
+    absolute = prefix.startswith("/")
     return event.all(
         lambda e: (
-            not e.path.startswith(bare)
+            "//" not in e.path
+            and "\\" not in e.path
+            # Shortcut first disjuncts, as in is_plain_path, keep the solver
+            # from re-deriving the detail from an agent's simpler guard.
+            and (
+                "/." not in e.path
+                or ("/./" not in e.path and not e.path.endswith("/."))
+            )
+            and (
+                ".." not in e.path
+                or (
+                    "/../" not in e.path
+                    and not e.path.startswith("../")
+                    and not e.path.endswith("/..")
+                    and e.path != ".."
+                )
+            )
+            and e.path.startswith("/") == absolute
+            # at or under the prefix
+            and not e.path.startswith(bare)
             and not e.path.startswith(dotted)
-            and not bare.startswith(e.path)
-            and not dotted.startswith(e.path)
+            # a directory containing it
+            and not bare.startswith(e.path + "/")
+            and not dotted.startswith(e.path + "/")
+            and not (e.path.endswith("/") and bare.startswith(e.path))
+            and not (e.path.endswith("/") and dotted.startswith(e.path))
         )
     )
 

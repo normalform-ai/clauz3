@@ -58,6 +58,17 @@ def has_plain_segments(path: str) -> bool:
     )
 
 
+def is_plain_path(path: str) -> bool:
+    """Return whether ``path`` has no ``..``, ``.`` or empty segments, or backslashes.
+
+    The precondition every filesystem effect states on its path arguments.
+
+    >>> is_plain_path("./data/a"), is_plain_path("/a/../b"), is_plain_path("/a//b")
+    (True, False, False)
+    """
+    return has_no_parent_segments(path) and has_plain_segments(path)
+
+
 def url_has_no_parent_segments(url: str) -> bool:
     """Return whether a URL has no literal or percent-encoded dot segments.
 

@@ -21,6 +21,31 @@ it:
 clauz3 prove --trusted-root tools/filesystem/trusted plan.py
 ```
 
+## Migrating from coreutils, editor, find, grep and text
+
+These libraries were merged into `filesystem`, and an old copy defines effects
+with the same names (`remove`, `append_file`, `find`, ...). Proving it beside
+the new `filesystem` is refused as a duplicate effect, and installing the new
+`filesystem` next to one is refused with the same advice. Remove the old
+libraries (from the Libraries view, or delete them under `.clauz3/tools/` and,
+for user-wide installs, `~/.local/share/clauz3/tools/`), then run
+`clauz3 install --force stdlib:filesystem`.
+
+Programs that imported them need the new names. `edit_file` is gone; use
+`write_file`. Contracts not listed keep their names under `fs`:
+
+| Old | New |
+| --- | --- |
+| `grep.searches_at_most` | `fs.reads_at_most` |
+| `find.searches_at_most` | `fs.lists_at_most` |
+| `editor.no_edits` | `fs.read_only` |
+| `editor.only_edit_under`, `coreutils.only_create_under`, `only_copy_under`, `only_move_under`, `only_chmod_under` | `fs.only_write_under` |
+| `editor.never_edit_under`, `coreutils.never_create_under` | `fs.never_write_under` |
+| `editor.edits_at_most` | `fs.writes_at_most` |
+| `editor.must_not_replace`, `must_not_append` | `fs.must_not_write` |
+| `editor.replace_length_at_most`, `append_length_at_most` | `fs.write_length_at_most` |
+| `coreutils.never_copy_from_under`, `never_move_from_under` | `fs.never_read_under` |
+
 ## Contracts cover events, not functions
 
 Each effect declares, with `@performs`, the events it performs on the
@@ -95,13 +120,21 @@ Import with `from tools.filesystem.trusted import contracts as fs`:
 argument: `only_read_under("test.md")` also admits `test.md.bak`. The effects
 refuse `..`, `/./` and `//` first, so a path cannot satisfy a prefix and then
 traverse outside it at runtime, or be respelled around a `never_*` prefix.
-A prefix that no effect path can be written as, such as `data//secret`, is
-refused instead of holding vacuously. The check is still lexical. A relative
-prefix is compared in both its bare and `./` spellings, and `.` counts as an ancestor of every relative path, so
-`never_delete_under("data")` refuses `remove(".")`. A relative prefix says
-nothing about an absolute spelling of the same file. Backslashes are refused,
-since the library is POSIX. Symbolic links, hard links and case-insensitive
-filesystems are not modelled.
+A prefix that no effect path can be written as, such as `data//secret`, or an
+empty prefix, is refused instead of holding vacuously. The contracts also check
+each event's path the way the effects do, so a tool from another layer that
+performs these events cannot step around a prefix with `//`, `/./` or `..`.
+
+The check is still lexical. A relative prefix is compared in both its bare and
+`./` spellings, and `.` counts as an ancestor of every relative path, so
+`never_delete_under("data")` refuses `remove(".")`. A `never_*` prefix refuses
+any path written the other way, relative under an absolute prefix or absolute
+under a relative one, because whether it reaches the prefix depends on the
+working directory: `never_delete_under("/home/user/.ssh")` refuses
+`remove(".")`. A path contains a prefix only at a `/` boundary, so
+`never_write_under("/repo/notes.md.orig")` allows `/repo/notes.md`. Backslashes
+are refused, since the library is POSIX. Symbolic links, hard links and
+case-insensitive filesystems are not modelled.
 
 `Delete` means `remove` or a `move`'s source. Overwriting a file with
 `write_file`, `copy` or `move` is a `Write`, not a `Delete`, so protect contents

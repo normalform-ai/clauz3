@@ -4,7 +4,13 @@ import pytest
 
 from clauz3._vendor.deal_solver import Conclusion
 from clauz3.cli import main
-from clauz3.libraries.install import InstallError, available_stdlib_tools, install_layer
+from clauz3.libraries.discovery import Library
+from clauz3.libraries.install import (
+    InstallError,
+    available_stdlib_tools,
+    install_layer,
+    install_library,
+)
 from clauz3.prover import ProofResult, prove_path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -314,3 +320,41 @@ def test_a_prefix_no_effect_path_can_match_is_refused(
     # The guarantee is refused; the program's other obligations still prove.
     assert [r.proof.conclusion for r in results] == [Conclusion.PARTIAL]
     assert "is not written the way effect paths are" in str(results[0].proof.error)
+
+
+@pytest.mark.parametrize(
+    ("guarantee", "path"),
+    [
+        ('fs.never_read_under("/home/user/.ssh")', "/home/user//.ssh/id_rsa"),
+        ('fs.never_read_under("/home/user/.ssh")', "/home/user/./.ssh/id_rsa"),
+        ('fs.never_read_under("/home/user/.ssh")', "/tmp/../home/user/.ssh/id_rsa"),
+        ('fs.only_read_under("/repo/")', "/repo/../etc/passwd"),
+    ],
+)
+def test_a_respelled_path_from_another_layers_tool_is_refused(
+    tmp_path: Path, dependent_library: Library, guarantee: str, path: str
+) -> None:
+    """The contract, not only the filesystem tools, refuses a respelled path.
+
+    ``search`` performs ``Read`` without the filesystem effects' path
+    precondition, so the event path reaches the contract as written.
+    """
+
+    install_library(dependent_library.source, into=tmp_path)
+    tools = tmp_path / ".clauz3/tools"
+    source = (
+        "import clauz3\n"
+        "from tools.filesystem.trusted import contracts as fs\n"
+        "from tools.search.trusted.effects import search\n"
+        "\n"
+        f"@clauz3.guarantee({guarantee})\n"
+        "def main() -> None:\n"
+        f"    print(search('BEGIN', {path!r}))\n"
+    )
+    results = _prove(
+        tmp_path,
+        source,
+        import_roots=[tmp_path / ".clauz3"],
+        trusted=[tools / "filesystem/trusted", tools / "search/trusted"],
+    )
+    assert [r.proof.conclusion for r in results] == [Conclusion.FAIL]

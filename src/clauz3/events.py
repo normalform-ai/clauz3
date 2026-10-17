@@ -192,15 +192,41 @@ class EventRelation(Relation):
 
         if spec._EFFECT_SIGNATURES is None:
             return
-        for events in _layer_declarations(spec._EFFECT_SIGNATURES, spec._CHECKED_FILES):
-            for event in events:
-                if self.key in map(_qualified, type(event).__mro__):
-                    return
+        if self.key in _performed_in_layer(
+            spec._EFFECT_SIGNATURES, spec._CHECKED_FILES
+        ):
+            return
         raise RelationError(
             f"no trusted effect in this proof's layer performs {self.describe()} "
             "or a subclass of it, so every contract over it would hold vacuously. "
             "Declare it with @performs on the effects that perform it."
         )
+
+
+#: The event classes the current proof's layer performs, with the signatures
+#: and files objects they were computed from. Both are fixed for a proof and
+#: replaced by the next one, and holding them keeps a stale entry from matching
+#: a later proof by a reused ``id``.
+_PERFORMED_IN_LAYER: tuple[object, object, frozenset[str]] | None = None
+
+
+def _performed_in_layer(
+    effects: Container[str], files: Container[str]
+) -> frozenset[str]:
+    """Qualified names of every event class, with bases, the layer performs."""
+
+    global _PERFORMED_IN_LAYER
+    cached = _PERFORMED_IN_LAYER
+    if cached is not None and cached[0] is effects and cached[1] is files:
+        return cached[2]
+    keys = frozenset(
+        _qualified(cls)
+        for events in _layer_declarations(effects, files)
+        for event in events
+        for cls in type(event).__mro__
+    )
+    _PERFORMED_IN_LAYER = (effects, files, keys)
+    return keys
 
 
 def _qualified(cls: type) -> str:

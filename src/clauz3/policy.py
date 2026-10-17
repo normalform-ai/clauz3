@@ -34,6 +34,38 @@ class DuplicateEffectError(Exception):
     """
 
 
+def _superseded_hint(first: str | Path, second: str | Path) -> str:
+    """Migration advice when the collision is an old library beside its successor.
+
+    >>> new, old = "p/tools/filesystem/trusted/e.py", "p/tools/grep/trusted/e.py"
+    >>> _superseded_hint(new, old)[:40]
+    ' stdlib:filesystem now provides the tool'
+    >>> _superseded_hint("a/tools/x/trusted/e.py", "b/tools/y/trusted/e.py")
+    ''
+    """
+    from clauz3.libraries.discovery import SUPERSEDED, superseded_message
+
+    domains = {
+        domain
+        for domain in (_layer_domain(Path(first)), _layer_domain(Path(second)))
+        if domain is not None
+    }
+    for new, old in SUPERSEDED.items():
+        stale = sorted(domains & set(old))
+        if new in domains and stale:
+            return " " + superseded_message(new, stale)
+    return ""
+
+
+def _layer_domain(path: Path) -> str | None:
+    """The ``<domain>`` of a ``tools/<domain>/trusted/...`` path."""
+    parts = path.parts
+    for index in range(len(parts) - 2):
+        if parts[index] == "tools" and parts[index + 2] == "trusted":
+            return parts[index + 1]
+    return None
+
+
 @dataclass(frozen=True)
 class DomainPolicy:
     when_used: tuple[str, ...]
@@ -242,7 +274,7 @@ def load_trusted_effects(
                 f"{origins[node.name]} and {path}. A name is how a relation and "
                 "a when_used address an effect, so proving these layers "
                 "together would give one name two meanings. Rename one, or "
-                "prove them separately.",
+                "prove them separately." + _superseded_hint(origins[node.name], path),
             )
         effects[node.name] = _parameter_names(node)
         origins[node.name] = str(path)

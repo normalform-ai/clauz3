@@ -10,6 +10,26 @@ from typing import TypedDict
 
 from clauz3.libraries.layout import tools_dirs
 
+#: Libraries whose tools a newer bundled library now provides. Their copies
+#: define effects with the same names, so they cannot be proved beside it.
+SUPERSEDED: dict[str, tuple[str, ...]] = {
+    "filesystem": ("coreutils", "editor", "find", "grep", "text"),
+}
+
+
+def superseded_message(library: str, stale: list[str]) -> str:
+    """How to migrate a project that still holds superseded libraries.
+
+    >>> superseded_message("filesystem", ["find", "grep"])[:58]
+    'stdlib:filesystem now provides the tools of find, grep, wh'
+    """
+    return (
+        f"stdlib:{library} now provides the tools of {', '.join(stale)}, whose "
+        "copies define effects with the same names. Remove those libraries "
+        "(from the Libraries view, or delete them under .clauz3/tools/), then "
+        f"install stdlib:{library} again."
+    )
+
 
 @dataclass(frozen=True)
 class Library:

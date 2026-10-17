@@ -32,7 +32,7 @@ from tools.filesystem.trusted.events import (
 )
 
 import clauz3
-from clauz3._path_safety import has_no_parent_segments, has_plain_segments
+from clauz3._path_safety import is_plain_path
 from clauz3.events import performs
 
 DEFAULT_TIMEOUT_SECONDS = 120
@@ -42,7 +42,7 @@ DEFAULT_TIMEOUT_SECONDS = 120
 
 
 @clauz3.requires(
-    lambda path: has_no_parent_segments(path) and has_plain_segments(path),
+    lambda path: is_plain_path(path),
     message="path must have no .., . or empty segments, or backslashes",
 )
 @clauz3.requires(lambda path: len(path) > 0, message="path must be non-empty")
@@ -55,7 +55,7 @@ def read_file(path: str) -> str:
 
 
 @clauz3.requires(
-    lambda path: has_no_parent_segments(path) and has_plain_segments(path),
+    lambda path: is_plain_path(path),
     message="path must have no .., . or empty segments, or backslashes",
 )
 @clauz3.requires(lambda path: len(path) > 0, message="path must be non-empty")
@@ -73,7 +73,7 @@ def read_lines(path: str) -> list[str]:
 
 
 @clauz3.requires(
-    lambda path, line_number: has_no_parent_segments(path) and has_plain_segments(path),
+    lambda path, line_number: is_plain_path(path),
     message="path must have no .., . or empty segments, or backslashes",
 )
 @clauz3.requires(
@@ -96,7 +96,7 @@ def read_line(path: str, line_number: int) -> str:
 
 
 @clauz3.requires(
-    lambda pattern, path: has_no_parent_segments(path) and has_plain_segments(path),
+    lambda pattern, path: is_plain_path(path),
     message="path must have no .., . or empty segments, or backslashes",
 )
 @clauz3.requires(
@@ -152,7 +152,7 @@ def _filters(args: list[str]) -> list[str]:
 
 
 @clauz3.requires(
-    lambda path, args: has_no_parent_segments(path) and has_plain_segments(path),
+    lambda path, args: is_plain_path(path),
     message="path must have no .., . or empty segments, or backslashes",
 )
 @clauz3.requires(lambda path, args: len(path) > 0, message="path must be non-empty")
@@ -170,12 +170,7 @@ def find(path: str, args: list[str]) -> list[str]:
     """
     filters = _filters(args)
     # Do not rely on Deal's optional runtime checks at this external boundary.
-    if (
-        not path
-        or "\0" in path
-        or not has_no_parent_segments(path)
-        or not has_plain_segments(path)
-    ):
+    if not path or "\0" in path or not is_plain_path(path):
         raise ValueError(
             "find requires a non-empty path without .., . or empty segments, "
             "backslashes or NUL"
@@ -200,7 +195,7 @@ def find(path: str, args: list[str]) -> list[str]:
 
 
 @clauz3.requires(
-    lambda path, content: has_no_parent_segments(path) and has_plain_segments(path),
+    lambda path, content: is_plain_path(path),
     message="path must have no .., . or empty segments, or backslashes",
 )
 @clauz3.requires(lambda path, content: len(path) > 0, message="path must be non-empty")
@@ -215,7 +210,7 @@ def write_file(path: str, content: str) -> None:
 
 
 @clauz3.requires(
-    lambda path, text: has_no_parent_segments(path) and has_plain_segments(path),
+    lambda path, text: is_plain_path(path),
     message="path must have no .., . or empty segments, or backslashes",
 )
 @clauz3.requires(lambda path, text: len(path) > 0, message="path must be non-empty")
@@ -237,7 +232,7 @@ def append_file(path: str, text: str) -> None:
 
 
 @clauz3.requires(
-    lambda path: has_no_parent_segments(path) and has_plain_segments(path),
+    lambda path: is_plain_path(path),
     message="path must have no .., . or empty segments, or backslashes",
 )
 @clauz3.requires(lambda path: len(path) > 0, message="path must be non-empty")
@@ -250,7 +245,7 @@ def make_dir(path: str) -> None:
 
 
 @clauz3.requires(
-    lambda path: has_no_parent_segments(path) and has_plain_segments(path),
+    lambda path: is_plain_path(path),
     message="path must have no .., . or empty segments, or backslashes",
 )
 @clauz3.requires(lambda path: len(path) > 0, message="path must be non-empty")
@@ -265,7 +260,7 @@ def touch(path: str) -> None:
 
 
 @clauz3.requires(
-    lambda path: has_no_parent_segments(path) and has_plain_segments(path),
+    lambda path: is_plain_path(path),
     message="path must have no .., . or empty segments, or backslashes",
 )
 @clauz3.requires(lambda path: len(path) > 0, message="path must be non-empty")
@@ -282,12 +277,7 @@ def remove(path: str) -> None:
 
 
 @clauz3.requires(
-    lambda src, dest: (
-        has_no_parent_segments(src)
-        and has_plain_segments(src)
-        and has_no_parent_segments(dest)
-        and has_plain_segments(dest)
-    ),
+    lambda src, dest: is_plain_path(src) and is_plain_path(dest),
     message="src and dest must have no .., . or empty segments, or backslashes",
 )
 @clauz3.requires(
@@ -308,12 +298,7 @@ def move(src: str, dest: str) -> None:
 
 
 @clauz3.requires(
-    lambda src, dest: (
-        has_no_parent_segments(src)
-        and has_plain_segments(src)
-        and has_no_parent_segments(dest)
-        and has_plain_segments(dest)
-    ),
+    lambda src, dest: is_plain_path(src) and is_plain_path(dest),
     message="src and dest must have no .., . or empty segments, or backslashes",
 )
 @clauz3.requires(
@@ -333,7 +318,7 @@ def copy(src: str, dest: str) -> None:
 
 
 @clauz3.requires(
-    lambda path, mode: has_no_parent_segments(path) and has_plain_segments(path),
+    lambda path, mode: is_plain_path(path),
     message="path must have no .., . or empty segments, or backslashes",
 )
 @clauz3.requires(lambda path, mode: len(path) > 0, message="path must be non-empty")
