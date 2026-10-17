@@ -10,13 +10,15 @@ from __future__ import annotations
 
 import inspect
 import textwrap
+from collections.abc import Callable
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 
 from clauz3._vendor.deal_solver import Conclusion
 from clauz3.differential_contracts import check_contract
-from clauz3.events import PERFORMED, Event, _ParamRef, performs
+from clauz3.events import Event, _ParamRef, performed, performs
 from clauz3.prover import ProverConfigError, prove_text, validate_untrusted_source
 from clauz3.spec import RelationError
 
@@ -209,54 +211,106 @@ def test_reserved_field_names_are_refused() -> None:
             count: int  # type: ignore[assignment]
 
 
-def test_events_are_registered_by_qualified_name() -> None:
-    @performs(lambda addr: Sent(addr))
-    def send(addr: str, body: str) -> None: ...
+@performs(lambda addr: Sent(addr))
+def send(addr: str, body: str = "") -> None: ...
 
-    key = f"{send.__module__}.{send.__qualname__}"
-    try:
-        assert PERFORMED[key] == (Sent(_ParamRef("addr")),)  # type: ignore[arg-type]
-    finally:
-        del PERFORMED[key]
+
+def deliver(addr: str) -> None: ...
+
+
+# A second copy of ``Sent``, as a re-imported events module would produce.
+SentCopy = type(
+    "Sent",
+    (Event,),
+    {
+        "__annotations__": {"to": str},
+        "__module__": Sent.__module__,
+        "__qualname__": Sent.__qualname__,
+    },
+)
+performs(lambda addr: SentCopy(addr))(deliver)
+
+SEND = f"{__name__}.send"
+DELIVER = f"{__name__}.deliver"
+SIGNATURES = {SEND: inspect.signature(send), DELIVER: inspect.signature(deliver)}
+
+
+def test_events_are_read_from_the_installed_function() -> None:
+    assert performed(SEND) == (Sent(_ParamRef("addr")),)  # type: ignore[arg-type]
+    assert (
+        performed(f"{__name__}.test_events_are_read_from_the_installed_function") == ()
+    )
 
 
 def test_the_concrete_oracle_derives_events() -> None:
-    def send(addr: str, body: str = "") -> None: ...
-
-    performs(lambda addr: Sent(addr))(send)
-    qualified = f"{send.__module__}.{send.__qualname__}"
-    signatures = {qualified: inspect.signature(send)}
     spec = Sent.all(lambda e: e.to == "bob")
-    try:
-        assert check_contract(spec, [(qualified, ("bob",), {})], signatures)
-        assert not check_contract(spec, [(qualified, ("eve",), {})], signatures)
-        assert check_contract(Sent.empty(), [], signatures)
-        assert not check_contract(Sent.empty(), [(qualified, ("bob",), {})], signatures)
-    finally:
-        del PERFORMED[qualified]
+    assert check_contract(spec, [(SEND, ("bob",), {})], SIGNATURES)
+    assert not check_contract(spec, [(SEND, ("eve",), {})], SIGNATURES)
+    assert check_contract(Sent.empty(), [], SIGNATURES)
+    assert not check_contract(Sent.empty(), [(SEND, ("bob",), {})], SIGNATURES)
 
 
 def test_an_event_class_imported_twice_still_matches() -> None:
     """Switching layers can import an events module twice; both copies match."""
 
-    def send(addr: str) -> None: ...
+    assert SentCopy is not Sent
+    spec = Sent.all(lambda e: e.to == "bob")
+    assert not check_contract(spec, [(DELIVER, ("eve",), {})], SIGNATURES)
 
-    copy = type(
-        "Sent",
-        (Event,),
-        {
-            "__annotations__": {"to": str},
-            "__module__": Sent.__module__,
-            "__qualname__": Sent.__qualname__,
-        },
+
+@pytest.mark.parametrize(
+    "func",
+    [
+        lambda: performs(lambda body: Sent(body))(send),
+        lambda: performs(lambda args: Sent(args))(lambda *args: None),
+    ],
+    ids=["default", "variadic"],
+)
+def test_performs_refuses_parameters_a_call_may_not_bind(
+    func: Callable[[], object],
+) -> None:
+    with pytest.raises(RelationError, match="defaults or are variadic"):
+        func()
+
+
+def _performing_layer(parent: Path, name: str, event: str) -> Path:
+    """A layer whose ``remove`` performs ``event``; two share one dotted name."""
+
+    layer = parent / name
+    layer.mkdir(parents=True)
+    (layer / "__init__.py").write_text("")
+    (layer / "events.py").write_text(EVENTS)
+    (layer / "effects.py").write_text(
+        "import clauz3\n"
+        "from clauz3.events import performs\n"
+        f"from {name}.events import Delete, Read\n"
+        "@clauz3.trusted\n"
+        f"@performs(lambda path: {event}(path))\n"
+        "def remove(path: str) -> None:\n"
+        "    pass\n"
     )
-    assert copy is not Sent
-    performs(lambda addr: copy(addr))(send)
-    qualified = f"{send.__module__}.{send.__qualname__}"
-    signatures = {qualified: inspect.signature(send)}
-    try:
-        assert not check_contract(
-            Sent.all(lambda e: e.to == "bob"), [(qualified, ("eve",), {})], signatures
-        )
-    finally:
-        del PERFORMED[qualified]
+    (layer / "contracts.py").write_text(CONTRACTS.format(pkg=name))
+    return layer
+
+
+def test_a_reselected_layer_uses_its_own_performs(tmp_path: Path) -> None:
+    """Proving A, then B, then A again must not leave B's events in force."""
+
+    name = f"performs_{uuid4().hex}"
+    layers = {
+        "A": _performing_layer(tmp_path / "a", name, "Delete"),
+        "B": _performing_layer(tmp_path / "b", name, "Read"),
+    }
+    source = (
+        "import clauz3\n"
+        f"from {name} import contracts\n"
+        f"from {name}.effects import remove\n"
+        "@clauz3.guarantee(contracts.read_only())\n"
+        "def main() -> None:\n"
+        '    remove("/x")\n'
+    )
+    expected = {"A": Conclusion.FAIL, "B": Conclusion.OK}
+    for label in ("A", "B", "A"):
+        layer = layers[label]
+        results = prove_text(source, trusted_roots=[layer], import_paths=[layer.parent])
+        assert [r.proof.conclusion for r in results] == [expected[label]], label

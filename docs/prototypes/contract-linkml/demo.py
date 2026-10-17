@@ -54,9 +54,10 @@ def main() -> None:
     view = SchemaView(SCHEMA)
     descriptions = [describe(view, name, values) for name, values in CASES]
     expected = [
-        "Nothing on the filesystem is modified.",
-        'Every file read or directory listed is under "test.md".',
-        "Nothing is deleted or moved away.",
+        "No filesystem tool modifies anything. "
+        "Effects of other libraries, such as git or rsync, are not covered.",
+        'Every file a filesystem tool reads or lists starts with "test.md".',
+        "No filesystem tool deletes or moves anything away.",
     ]
     assert descriptions == expected
     for invalid in ({}, {"root": 4}, {"root": "test.md", "unknown": True}):

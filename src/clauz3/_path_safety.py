@@ -30,6 +30,29 @@ def has_no_parent_segments(path: str) -> bool:
     )
 
 
+def has_no_dot_segments(path: str) -> bool:
+    """Return whether ``path`` has no empty or ``.`` component after the first.
+
+    ``/repo//PRECIOUS.md`` and ``/home/user/./.ssh`` name the same files as
+    ``/repo/PRECIOUS.md`` and ``/home/user/.ssh`` but do not start with them, so
+    a lexical deny-list prefix would miss them. A leading ``./`` and a bare
+    ``.`` are allowed: they are how relative paths are commonly written, and
+    ``find`` returns them.
+
+    POSIX separators only; the filesystem library is POSIX.
+
+    >>> [has_no_dot_segments(p) for p in ("./data/a", ".", "/a/.env", "a/b/")]
+    [True, True, True, True]
+    >>> [has_no_dot_segments(p) for p in ("/a//b", "/a/./b", "/a/.", ".//a")]
+    [False, False, False, False]
+    """
+    # As in ``has_no_parent_segments``, the first disjunct is a guard an agent
+    # can establish directly; it is stronger than needed.
+    return "//" not in path and (
+        "/." not in path or ("/./" not in path and not path.endswith("/."))
+    )
+
+
 def url_has_no_parent_segments(url: str) -> bool:
     """Return whether a URL has no literal or percent-encoded dot segments.
 

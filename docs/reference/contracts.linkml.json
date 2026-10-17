@@ -11,7 +11,7 @@
     "FilesystemAppendFile": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.append_file",
-        "source_sha256": "efcb23d234fa01a4e0c10913697396e48ccc9397b362d2b0e571d2d08959a81c"
+        "source_sha256": "d4740badf0d017b74ab72c6711b2b9234b440cef5e2a0492d9d1444b01c61e91"
       },
       "attributes": {
         "path": {
@@ -40,7 +40,7 @@
     "FilesystemChmod": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.chmod",
-        "source_sha256": "efcb23d234fa01a4e0c10913697396e48ccc9397b362d2b0e571d2d08959a81c"
+        "source_sha256": "d4740badf0d017b74ab72c6711b2b9234b440cef5e2a0492d9d1444b01c61e91"
       },
       "attributes": {
         "mode": {
@@ -69,7 +69,7 @@
     "FilesystemCopy": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.copy",
-        "source_sha256": "efcb23d234fa01a4e0c10913697396e48ccc9397b362d2b0e571d2d08959a81c"
+        "source_sha256": "d4740badf0d017b74ab72c6711b2b9234b440cef5e2a0492d9d1444b01c61e91"
       },
       "attributes": {
         "dest": {
@@ -97,10 +97,10 @@
     },
     "FilesystemCreatesAtMost": {
       "annotations": {
-        "cnl_template": "At most {count} directories or empty files are created.",
+        "cnl_template": "Filesystem tools create at most {count} directories or empty files.",
         "python_symbol": "tools.filesystem.trusted.contracts.creates_at_most",
         "renderer_version": 1,
-        "source_sha256": "9608e37de6de6f449c0511ec833aadea03979fc2ae1f49ba289021ba5b1196dc"
+        "source_sha256": "a3caa9d074d70b6141addb109bdaa7a726d2f92753a3798656d57adcbfc72d76"
       },
       "attributes": {
         "count": {
@@ -119,10 +119,10 @@
     },
     "FilesystemDeletesAtMost": {
       "annotations": {
-        "cnl_template": "At most {count} paths are deleted or moved away.",
+        "cnl_template": "Filesystem tools delete or move away at most {count} paths.",
         "python_symbol": "tools.filesystem.trusted.contracts.deletes_at_most",
         "renderer_version": 1,
-        "source_sha256": "9608e37de6de6f449c0511ec833aadea03979fc2ae1f49ba289021ba5b1196dc"
+        "source_sha256": "a3caa9d074d70b6141addb109bdaa7a726d2f92753a3798656d57adcbfc72d76"
       },
       "attributes": {
         "count": {
@@ -142,7 +142,7 @@
     "FilesystemFind": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.find",
-        "source_sha256": "efcb23d234fa01a4e0c10913697396e48ccc9397b362d2b0e571d2d08959a81c"
+        "source_sha256": "d4740badf0d017b74ab72c6711b2b9234b440cef5e2a0492d9d1444b01c61e91"
       },
       "attributes": {
         "args": {
@@ -172,7 +172,7 @@
     "FilesystemGrep": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.grep",
-        "source_sha256": "efcb23d234fa01a4e0c10913697396e48ccc9397b362d2b0e571d2d08959a81c"
+        "source_sha256": "d4740badf0d017b74ab72c6711b2b9234b440cef5e2a0492d9d1444b01c61e91"
       },
       "attributes": {
         "path": {
@@ -200,10 +200,10 @@
     },
     "FilesystemListsAtMost": {
       "annotations": {
-        "cnl_template": "Directories are listed at most {count} times.",
+        "cnl_template": "Filesystem tools list directories at most {count} times.",
         "python_symbol": "tools.filesystem.trusted.contracts.lists_at_most",
         "renderer_version": 1,
-        "source_sha256": "9608e37de6de6f449c0511ec833aadea03979fc2ae1f49ba289021ba5b1196dc"
+        "source_sha256": "a3caa9d074d70b6141addb109bdaa7a726d2f92753a3798656d57adcbfc72d76"
       },
       "attributes": {
         "count": {
@@ -223,7 +223,7 @@
     "FilesystemMakeDir": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.make_dir",
-        "source_sha256": "efcb23d234fa01a4e0c10913697396e48ccc9397b362d2b0e571d2d08959a81c"
+        "source_sha256": "d4740badf0d017b74ab72c6711b2b9234b440cef5e2a0492d9d1444b01c61e91"
       },
       "attributes": {
         "path": {
@@ -243,7 +243,7 @@
     "FilesystemMove": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.move",
-        "source_sha256": "efcb23d234fa01a4e0c10913697396e48ccc9397b362d2b0e571d2d08959a81c"
+        "source_sha256": "d4740badf0d017b74ab72c6711b2b9234b440cef5e2a0492d9d1444b01c61e91"
       },
       "attributes": {
         "dest": {
@@ -271,10 +271,10 @@
     },
     "FilesystemMustNotWrite": {
       "annotations": {
-        "cnl_template": "No text written to a file contains {substring}.",
+        "cnl_template": "No text a filesystem tool writes to a file contains {substring}.",
         "python_symbol": "tools.filesystem.trusted.contracts.must_not_write",
         "renderer_version": 1,
-        "source_sha256": "9608e37de6de6f449c0511ec833aadea03979fc2ae1f49ba289021ba5b1196dc"
+        "source_sha256": "a3caa9d074d70b6141addb109bdaa7a726d2f92753a3798656d57adcbfc72d76"
       },
       "attributes": {
         "substring": {
@@ -293,10 +293,10 @@
     },
     "FilesystemNeverDeleteUnder": {
       "annotations": {
-        "cnl_template": "Nothing under {prefix} is deleted or moved away.",
+        "cnl_template": "No filesystem tool deletes or moves a path starting with {prefix}, or a directory containing it (paths compared as written).",
         "python_symbol": "tools.filesystem.trusted.contracts.never_delete_under",
         "renderer_version": 1,
-        "source_sha256": "9608e37de6de6f449c0511ec833aadea03979fc2ae1f49ba289021ba5b1196dc"
+        "source_sha256": "a3caa9d074d70b6141addb109bdaa7a726d2f92753a3798656d57adcbfc72d76"
       },
       "attributes": {
         "prefix": {
@@ -315,10 +315,10 @@
     },
     "FilesystemNeverReadUnder": {
       "annotations": {
-        "cnl_template": "No file under {prefix} is read, copied or moved.",
+        "cnl_template": "No filesystem tool reads, copies or moves a path starting with {prefix}, or a directory containing it (paths compared as written).",
         "python_symbol": "tools.filesystem.trusted.contracts.never_read_under",
         "renderer_version": 1,
-        "source_sha256": "9608e37de6de6f449c0511ec833aadea03979fc2ae1f49ba289021ba5b1196dc"
+        "source_sha256": "a3caa9d074d70b6141addb109bdaa7a726d2f92753a3798656d57adcbfc72d76"
       },
       "attributes": {
         "prefix": {
@@ -337,10 +337,10 @@
     },
     "FilesystemNeverWriteUnder": {
       "annotations": {
-        "cnl_template": "Nothing under {prefix} is modified.",
+        "cnl_template": "No filesystem tool modifies a path starting with {prefix}, or a directory containing it (paths compared as written).",
         "python_symbol": "tools.filesystem.trusted.contracts.never_write_under",
         "renderer_version": 1,
-        "source_sha256": "9608e37de6de6f449c0511ec833aadea03979fc2ae1f49ba289021ba5b1196dc"
+        "source_sha256": "a3caa9d074d70b6141addb109bdaa7a726d2f92753a3798656d57adcbfc72d76"
       },
       "attributes": {
         "prefix": {
@@ -359,10 +359,10 @@
     },
     "FilesystemNoChmods": {
       "annotations": {
-        "cnl_template": "No permission bits are changed.",
+        "cnl_template": "No filesystem tool changes permission bits.",
         "python_symbol": "tools.filesystem.trusted.contracts.no_chmods",
         "renderer_version": 1,
-        "source_sha256": "9608e37de6de6f449c0511ec833aadea03979fc2ae1f49ba289021ba5b1196dc"
+        "source_sha256": "a3caa9d074d70b6141addb109bdaa7a726d2f92753a3798656d57adcbfc72d76"
       },
       "attributes": {},
       "class_uri": "cz:tools.filesystem.trusted.contracts.no_chmods",
@@ -371,10 +371,10 @@
     },
     "FilesystemNoCreates": {
       "annotations": {
-        "cnl_template": "No directory or empty file is created.",
+        "cnl_template": "No filesystem tool creates a directory or empty file.",
         "python_symbol": "tools.filesystem.trusted.contracts.no_creates",
         "renderer_version": 1,
-        "source_sha256": "9608e37de6de6f449c0511ec833aadea03979fc2ae1f49ba289021ba5b1196dc"
+        "source_sha256": "a3caa9d074d70b6141addb109bdaa7a726d2f92753a3798656d57adcbfc72d76"
       },
       "attributes": {},
       "class_uri": "cz:tools.filesystem.trusted.contracts.no_creates",
@@ -383,10 +383,10 @@
     },
     "FilesystemNoDeletes": {
       "annotations": {
-        "cnl_template": "Nothing is deleted or moved away.",
+        "cnl_template": "No filesystem tool deletes or moves anything away.",
         "python_symbol": "tools.filesystem.trusted.contracts.no_deletes",
         "renderer_version": 1,
-        "source_sha256": "9608e37de6de6f449c0511ec833aadea03979fc2ae1f49ba289021ba5b1196dc"
+        "source_sha256": "a3caa9d074d70b6141addb109bdaa7a726d2f92753a3798656d57adcbfc72d76"
       },
       "attributes": {},
       "class_uri": "cz:tools.filesystem.trusted.contracts.no_deletes",
@@ -398,7 +398,7 @@
         "cnl_template": "No restrictions are imposed on filesystem effects.",
         "python_symbol": "tools.filesystem.trusted.contracts.no_guarantees",
         "renderer_version": 1,
-        "source_sha256": "9608e37de6de6f449c0511ec833aadea03979fc2ae1f49ba289021ba5b1196dc"
+        "source_sha256": "a3caa9d074d70b6141addb109bdaa7a726d2f92753a3798656d57adcbfc72d76"
       },
       "attributes": {},
       "class_uri": "cz:tools.filesystem.trusted.contracts.no_guarantees",
@@ -407,10 +407,10 @@
     },
     "FilesystemNoReads": {
       "annotations": {
-        "cnl_template": "No file is read and no directory is listed.",
+        "cnl_template": "No filesystem tool reads a file or lists a directory.",
         "python_symbol": "tools.filesystem.trusted.contracts.no_reads",
         "renderer_version": 1,
-        "source_sha256": "9608e37de6de6f449c0511ec833aadea03979fc2ae1f49ba289021ba5b1196dc"
+        "source_sha256": "a3caa9d074d70b6141addb109bdaa7a726d2f92753a3798656d57adcbfc72d76"
       },
       "attributes": {},
       "class_uri": "cz:tools.filesystem.trusted.contracts.no_reads",
@@ -419,10 +419,10 @@
     },
     "FilesystemOnlyDeleteUnder": {
       "annotations": {
-        "cnl_template": "Everything deleted or moved away is under {root}.",
+        "cnl_template": "Everything a filesystem tool deletes or moves away starts with {root}.",
         "python_symbol": "tools.filesystem.trusted.contracts.only_delete_under",
         "renderer_version": 1,
-        "source_sha256": "9608e37de6de6f449c0511ec833aadea03979fc2ae1f49ba289021ba5b1196dc"
+        "source_sha256": "a3caa9d074d70b6141addb109bdaa7a726d2f92753a3798656d57adcbfc72d76"
       },
       "attributes": {
         "root": {
@@ -441,10 +441,10 @@
     },
     "FilesystemOnlyModes": {
       "annotations": {
-        "cnl_template": "Every chmod sets a mode in {allowlist}, written in decimal.",
+        "cnl_template": "Every filesystem chmod sets a mode in {allowlist}, written in decimal.",
         "python_symbol": "tools.filesystem.trusted.contracts.only_modes",
         "renderer_version": 1,
-        "source_sha256": "9608e37de6de6f449c0511ec833aadea03979fc2ae1f49ba289021ba5b1196dc"
+        "source_sha256": "a3caa9d074d70b6141addb109bdaa7a726d2f92753a3798656d57adcbfc72d76"
       },
       "attributes": {
         "allowlist": {
@@ -467,7 +467,7 @@
         "cnl_template": "Every grep search uses exactly the pattern {pattern}.",
         "python_symbol": "tools.filesystem.trusted.contracts.only_pattern",
         "renderer_version": 1,
-        "source_sha256": "9608e37de6de6f449c0511ec833aadea03979fc2ae1f49ba289021ba5b1196dc"
+        "source_sha256": "a3caa9d074d70b6141addb109bdaa7a726d2f92753a3798656d57adcbfc72d76"
       },
       "attributes": {
         "pattern": {
@@ -486,10 +486,10 @@
     },
     "FilesystemOnlyReadUnder": {
       "annotations": {
-        "cnl_template": "Every file read or directory listed is under {root}.",
+        "cnl_template": "Every file a filesystem tool reads or lists starts with {root}.",
         "python_symbol": "tools.filesystem.trusted.contracts.only_read_under",
         "renderer_version": 1,
-        "source_sha256": "9608e37de6de6f449c0511ec833aadea03979fc2ae1f49ba289021ba5b1196dc"
+        "source_sha256": "a3caa9d074d70b6141addb109bdaa7a726d2f92753a3798656d57adcbfc72d76"
       },
       "attributes": {
         "root": {
@@ -508,10 +508,10 @@
     },
     "FilesystemOnlyWriteUnder": {
       "annotations": {
-        "cnl_template": "Every filesystem modification is under {root}.",
+        "cnl_template": "Every modification by a filesystem tool is to a path starting with {root}.",
         "python_symbol": "tools.filesystem.trusted.contracts.only_write_under",
         "renderer_version": 1,
-        "source_sha256": "9608e37de6de6f449c0511ec833aadea03979fc2ae1f49ba289021ba5b1196dc"
+        "source_sha256": "a3caa9d074d70b6141addb109bdaa7a726d2f92753a3798656d57adcbfc72d76"
       },
       "attributes": {
         "root": {
@@ -531,7 +531,7 @@
     "FilesystemReadFile": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.read_file",
-        "source_sha256": "efcb23d234fa01a4e0c10913697396e48ccc9397b362d2b0e571d2d08959a81c"
+        "source_sha256": "d4740badf0d017b74ab72c6711b2b9234b440cef5e2a0492d9d1444b01c61e91"
       },
       "attributes": {
         "path": {
@@ -551,7 +551,7 @@
     "FilesystemReadLine": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.read_line",
-        "source_sha256": "efcb23d234fa01a4e0c10913697396e48ccc9397b362d2b0e571d2d08959a81c"
+        "source_sha256": "d4740badf0d017b74ab72c6711b2b9234b440cef5e2a0492d9d1444b01c61e91"
       },
       "attributes": {
         "line_number": {
@@ -580,7 +580,7 @@
     "FilesystemReadLines": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.read_lines",
-        "source_sha256": "efcb23d234fa01a4e0c10913697396e48ccc9397b362d2b0e571d2d08959a81c"
+        "source_sha256": "d4740badf0d017b74ab72c6711b2b9234b440cef5e2a0492d9d1444b01c61e91"
       },
       "attributes": {
         "path": {
@@ -599,10 +599,10 @@
     },
     "FilesystemReadOnly": {
       "annotations": {
-        "cnl_template": "Nothing on the filesystem is modified.",
+        "cnl_template": "No filesystem tool modifies anything. Effects of other libraries, such as git or rsync, are not covered.",
         "python_symbol": "tools.filesystem.trusted.contracts.read_only",
         "renderer_version": 1,
-        "source_sha256": "9608e37de6de6f449c0511ec833aadea03979fc2ae1f49ba289021ba5b1196dc"
+        "source_sha256": "a3caa9d074d70b6141addb109bdaa7a726d2f92753a3798656d57adcbfc72d76"
       },
       "attributes": {},
       "class_uri": "cz:tools.filesystem.trusted.contracts.read_only",
@@ -611,10 +611,10 @@
     },
     "FilesystemReadsAtMost": {
       "annotations": {
-        "cnl_template": "Files are read at most {count} times.",
+        "cnl_template": "Filesystem tools read files at most {count} times.",
         "python_symbol": "tools.filesystem.trusted.contracts.reads_at_most",
         "renderer_version": 1,
-        "source_sha256": "9608e37de6de6f449c0511ec833aadea03979fc2ae1f49ba289021ba5b1196dc"
+        "source_sha256": "a3caa9d074d70b6141addb109bdaa7a726d2f92753a3798656d57adcbfc72d76"
       },
       "attributes": {
         "count": {
@@ -634,7 +634,7 @@
     "FilesystemRemove": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.remove",
-        "source_sha256": "efcb23d234fa01a4e0c10913697396e48ccc9397b362d2b0e571d2d08959a81c"
+        "source_sha256": "d4740badf0d017b74ab72c6711b2b9234b440cef5e2a0492d9d1444b01c61e91"
       },
       "attributes": {
         "path": {
@@ -654,7 +654,7 @@
     "FilesystemTouch": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.touch",
-        "source_sha256": "efcb23d234fa01a4e0c10913697396e48ccc9397b362d2b0e571d2d08959a81c"
+        "source_sha256": "d4740badf0d017b74ab72c6711b2b9234b440cef5e2a0492d9d1444b01c61e91"
       },
       "attributes": {
         "path": {
@@ -674,7 +674,7 @@
     "FilesystemWriteFile": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.write_file",
-        "source_sha256": "efcb23d234fa01a4e0c10913697396e48ccc9397b362d2b0e571d2d08959a81c"
+        "source_sha256": "d4740badf0d017b74ab72c6711b2b9234b440cef5e2a0492d9d1444b01c61e91"
       },
       "attributes": {
         "content": {
@@ -702,10 +702,10 @@
     },
     "FilesystemWriteLengthAtMost": {
       "annotations": {
-        "cnl_template": "Text written to a file is at most {max_chars} characters.",
+        "cnl_template": "Text a filesystem tool writes to a file is at most {max_chars} characters.",
         "python_symbol": "tools.filesystem.trusted.contracts.write_length_at_most",
         "renderer_version": 1,
-        "source_sha256": "9608e37de6de6f449c0511ec833aadea03979fc2ae1f49ba289021ba5b1196dc"
+        "source_sha256": "a3caa9d074d70b6141addb109bdaa7a726d2f92753a3798656d57adcbfc72d76"
       },
       "attributes": {
         "max_chars": {
@@ -724,10 +724,10 @@
     },
     "FilesystemWritesAtMost": {
       "annotations": {
-        "cnl_template": "The filesystem is modified at most {count} times.",
+        "cnl_template": "Filesystem tools make at most {count} modifications.",
         "python_symbol": "tools.filesystem.trusted.contracts.writes_at_most",
         "renderer_version": 1,
-        "source_sha256": "9608e37de6de6f449c0511ec833aadea03979fc2ae1f49ba289021ba5b1196dc"
+        "source_sha256": "a3caa9d074d70b6141addb109bdaa7a726d2f92753a3798656d57adcbfc72d76"
       },
       "attributes": {
         "count": {

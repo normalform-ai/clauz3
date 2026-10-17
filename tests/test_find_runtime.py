@@ -7,6 +7,7 @@ from types import ModuleType
 from typing import cast
 from unittest.mock import patch
 
+import deal
 import pytest
 
 
@@ -112,7 +113,7 @@ def test_find_does_not_follow_directory_symlinks(
     assert find_effect(str(link), ["-type", "f"]) == []
 
 
-@pytest.mark.parametrize("suffix", ["/", "/."])
+@pytest.mark.parametrize("suffix", ["/"])
 def test_root_path_resolution_can_follow_a_symlink(
     find_effect: Callable[[str, list[str]], list[str]], tmp_path: Path, suffix: str
 ) -> None:
@@ -126,6 +127,15 @@ def test_root_path_resolution_can_follow_a_symlink(
     result = find_effect(str(link) + suffix, ["-type", "f"])
     assert len(result) == 1
     assert Path(result[0]).resolve() == target
+
+
+@pytest.mark.parametrize("path", ["/tmp/x/.", "/tmp//x", "/tmp/./x"])
+def test_dot_and_empty_segments_are_refused_before_running(
+    find_effect: Callable[[str, list[str]], list[str]], path: str
+) -> None:
+    # The precondition refuses the path before the body's own check runs.
+    with pytest.raises(deal.PreContractError, match="current-directory or empty"):
+        find_effect(path, ["-type", "f"])
 
 
 @pytest.mark.parametrize("root", [".", "src", "./src"])

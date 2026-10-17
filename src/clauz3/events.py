@@ -36,9 +36,10 @@ from __future__ import annotations
 
 import dataclasses
 import inspect
+import sys
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
-from typing import Any, ClassVar, TypeVar, dataclass_transform
+from typing import Any, ClassVar, TypeVar, cast, dataclass_transform
 
 from clauz3.spec import (
     ContractSpec,
@@ -50,11 +51,12 @@ from clauz3.spec import (
 
 F = TypeVar("F", bound=Callable[..., object])
 
-#: The events each trusted function performs, by ``module.qualname``. Keyed by
-#: qualified name, as the prover records facts, so two layers' functions that
-#: share a short name cannot borrow each other's events. A re-imported module
-#: replaces its entry rather than adding to it.
-PERFORMED: dict[str, tuple[Event, ...]] = {}
+#: The attribute ``@performs`` sets on a trusted function. The declaration
+#: lives on the function, not in a registry, so it is whatever the selected
+#: trusted layer's module holds: switching layers swaps the modules in
+#: ``sys.modules`` without re-running decorators, and a global registry would
+#: keep the last-imported layer's declarations.
+PERFORMS_ATTRIBUTE = "__clauz3_performs__"
 
 #: Names an event field may not take, because the class uses them as a relation.
 _RESERVED = frozenset({"all", "where", "empty", "count", "sum", "distinct"})
@@ -139,13 +141,17 @@ class EventRelation(Relation):
 
         >>> class Ping(Event):
         ...     host: str
-        >>> PERFORMED["net.ping"] = (Ping(_ParamRef("target")),)
+        >>> import types
+        >>> net = sys.modules["net"] = types.ModuleType("net")
+        >>> @performs(lambda target: Ping(target))
+        ... def ping(target: str, n: int) -> None: ...
+        >>> net.ping = ping
         >>> list(EventRelation(Ping).derive("net.ping", {"target": "h", "n": 3}))
         [('Ping', {'host': 'h'})]
-        >>> del PERFORMED["net.ping"]
+        >>> del sys.modules["net"]
         """
 
-        for event in PERFORMED.get(qualified_name, ()):
+        for event in performed(qualified_name):
             # By name, not ``isinstance``: switching trusted layers can import
             # an events module twice, and a contract holding one copy's class
             # must still see events built from the other. Matching nothing
@@ -177,6 +183,27 @@ def _qualified(cls: type) -> str:
     return f"{cls.__module__}.{cls.__qualname__}"
 
 
+def performed(qualified_name: str) -> tuple[Event, ...]:
+    """The events the function named ``module.function`` performs.
+
+    Resolved through ``sys.modules``, which holds the selected trusted layer's
+    modules, and through ``__wrapped__`` past the decorators above
+    ``@performs``. A function that declares nothing performs no events.
+
+    >>> performed("os.path.join"), performed("no.such.module.f")
+    ((), ())
+    """
+
+    module_name, _, name = qualified_name.rpartition(".")
+    func = getattr(sys.modules.get(module_name), name, None)
+    while func is not None:
+        events = getattr(func, PERFORMS_ATTRIBUTE, None)
+        if events is not None:
+            return cast(tuple[Event, ...], events)
+        func = getattr(func, "__wrapped__", None)
+    return ()
+
+
 def performs(builder: Callable[..., Event | list[Event]]) -> Callable[[F], F]:
     """Declare the events a trusted function performs.
 
@@ -204,13 +231,28 @@ def performs(builder: Callable[..., Event | list[Event]]) -> Callable[[F], F]:
                 )
 
     def decorate(func: F) -> F:
-        unknown = sorted(set(names) - set(inspect.signature(func).parameters))
+        parameters = inspect.signature(func).parameters
+        unknown = sorted(set(names) - set(parameters))
         if unknown:
             raise RelationError(
                 f"@performs on {func.__name__} names {unknown!r}, which are not "
                 "its parameters"
             )
-        PERFORMED[f"{func.__module__}.{func.__qualname__}"] = events
+        # A prove-time fact omits defaults the call left out, while a concrete
+        # trace binds them, so an event over one would differ between the two.
+        unbound = sorted(
+            name
+            for name in names
+            if parameters[name].default is not parameters[name].empty
+            or parameters[name].kind
+            in {parameters[name].VAR_POSITIONAL, parameters[name].VAR_KEYWORD}
+        )
+        if unbound:
+            raise RelationError(
+                f"@performs on {func.__name__} names {unbound!r}, which have "
+                "defaults or are variadic; events need parameters every call binds"
+            )
+        setattr(func, PERFORMS_ATTRIBUTE, events)
         return func
 
     return decorate

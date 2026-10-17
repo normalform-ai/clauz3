@@ -277,3 +277,19 @@ def test_environment_reads_need_the_env_policy(
         trusted=[FS_TRUSTED, ENV_TRUSTED],
     )
     assert [result.proof.conclusion for result in results] == [expected]
+
+
+FS_CASES = sorted((FS_ROOT / "tests/cases").glob("*.py"))
+
+
+@pytest.mark.parametrize("case", FS_CASES, ids=[case.stem for case in FS_CASES])
+def test_filesystem_case_conclusion_is_exact(case: Path) -> None:
+    """A ``_fail`` case must fail its proof, not merely stop on a refusal.
+
+    The case harness accepts a configuration error as a failure, so a typo in
+    a case would still pass there; this pins the conclusion itself.
+    """
+
+    expected = Conclusion.OK if case.stem.endswith("_pass") else Conclusion.FAIL
+    results = prove_path(case, trusted_roots=[FS_TRUSTED], import_roots=[FS_ROOT])
+    assert [r.proof.conclusion for r in results] == [expected]

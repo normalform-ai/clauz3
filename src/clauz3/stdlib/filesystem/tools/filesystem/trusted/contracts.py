@@ -6,10 +6,17 @@ governs every tool that performs that event: ``never_read_under`` covers
 ``copy`` and ``move``; ``only_write_under`` covers every modification,
 including deletes, creates and chmods.
 
+Every contract covers this library's tools only. Effects of other libraries
+that touch files (git, rsync, db) are not events here, and the approval text
+says so by naming "filesystem tools".
+
 Prefix checks are literal string prefixes, not resolved directory containment:
 ``only_read_under("test.md")`` also admits ``test.md.bak``. The ``never_*``
 contracts also refuse an event whose path is a prefix of the forbidden one,
-since that path may be a directory containing it.
+since that path may be a directory containing it. The effects refuse ``..``,
+``/./`` and ``//`` so a path cannot be respelled around a prefix, but the check
+stays lexical: ``data/x`` and ``./data/x`` are different strings, and symbolic
+links, hard links and case-insensitive filesystems are not modelled.
 
 A few contracts are about one tool's own arguments (``only_pattern``,
 ``only_modes``) and are stated over that tool or event alone.
@@ -53,20 +60,25 @@ def no_guarantees() -> ContractSpec:
 # -- reading -----------------------------------------------------------------
 
 
-@contract(description="No file is read and no directory is listed.")
+@contract(description="No filesystem tool reads a file or lists a directory.")
 def no_reads() -> ContractSpec:
     """Guarantee the program neither reads files nor lists directories."""
     return Observe.empty()
 
 
-@contract(description="Every file read or directory listed is under {root}.")
+@contract(description="Every file a filesystem tool reads or lists starts with {root}.")
 def only_read_under(root: str) -> ContractSpec:
     """Guarantee every read, search, listing, and copy or move source is under
     ``root``."""
     return _under(Observe, root)
 
 
-@contract(description="No file under {prefix} is read, copied or moved.")
+@contract(
+    description=(
+        "No filesystem tool reads, copies or moves a path starting with "
+        "{prefix}, or a directory containing it (paths compared as written)."
+    )
+)
 def never_read_under(prefix: str) -> ContractSpec:
     """Guarantee no file contents under ``prefix`` reach the program or a copy.
 
@@ -76,13 +88,13 @@ def never_read_under(prefix: str) -> ContractSpec:
     return _never_under(Read, prefix)
 
 
-@contract(description="Files are read at most {count} times.")
+@contract(description="Filesystem tools read files at most {count} times.")
 def reads_at_most(count: int) -> ContractSpec:
     """Guarantee at most ``count`` reads (a copy or move reads its source)."""
     return Read.count() <= count
 
 
-@contract(description="Directories are listed at most {count} times.")
+@contract(description="Filesystem tools list directories at most {count} times.")
 def lists_at_most(count: int) -> ContractSpec:
     """Guarantee at most ``count`` ``find`` walks occur."""
     return List.count() <= count
@@ -97,13 +109,22 @@ def only_pattern(pattern: str) -> ContractSpec:
 # -- writing -----------------------------------------------------------------
 
 
-@contract(description="Nothing on the filesystem is modified.")
+@contract(
+    description=(
+        "No filesystem tool modifies anything. Effects of other libraries, such"
+        " as git or rsync, are not covered."
+    )
+)
 def read_only() -> ContractSpec:
     """Guarantee no write, append, create, delete, move, copy or chmod occurs."""
     return Write.empty()
 
 
-@contract(description="Every filesystem modification is under {root}.")
+@contract(
+    description=(
+        "Every modification by a filesystem tool is to a path starting with {root}."
+    )
+)
 def only_write_under(root: str) -> ContractSpec:
     """Guarantee every modification, of any kind, has a path under ``root``.
 
@@ -112,19 +133,26 @@ def only_write_under(root: str) -> ContractSpec:
     return _under(Write, root)
 
 
-@contract(description="Nothing under {prefix} is modified.")
+@contract(
+    description=(
+        "No filesystem tool modifies a path starting with {prefix}, or a "
+        "directory containing it (paths compared as written)."
+    )
+)
 def never_write_under(prefix: str) -> ContractSpec:
     """Guarantee no modification, of any kind, touches ``prefix``."""
     return _never_under(Write, prefix)
 
 
-@contract(description="The filesystem is modified at most {count} times.")
+@contract(description="Filesystem tools make at most {count} modifications.")
 def writes_at_most(count: int) -> ContractSpec:
     """Guarantee at most ``count`` modifications (a move counts twice)."""
     return Write.count() <= count
 
 
-@contract(description="No text written to a file contains {substring}.")
+@contract(
+    description="No text a filesystem tool writes to a file contains {substring}."
+)
 def must_not_write(substring: str) -> ContractSpec:
     """Guarantee no written or appended text contains ``substring``.
 
@@ -134,7 +162,11 @@ def must_not_write(substring: str) -> ContractSpec:
     return WriteText.all(lambda e: substring not in e.text)
 
 
-@contract(description="Text written to a file is at most {max_chars} characters.")
+@contract(
+    description=(
+        "Text a filesystem tool writes to a file is at most {max_chars} characters."
+    )
+)
 def write_length_at_most(max_chars: int) -> ContractSpec:
     """Guarantee every written or appended text is at most ``max_chars`` long."""
     return WriteText.all(lambda e: len(e.text) <= max_chars)
@@ -143,19 +175,26 @@ def write_length_at_most(max_chars: int) -> ContractSpec:
 # -- deleting ----------------------------------------------------------------
 
 
-@contract(description="Nothing is deleted or moved away.")
+@contract(description="No filesystem tool deletes or moves anything away.")
 def no_deletes() -> ContractSpec:
     """Guarantee nothing is removed, including by moving it."""
     return Delete.empty()
 
 
-@contract(description="Everything deleted or moved away is under {root}.")
+@contract(
+    description="Everything a filesystem tool deletes or moves away starts with {root}."
+)
 def only_delete_under(root: str) -> ContractSpec:
     """Guarantee every removed (or moved) path is under ``root``."""
     return _under(Delete, root)
 
 
-@contract(description="Nothing under {prefix} is deleted or moved away.")
+@contract(
+    description=(
+        "No filesystem tool deletes or moves a path starting with {prefix}, or "
+        "a directory containing it (paths compared as written)."
+    )
+)
 def never_delete_under(prefix: str) -> ContractSpec:
     """Guarantee nothing under ``prefix`` is removed or moved.
 
@@ -165,7 +204,7 @@ def never_delete_under(prefix: str) -> ContractSpec:
     return _never_under(Delete, prefix)
 
 
-@contract(description="At most {count} paths are deleted or moved away.")
+@contract(description="Filesystem tools delete or move away at most {count} paths.")
 def deletes_at_most(count: int) -> ContractSpec:
     """Guarantee at most ``count`` removals (a move counts as one)."""
     return Delete.count() <= count
@@ -174,13 +213,15 @@ def deletes_at_most(count: int) -> ContractSpec:
 # -- creating ----------------------------------------------------------------
 
 
-@contract(description="No directory or empty file is created.")
+@contract(description="No filesystem tool creates a directory or empty file.")
 def no_creates() -> ContractSpec:
     """Guarantee no ``make_dir`` or ``touch`` occurs."""
     return Create.empty()
 
 
-@contract(description="At most {count} directories or empty files are created.")
+@contract(
+    description="Filesystem tools create at most {count} directories or empty files."
+)
 def creates_at_most(count: int) -> ContractSpec:
     """Guarantee at most ``count`` directories or empty files are created."""
     return Create.count() <= count
@@ -189,13 +230,15 @@ def creates_at_most(count: int) -> ContractSpec:
 # -- permissions -------------------------------------------------------------
 
 
-@contract(description="No permission bits are changed.")
+@contract(description="No filesystem tool changes permission bits.")
 def no_chmods() -> ContractSpec:
     """Guarantee the program changes no permission bits."""
     return Chmod.empty()
 
 
-@contract(description="Every chmod sets a mode in {allowlist}, written in decimal.")
+@contract(
+    description="Every filesystem chmod sets a mode in {allowlist}, written in decimal."
+)
 def only_modes(allowlist: list[int]) -> ContractSpec:
     """Guarantee every chmod sets a mode in ``allowlist``.
 

@@ -182,7 +182,7 @@ def test_bundled_schema_covers_all_filesystem_contracts() -> None:
         dict[str, object], classes["FilesystemOnlyReadUnder"]["annotations"]
     )
     assert annotations["cnl_template"] == (
-        "Every file read or directory listed is under {root}."
+        "Every file a filesystem tool reads or lists starts with {root}."
     )
 
 
@@ -250,9 +250,10 @@ def main() -> None:
         assert [proof.proof.conclusion for proof in proofs] == [Conclusion.OK]
         descriptions = contract_descriptions(source=source, target="main")
     assert [entry["text"] for entry in descriptions.values()] == [
-        "Nothing on the filesystem is modified.",
-        'Every file read or directory listed is under "test.md".',
-        "Nothing is deleted or moved away.",
+        "No filesystem tool modifies anything. "
+        "Effects of other libraries, such as git or rsync, are not covered.",
+        'Every file a filesystem tool reads or lists starts with "test.md".',
+        "No filesystem tool deletes or moves anything away.",
     ]
     assert descriptions["rules.only_read_under(root='test.md')"]["parameters"] == {
         "root": "test.md"

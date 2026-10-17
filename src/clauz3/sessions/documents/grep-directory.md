@@ -6,9 +6,10 @@ and prints each matching line with its path. Use it for a directory of readable
 UTF-8 files: binary or unreadable files can abort the run, and an error means
 the search is incomplete. Symbolic links are not physical confinement boundaries.
 
-The path guard is deliberately conservative. Paths outside the lexical prefix
-or containing two consecutive dots are reported as skipped, including harmless
-names such as `report..txt`. Any skip means the search was partial.
+The path guard is deliberately conservative. Paths outside the lexical prefix,
+or containing `..`, `/.` or `//`, are reported as skipped. That includes
+harmless names such as `report..txt` and hidden files such as `.env`. Any skip
+means the search was partial.
 
 ```python
 import clauz3
@@ -21,7 +22,12 @@ from tools.filesystem.trusted.effects import find, grep
 @clauz3.guarantee(fs.read_only())
 def main() -> None:
     for path in find("./data/", ["-type", "f"]):
-        if path.startswith("./data/") and ".." not in path:
+        if (
+            path.startswith("./data/")
+            and ".." not in path
+            and "/." not in path
+            and "//" not in path
+        ):
             for line in grep("hello", path):
                 print(path, line)
         else:

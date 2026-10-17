@@ -32,7 +32,7 @@ from tools.filesystem.trusted.events import (
 )
 
 import clauz3
-from clauz3._path_safety import has_no_parent_segments
+from clauz3._path_safety import has_no_dot_segments, has_no_parent_segments
 from clauz3.events import performs
 
 DEFAULT_TIMEOUT_SECONDS = 120
@@ -42,8 +42,8 @@ DEFAULT_TIMEOUT_SECONDS = 120
 
 
 @clauz3.requires(
-    lambda path: has_no_parent_segments(path),
-    message="path must not contain parent-directory segments",
+    lambda path: has_no_parent_segments(path) and has_no_dot_segments(path),
+    message="path must not contain parent, current-directory or empty segments",
 )
 @clauz3.requires(lambda path: len(path) > 0, message="path must be non-empty")
 @deal.has("read")
@@ -55,8 +55,8 @@ def read_file(path: str) -> str:
 
 
 @clauz3.requires(
-    lambda path: has_no_parent_segments(path),
-    message="path must not contain parent-directory segments",
+    lambda path: has_no_parent_segments(path) and has_no_dot_segments(path),
+    message="path must not contain parent, current-directory or empty segments",
 )
 @clauz3.requires(lambda path: len(path) > 0, message="path must be non-empty")
 @deal.has("read")
@@ -73,8 +73,10 @@ def read_lines(path: str) -> list[str]:
 
 
 @clauz3.requires(
-    lambda path, line_number: has_no_parent_segments(path),
-    message="path must not contain parent-directory segments",
+    lambda path, line_number: (
+        has_no_parent_segments(path) and has_no_dot_segments(path)
+    ),
+    message="path must not contain parent, current-directory or empty segments",
 )
 @clauz3.requires(
     lambda path, line_number: len(path) >= 1 and line_number >= 1,
@@ -96,8 +98,8 @@ def read_line(path: str, line_number: int) -> str:
 
 
 @clauz3.requires(
-    lambda pattern, path: has_no_parent_segments(path),
-    message="path must not contain parent-directory segments",
+    lambda pattern, path: has_no_parent_segments(path) and has_no_dot_segments(path),
+    message="path must not contain parent, current-directory or empty segments",
 )
 @clauz3.requires(
     lambda pattern, path: len(pattern) >= 1 and len(path) >= 1,
@@ -152,8 +154,8 @@ def _filters(args: list[str]) -> list[str]:
 
 
 @clauz3.requires(
-    lambda path, args: has_no_parent_segments(path),
-    message="path must not contain parent-directory segments",
+    lambda path, args: has_no_parent_segments(path) and has_no_dot_segments(path),
+    message="path must not contain parent, current-directory or empty segments",
 )
 @clauz3.requires(lambda path, args: len(path) > 0, message="path must be non-empty")
 @deal.has("read", "io", "syscall")
@@ -170,9 +172,15 @@ def find(path: str, args: list[str]) -> list[str]:
     """
     filters = _filters(args)
     # Do not rely on Deal's optional runtime checks at this external boundary.
-    if not path or "\0" in path or not has_no_parent_segments(path):
+    if (
+        not path
+        or "\0" in path
+        or not has_no_parent_segments(path)
+        or not has_no_dot_segments(path)
+    ):
         raise ValueError(
-            "find requires a non-empty path without parent segments or NUL"
+            "find requires a non-empty path without parent, current-directory "
+            "or empty segments, or NUL"
         )
     # Prefix relative roots so find cannot parse an option or expression
     # such as '-L', '!', or '(' in place of the one selected starting path.
@@ -194,8 +202,8 @@ def find(path: str, args: list[str]) -> list[str]:
 
 
 @clauz3.requires(
-    lambda path, content: has_no_parent_segments(path),
-    message="path must not contain parent-directory segments",
+    lambda path, content: has_no_parent_segments(path) and has_no_dot_segments(path),
+    message="path must not contain parent, current-directory or empty segments",
 )
 @clauz3.requires(lambda path, content: len(path) > 0, message="path must be non-empty")
 @deal.has("write")
@@ -209,8 +217,8 @@ def write_file(path: str, content: str) -> None:
 
 
 @clauz3.requires(
-    lambda path, text: has_no_parent_segments(path),
-    message="path must not contain parent-directory segments",
+    lambda path, text: has_no_parent_segments(path) and has_no_dot_segments(path),
+    message="path must not contain parent, current-directory or empty segments",
 )
 @clauz3.requires(lambda path, text: len(path) > 0, message="path must be non-empty")
 @deal.has("write")
@@ -231,8 +239,8 @@ def append_file(path: str, text: str) -> None:
 
 
 @clauz3.requires(
-    lambda path: has_no_parent_segments(path),
-    message="path must not contain parent-directory segments",
+    lambda path: has_no_parent_segments(path) and has_no_dot_segments(path),
+    message="path must not contain parent, current-directory or empty segments",
 )
 @clauz3.requires(lambda path: len(path) > 0, message="path must be non-empty")
 @deal.has("write", "io")
@@ -244,8 +252,8 @@ def make_dir(path: str) -> None:
 
 
 @clauz3.requires(
-    lambda path: has_no_parent_segments(path),
-    message="path must not contain parent-directory segments",
+    lambda path: has_no_parent_segments(path) and has_no_dot_segments(path),
+    message="path must not contain parent, current-directory or empty segments",
 )
 @clauz3.requires(lambda path: len(path) > 0, message="path must be non-empty")
 @deal.has("write", "io")
@@ -259,8 +267,8 @@ def touch(path: str) -> None:
 
 
 @clauz3.requires(
-    lambda path: has_no_parent_segments(path),
-    message="path must not contain parent-directory segments",
+    lambda path: has_no_parent_segments(path) and has_no_dot_segments(path),
+    message="path must not contain parent, current-directory or empty segments",
 )
 @clauz3.requires(lambda path: len(path) > 0, message="path must be non-empty")
 @deal.has("write", "io")
@@ -276,8 +284,13 @@ def remove(path: str) -> None:
 
 
 @clauz3.requires(
-    lambda src, dest: has_no_parent_segments(src) and has_no_parent_segments(dest),
-    message="src and dest must not contain parent-directory segments",
+    lambda src, dest: (
+        has_no_parent_segments(src)
+        and has_no_dot_segments(src)
+        and has_no_parent_segments(dest)
+        and has_no_dot_segments(dest)
+    ),
+    message="src and dest must not contain parent, current-directory or empty segments",
 )
 @clauz3.requires(
     lambda src, dest: len(src) > 0 and len(dest) > 0,
@@ -297,8 +310,13 @@ def move(src: str, dest: str) -> None:
 
 
 @clauz3.requires(
-    lambda src, dest: has_no_parent_segments(src) and has_no_parent_segments(dest),
-    message="src and dest must not contain parent-directory segments",
+    lambda src, dest: (
+        has_no_parent_segments(src)
+        and has_no_dot_segments(src)
+        and has_no_parent_segments(dest)
+        and has_no_dot_segments(dest)
+    ),
+    message="src and dest must not contain parent, current-directory or empty segments",
 )
 @clauz3.requires(
     lambda src, dest: len(src) > 0 and len(dest) > 0,
@@ -317,8 +335,8 @@ def copy(src: str, dest: str) -> None:
 
 
 @clauz3.requires(
-    lambda path, mode: has_no_parent_segments(path),
-    message="path must not contain parent-directory segments",
+    lambda path, mode: has_no_parent_segments(path) and has_no_dot_segments(path),
+    message="path must not contain parent, current-directory or empty segments",
 )
 @clauz3.requires(lambda path, mode: len(path) > 0, message="path must be non-empty")
 @deal.has("io")
