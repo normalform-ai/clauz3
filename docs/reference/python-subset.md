@@ -1118,7 +1118,7 @@ names the functions it covers, and no name at all covers every trusted call:
 
 ```python
 Email = effect(send_email)                 # the function, imported
-Edit = effect(edit_file, append_file)      # several, sharing their fields
+Write = effect(write_file, append_file)    # several, sharing their fields
 Any = effect()                             # every trusted call
 ```
 

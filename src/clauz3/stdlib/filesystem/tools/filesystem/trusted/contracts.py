@@ -43,32 +43,57 @@ from tools.filesystem.trusted.events import (
     WriteText,
 )
 
+from clauz3._path_safety import has_no_parent_segments, has_plain_segments
 from clauz3.spec import ContractSpec, contract, effect
 from clauz3.spec import no_guarantees as core_no_guarantees
 
 Grep = effect(grep)
 
 
+def _checked(prefix: str) -> str:
+    """Refuse a prefix no effect path can be written as.
+
+    Every effect refuses ``..``, ``/./``, ``//`` and backslashes, so a policy
+    over ``data//secret`` would match nothing while ``data/secret`` stayed
+    unconstrained. Raising here makes the proof a refusal, not a vacuous pass.
+
+    >>> _checked("data/./secret")
+    Traceback (most recent call last):
+    ...
+    ValueError: path prefix 'data/./secret' is not written the way effect paths are
+    """
+    if not (has_no_parent_segments(prefix) and has_plain_segments(prefix)):
+        raise ValueError(
+            f"path prefix {prefix!r} is not written the way effect paths are"
+        )
+    return prefix
+
+
 def _under(event: type[FsEvent], root: str) -> ContractSpec:
+    _checked(root)
     return event.all(lambda e: e.path.startswith(root))
 
 
 def _spellings(prefix: str) -> tuple[str, str]:
     """A prefix written bare and with ``./``; the effects admit both spellings.
 
+    ``.`` and ``./`` are the working directory, the bare prefix ``""``.
+
     >>> _spellings("./data/.env"), _spellings("data"), _spellings("/etc")
     (('data/.env', './data/.env'), ('data', './data'), ('/etc', '/etc'))
+    >>> _spellings("."), _spellings("./")
+    (('', './'), ('', './'))
     """
     if prefix.startswith("/"):
         return prefix, prefix
-    bare = prefix.removeprefix("./")
+    bare = "" if prefix == "." else prefix.removeprefix("./")
     return bare, "./" + bare
 
 
 def _never_under(event: type[FsEvent], prefix: str) -> ContractSpec:
     # An event is refused if its path is under either spelling of the prefix,
     # or is a prefix of either one: an ancestor directory, including ``.``.
-    bare, dotted = _spellings(prefix)
+    bare, dotted = _spellings(_checked(prefix))
     return event.all(
         lambda e: (
             not e.path.startswith(bare)

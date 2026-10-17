@@ -95,8 +95,9 @@ Import with `from tools.filesystem.trusted import contracts as fs`:
 argument: `only_read_under("test.md")` also admits `test.md.bak`. The effects
 refuse `..`, `/./` and `//` first, so a path cannot satisfy a prefix and then
 traverse outside it at runtime, or be respelled around a `never_*` prefix.
-The check is still lexical. A relative prefix is compared in both its bare and
-`./` spellings, and `.` counts as an ancestor of every relative path, so
+A prefix that no effect path can be written as, such as `data//secret`, is
+refused instead of holding vacuously. The check is still lexical. A relative
+prefix is compared in both its bare and `./` spellings, and `.` counts as an ancestor of every relative path, so
 `never_delete_under("data")` refuses `remove(".")`. A relative prefix says
 nothing about an absolute spelling of the same file. Backslashes are refused,
 since the library is POSIX. Symbolic links, hard links and case-insensitive

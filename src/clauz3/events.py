@@ -261,6 +261,8 @@ def performs(builder: Callable[..., Event | list[Event]]) -> Callable[[F], F]:
     names = list(inspect.signature(builder).parameters)
     result = builder(**{name: _ParamRef(name) for name in names})
     events = tuple(result) if isinstance(result, list) else (result,)
+    if not events:
+        raise RelationError("@performs must declare at least one event")
     for event in events:
         if not isinstance(event, Event):
             raise RelationError(
@@ -294,6 +296,12 @@ def performs(builder: Callable[..., Event | list[Event]]) -> Callable[[F], F]:
             raise RelationError(
                 f"@performs on {func.__name__} names {unbound!r}, which have "
                 "defaults or are variadic; events need parameters every call binds"
+            )
+        # A second @performs would replace the first; list every event in one.
+        if _declared(func):
+            raise RelationError(
+                f"@performs on {func.__name__} is stacked; declare all of its "
+                "events in one @performs"
             )
         setattr(func, PERFORMS_ATTRIBUTE, events)
         return func

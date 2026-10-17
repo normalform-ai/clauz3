@@ -332,3 +332,18 @@ def test_a_contract_over_an_event_nothing_performs_is_refused(
     assert "Write(" not in effects
     conclusion = _prove(tmp_path, 'remove("/a")', "read_only()", effects=effects)
     assert conclusion == Conclusion.SKIP
+
+
+def test_stacked_performs_is_refused() -> None:
+    """A second @performs would silently replace the first declaration."""
+
+    with pytest.raises(RelationError, match="stacked"):
+
+        @performs(lambda dest: Sent(dest))
+        @performs(lambda path: Sent(path))
+        def copy(path: str, dest: str) -> None: ...
+
+
+def test_performs_must_declare_an_event() -> None:
+    with pytest.raises(RelationError, match="at least one event"):
+        performs(lambda path: [])

@@ -38,7 +38,7 @@ unrelated vocabularies in one tuple:
   which named nothing deal understood and existed only so a contract could say
   ``effect("db_read")``. A contract now names the trusted function itself, and
   groups several with :func:`clauz3.spec.effect`'s remaining arguments
-  (``effect("edit_file", "append_file")``), which puts the grouping in the
+  (``effect("write_file", "append_file")``), which puts the grouping in the
   contract that depends on it instead of scattering a string across the
   declarations it happens to span.
 

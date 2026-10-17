@@ -100,7 +100,7 @@
         "cnl_template": "Filesystem tools create at most {count} directories or empty files.",
         "python_symbol": "tools.filesystem.trusted.contracts.creates_at_most",
         "renderer_version": 1,
-        "source_sha256": "81dbe9227ae0bb1db8ab1b8a556e7a20fd2ec88b91d1ef4acef02cdc346f43bb"
+        "source_sha256": "d06c4071e38e0246c1f4cb372b96201882033d315e76b7634779cffd5936760f"
       },
       "attributes": {
         "count": {
@@ -122,7 +122,7 @@
         "cnl_template": "Filesystem tools delete or move away at most {count} paths.",
         "python_symbol": "tools.filesystem.trusted.contracts.deletes_at_most",
         "renderer_version": 1,
-        "source_sha256": "81dbe9227ae0bb1db8ab1b8a556e7a20fd2ec88b91d1ef4acef02cdc346f43bb"
+        "source_sha256": "d06c4071e38e0246c1f4cb372b96201882033d315e76b7634779cffd5936760f"
       },
       "attributes": {
         "count": {
@@ -203,7 +203,7 @@
         "cnl_template": "Filesystem tools list directories at most {count} times.",
         "python_symbol": "tools.filesystem.trusted.contracts.lists_at_most",
         "renderer_version": 1,
-        "source_sha256": "81dbe9227ae0bb1db8ab1b8a556e7a20fd2ec88b91d1ef4acef02cdc346f43bb"
+        "source_sha256": "d06c4071e38e0246c1f4cb372b96201882033d315e76b7634779cffd5936760f"
       },
       "attributes": {
         "count": {
@@ -274,7 +274,7 @@
         "cnl_template": "No text a filesystem tool writes to a file contains {substring}.",
         "python_symbol": "tools.filesystem.trusted.contracts.must_not_write",
         "renderer_version": 1,
-        "source_sha256": "81dbe9227ae0bb1db8ab1b8a556e7a20fd2ec88b91d1ef4acef02cdc346f43bb"
+        "source_sha256": "d06c4071e38e0246c1f4cb372b96201882033d315e76b7634779cffd5936760f"
       },
       "attributes": {
         "substring": {
@@ -296,7 +296,7 @@
         "cnl_template": "No filesystem tool deletes or moves a path starting with {prefix}, or a directory containing it (paths compared as written).",
         "python_symbol": "tools.filesystem.trusted.contracts.never_delete_under",
         "renderer_version": 1,
-        "source_sha256": "81dbe9227ae0bb1db8ab1b8a556e7a20fd2ec88b91d1ef4acef02cdc346f43bb"
+        "source_sha256": "d06c4071e38e0246c1f4cb372b96201882033d315e76b7634779cffd5936760f"
       },
       "attributes": {
         "prefix": {
@@ -318,7 +318,7 @@
         "cnl_template": "No filesystem tool reads, copies or moves a path starting with {prefix}, or a directory containing it (paths compared as written).",
         "python_symbol": "tools.filesystem.trusted.contracts.never_read_under",
         "renderer_version": 1,
-        "source_sha256": "81dbe9227ae0bb1db8ab1b8a556e7a20fd2ec88b91d1ef4acef02cdc346f43bb"
+        "source_sha256": "d06c4071e38e0246c1f4cb372b96201882033d315e76b7634779cffd5936760f"
       },
       "attributes": {
         "prefix": {
@@ -340,7 +340,7 @@
         "cnl_template": "No filesystem tool modifies a path starting with {prefix}, or a directory containing it (paths compared as written).",
         "python_symbol": "tools.filesystem.trusted.contracts.never_write_under",
         "renderer_version": 1,
-        "source_sha256": "81dbe9227ae0bb1db8ab1b8a556e7a20fd2ec88b91d1ef4acef02cdc346f43bb"
+        "source_sha256": "d06c4071e38e0246c1f4cb372b96201882033d315e76b7634779cffd5936760f"
       },
       "attributes": {
         "prefix": {
@@ -362,7 +362,7 @@
         "cnl_template": "No filesystem tool changes permission bits.",
         "python_symbol": "tools.filesystem.trusted.contracts.no_chmods",
         "renderer_version": 1,
-        "source_sha256": "81dbe9227ae0bb1db8ab1b8a556e7a20fd2ec88b91d1ef4acef02cdc346f43bb"
+        "source_sha256": "d06c4071e38e0246c1f4cb372b96201882033d315e76b7634779cffd5936760f"
       },
       "attributes": {},
       "class_uri": "cz:tools.filesystem.trusted.contracts.no_chmods",
@@ -374,7 +374,7 @@
         "cnl_template": "No filesystem tool creates a directory or empty file.",
         "python_symbol": "tools.filesystem.trusted.contracts.no_creates",
         "renderer_version": 1,
-        "source_sha256": "81dbe9227ae0bb1db8ab1b8a556e7a20fd2ec88b91d1ef4acef02cdc346f43bb"
+        "source_sha256": "d06c4071e38e0246c1f4cb372b96201882033d315e76b7634779cffd5936760f"
       },
       "attributes": {},
       "class_uri": "cz:tools.filesystem.trusted.contracts.no_creates",
@@ -386,7 +386,7 @@
         "cnl_template": "No filesystem tool deletes or moves anything away.",
         "python_symbol": "tools.filesystem.trusted.contracts.no_deletes",
         "renderer_version": 1,
-        "source_sha256": "81dbe9227ae0bb1db8ab1b8a556e7a20fd2ec88b91d1ef4acef02cdc346f43bb"
+        "source_sha256": "d06c4071e38e0246c1f4cb372b96201882033d315e76b7634779cffd5936760f"
       },
       "attributes": {},
       "class_uri": "cz:tools.filesystem.trusted.contracts.no_deletes",
@@ -398,7 +398,7 @@
         "cnl_template": "No restrictions are imposed on filesystem effects.",
         "python_symbol": "tools.filesystem.trusted.contracts.no_guarantees",
         "renderer_version": 1,
-        "source_sha256": "81dbe9227ae0bb1db8ab1b8a556e7a20fd2ec88b91d1ef4acef02cdc346f43bb"
+        "source_sha256": "d06c4071e38e0246c1f4cb372b96201882033d315e76b7634779cffd5936760f"
       },
       "attributes": {},
       "class_uri": "cz:tools.filesystem.trusted.contracts.no_guarantees",
@@ -410,7 +410,7 @@
         "cnl_template": "No filesystem tool reads a file or lists a directory.",
         "python_symbol": "tools.filesystem.trusted.contracts.no_reads",
         "renderer_version": 1,
-        "source_sha256": "81dbe9227ae0bb1db8ab1b8a556e7a20fd2ec88b91d1ef4acef02cdc346f43bb"
+        "source_sha256": "d06c4071e38e0246c1f4cb372b96201882033d315e76b7634779cffd5936760f"
       },
       "attributes": {},
       "class_uri": "cz:tools.filesystem.trusted.contracts.no_reads",
@@ -422,7 +422,7 @@
         "cnl_template": "Everything a filesystem tool deletes or moves away starts with {root}.",
         "python_symbol": "tools.filesystem.trusted.contracts.only_delete_under",
         "renderer_version": 1,
-        "source_sha256": "81dbe9227ae0bb1db8ab1b8a556e7a20fd2ec88b91d1ef4acef02cdc346f43bb"
+        "source_sha256": "d06c4071e38e0246c1f4cb372b96201882033d315e76b7634779cffd5936760f"
       },
       "attributes": {
         "root": {
@@ -444,7 +444,7 @@
         "cnl_template": "Every filesystem chmod sets a mode in {allowlist}, written in decimal.",
         "python_symbol": "tools.filesystem.trusted.contracts.only_modes",
         "renderer_version": 1,
-        "source_sha256": "81dbe9227ae0bb1db8ab1b8a556e7a20fd2ec88b91d1ef4acef02cdc346f43bb"
+        "source_sha256": "d06c4071e38e0246c1f4cb372b96201882033d315e76b7634779cffd5936760f"
       },
       "attributes": {
         "allowlist": {
@@ -467,7 +467,7 @@
         "cnl_template": "Every grep search uses exactly the pattern {pattern}.",
         "python_symbol": "tools.filesystem.trusted.contracts.only_pattern",
         "renderer_version": 1,
-        "source_sha256": "81dbe9227ae0bb1db8ab1b8a556e7a20fd2ec88b91d1ef4acef02cdc346f43bb"
+        "source_sha256": "d06c4071e38e0246c1f4cb372b96201882033d315e76b7634779cffd5936760f"
       },
       "attributes": {
         "pattern": {
@@ -489,7 +489,7 @@
         "cnl_template": "Every file a filesystem tool reads or lists starts with {root}.",
         "python_symbol": "tools.filesystem.trusted.contracts.only_read_under",
         "renderer_version": 1,
-        "source_sha256": "81dbe9227ae0bb1db8ab1b8a556e7a20fd2ec88b91d1ef4acef02cdc346f43bb"
+        "source_sha256": "d06c4071e38e0246c1f4cb372b96201882033d315e76b7634779cffd5936760f"
       },
       "attributes": {
         "root": {
@@ -511,7 +511,7 @@
         "cnl_template": "Every modification by a filesystem tool is to a path starting with {root}.",
         "python_symbol": "tools.filesystem.trusted.contracts.only_write_under",
         "renderer_version": 1,
-        "source_sha256": "81dbe9227ae0bb1db8ab1b8a556e7a20fd2ec88b91d1ef4acef02cdc346f43bb"
+        "source_sha256": "d06c4071e38e0246c1f4cb372b96201882033d315e76b7634779cffd5936760f"
       },
       "attributes": {
         "root": {
@@ -602,7 +602,7 @@
         "cnl_template": "No filesystem tool modifies anything. Effects of other libraries, such as git or rsync, are not covered.",
         "python_symbol": "tools.filesystem.trusted.contracts.read_only",
         "renderer_version": 1,
-        "source_sha256": "81dbe9227ae0bb1db8ab1b8a556e7a20fd2ec88b91d1ef4acef02cdc346f43bb"
+        "source_sha256": "d06c4071e38e0246c1f4cb372b96201882033d315e76b7634779cffd5936760f"
       },
       "attributes": {},
       "class_uri": "cz:tools.filesystem.trusted.contracts.read_only",
@@ -614,7 +614,7 @@
         "cnl_template": "Filesystem tools read files at most {count} times.",
         "python_symbol": "tools.filesystem.trusted.contracts.reads_at_most",
         "renderer_version": 1,
-        "source_sha256": "81dbe9227ae0bb1db8ab1b8a556e7a20fd2ec88b91d1ef4acef02cdc346f43bb"
+        "source_sha256": "d06c4071e38e0246c1f4cb372b96201882033d315e76b7634779cffd5936760f"
       },
       "attributes": {
         "count": {
@@ -705,7 +705,7 @@
         "cnl_template": "Text a filesystem tool writes to a file is at most {max_chars} characters.",
         "python_symbol": "tools.filesystem.trusted.contracts.write_length_at_most",
         "renderer_version": 1,
-        "source_sha256": "81dbe9227ae0bb1db8ab1b8a556e7a20fd2ec88b91d1ef4acef02cdc346f43bb"
+        "source_sha256": "d06c4071e38e0246c1f4cb372b96201882033d315e76b7634779cffd5936760f"
       },
       "attributes": {
         "max_chars": {
@@ -727,7 +727,7 @@
         "cnl_template": "Filesystem tools make at most {count} modifications.",
         "python_symbol": "tools.filesystem.trusted.contracts.writes_at_most",
         "renderer_version": 1,
-        "source_sha256": "81dbe9227ae0bb1db8ab1b8a556e7a20fd2ec88b91d1ef4acef02cdc346f43bb"
+        "source_sha256": "d06c4071e38e0246c1f4cb372b96201882033d315e76b7634779cffd5936760f"
       },
       "attributes": {
         "count": {

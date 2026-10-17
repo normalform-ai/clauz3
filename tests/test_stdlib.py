@@ -293,3 +293,24 @@ def test_filesystem_case_conclusion_is_exact(case: Path) -> None:
     expected = Conclusion.OK if case.stem.endswith("_pass") else Conclusion.FAIL
     results = prove_path(case, trusted_roots=[FS_TRUSTED], import_roots=[FS_ROOT])
     assert [r.proof.conclusion for r in results] == [expected]
+
+
+@pytest.mark.parametrize("prefix", ["data//secret", "data/./secret", "data/../x"])
+def test_a_prefix_no_effect_path_can_match_is_refused(
+    tmp_path: Path, prefix: str
+) -> None:
+    """A deny-list no path can be written as would hold vacuously."""
+
+    source = (
+        "import clauz3\n"
+        "from tools.filesystem.trusted import contracts as fs\n"
+        "from tools.filesystem.trusted.effects import read_file\n"
+        "\n"
+        f"@clauz3.guarantee(fs.never_read_under({prefix!r}))\n"
+        "def main() -> None:\n"
+        '    print(read_file("data/secret"))\n'
+    )
+    results = _prove(tmp_path, source, import_roots=[FS_ROOT], trusted=FS_TRUSTED)
+    # The guarantee is refused; the program's other obligations still prove.
+    assert [r.proof.conclusion for r in results] == [Conclusion.PARTIAL]
+    assert "is not written the way effect paths are" in str(results[0].proof.error)

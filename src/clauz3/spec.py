@@ -200,7 +200,7 @@ def effect(*targets: str | Callable[..., object]) -> EffectRelation:
 
     A string names the same thing for a layer that cannot import its effects,
     and is checked against the trusted layer when the proof loads it. Several
-    targets make one relation over all of them, ``effect(edit_file,
+    targets make one relation over all of them, ``effect(write_file,
     append_file)``, and no target at all is the relation over *every* trusted
     call a program makes, which is how a contract says "this program has no
     effects".
