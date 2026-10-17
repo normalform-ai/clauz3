@@ -144,8 +144,9 @@ def known_effects(
 
     A relation built anywhere else is not checked here, because a contract
     module may legitimately import one from a layer that is not part of *this*
-    proof: ``stdlib:grep`` imports ``stdlib:filesystem``'s contracts for their
-    path rule, and proving a grep case does not put ``read_file`` in scope.
+    proof: a layer can import another layer's contracts to reuse a rule, and
+    proving a case against the first layer does not put the second layer's
+    effects in scope.
     Such a relation is checked when it is used instead --- see
     :meth:`EffectRelation.facts`.
 
@@ -339,42 +340,22 @@ class NoGuaranteesSpec(ContractSpec):
         return types.bool.val(True, ctx=ctx)
 
 
-@dataclass(frozen=True)
-class EffectRelation:
-    #: The trusted functions this relation covers; empty means every one.
-    names: tuple[str, ...]
-    #: The fields a predicate may read, or ``None`` when they are not known
-    #: here (see :func:`_fields_for`).
-    fields: frozenset[str] | None = None
-    #: The source file that built this relation, for scoped re-validation.
-    origin: str = ""
+class Relation:
+    """A bag of facts that contracts query: trusted calls, or events they perform.
 
-    def __post_init__(self) -> None:
-        # ``EffectRelation("send_email")`` would iterate the string, so the
-        # relation would cover eleven one-letter effects and match nothing.
-        # :func:`effect` never does this, but the class is reachable from a
-        # trusted layer (``stdlib:filesystem`` exports builders over it).
-        if isinstance(self.names, str):
-            raise RelationError(
-                f"effect names must be a tuple, not the string {self.names!r}; "
-                "use effect(...) to build a relation.",
-            )
+    Subclasses say which facts they cover (:meth:`facts`) and which fields a
+    predicate over them may read (:attr:`fields`); the query methods are shared.
+    """
 
-    def check_names(self, signatures: Mapping[str, tuple[str, ...]]) -> None:
-        """Refuse a name that is not a trusted effect of the layer being proved."""
+    #: The fields a predicate may read, or ``None`` when they are not known.
+    fields: frozenset[str] | None
 
-        unknown = [name for name in self.names if name not in signatures]
-        if not unknown:
-            return
-        raise RelationError(
-            f"effect({', '.join(repr(name) for name in self.names)}) in "
-            f"{self.origin or 'a contract module'} names "
-            f"{', '.join(repr(name) for name in unknown)}, which is not a "
-            f"trusted effect. Known effects: {sorted(signatures)!r}. "
-            "(A name that matches nothing would make every contract over this "
-            "relation hold vacuously. If it was a @deal.has marker, name the "
-            "function that carries it.)"
-        )
+    def describe(self) -> str:
+        """How error messages name this relation."""
+        raise NotImplementedError
+
+    def facts(self, ctx: Any) -> list[Any]:
+        raise NotImplementedError
 
     def _checked(self, predicate: Callable[[Any], Any]) -> LambdaSpec:
         """Compile a predicate, refusing a field the matched facts cannot have."""
@@ -384,11 +365,10 @@ class EffectRelation:
             return spec
         unknown = sorted(spec.fields() - self.fields)
         if unknown:
-            covered = ", ".join(self.names)
             raise RelationError(
-                f"predicate over effect({covered}) reads "
+                f"predicate over {self.describe()} reads "
                 f"{', '.join(repr(field) for field in unknown)}, which is not "
-                f"a parameter of every effect it covers. Available fields: "
+                f"a field of every fact it covers. Available fields: "
                 f"{sorted(self.fields)!r}."
             )
         return spec
@@ -415,14 +395,54 @@ class EffectRelation:
     def count(self) -> SumSpec:
         return SumSpec(relation=self, selector=None, predicate=None)
 
+
+@dataclass(frozen=True)
+class EffectRelation(Relation):
+    #: The trusted functions this relation covers; empty means every one.
+    names: tuple[str, ...]
+    #: The fields a predicate may read, or ``None`` when they are not known
+    #: here (see :func:`_fields_for`).
+    fields: frozenset[str] | None = None
+    #: The source file that built this relation, for scoped re-validation.
+    origin: str = ""
+
+    def __post_init__(self) -> None:
+        # ``EffectRelation("send_email")`` would iterate the string, so the
+        # relation would cover eleven one-letter effects and match nothing.
+        # :func:`effect` never does this, but the class is reachable from a
+        # trusted layer.
+        if isinstance(self.names, str):
+            raise RelationError(
+                f"effect names must be a tuple, not the string {self.names!r}; "
+                "use effect(...) to build a relation.",
+            )
+
+    def describe(self) -> str:
+        return f"effect({', '.join(self.names)})"
+
+    def check_names(self, signatures: Mapping[str, tuple[str, ...]]) -> None:
+        """Refuse a name that is not a trusted effect of the layer being proved."""
+
+        unknown = [name for name in self.names if name not in signatures]
+        if not unknown:
+            return
+        raise RelationError(
+            f"effect({', '.join(repr(name) for name in self.names)}) in "
+            f"{self.origin or 'a contract module'} names "
+            f"{', '.join(repr(name) for name in unknown)}, which is not a "
+            f"trusted effect. Known effects: {sorted(signatures)!r}. "
+            "(A name that matches nothing would make every contract over this "
+            "relation hold vacuously. If it was a @deal.has marker, name the "
+            "function that carries it.)"
+        )
+
     def facts(self, ctx: Any) -> list[Any]:
         # Checked on use, not only where it was built. A relation imported from
-        # a layer outside this proof's trusted roots -- ``stdlib:grep`` uses
-        # ``stdlib:filesystem``'s contracts that way -- passes through neither
-        # the window in ``known_effects`` nor ``validate_relations``, and
-        # neither does one built inside a contract helper while solving.
-        # Matching nothing is not a safe answer: it is what makes a contract
-        # hold vacuously, so a name that resolves to no effect is refused here.
+        # a layer outside this proof's trusted roots passes through neither the
+        # window in ``known_effects`` nor ``validate_relations``, and neither
+        # does one built inside a contract helper while solving. Matching
+        # nothing is not a safe answer: it is what makes a contract hold
+        # vacuously, so a name that resolves to no effect is refused here.
         if _EFFECT_SIGNATURES is not None:
             self.check_names(_EFFECT_SIGNATURES)
         return [fact for fact in ctx.facts if not self.names or fact.name in self.names]
@@ -430,7 +450,7 @@ class EffectRelation:
 
 @dataclass(frozen=True)
 class FilteredRelation:
-    relation: EffectRelation
+    relation: Relation
     predicate: LambdaSpec
 
     def all(self, predicate: Callable[[Any], Any]) -> ContractSpec:
@@ -479,7 +499,7 @@ class FilteredRelation:
 
 @dataclass(frozen=True)
 class AllSpec(ContractSpec):
-    relation: EffectRelation
+    relation: Relation
     predicate: LambdaSpec
     fact_filter: LambdaSpec | None = None
 
@@ -499,7 +519,7 @@ class AllSpec(ContractSpec):
 
 @dataclass(frozen=True)
 class EmptySpec(ContractSpec):
-    relation: EffectRelation
+    relation: Relation
     fact_filter: LambdaSpec | None = None
 
     def solve(self, *, ctx: Any) -> BoolSort:
@@ -514,7 +534,7 @@ class EmptySpec(ContractSpec):
 
 @dataclass(frozen=True)
 class DistinctSpec(ContractSpec):
-    relation: EffectRelation
+    relation: Relation
     key: LambdaSpec
     fact_filter: LambdaSpec | None = None
 
@@ -722,7 +742,7 @@ def _substituted_proxy(value: Any, subs: list[tuple[Any, Any]]) -> Any:
 
 @dataclass(frozen=True)
 class SumSpec:
-    relation: EffectRelation
+    relation: Relation
     selector: LambdaSpec | None
     predicate: LambdaSpec | None
 
@@ -844,9 +864,9 @@ class ComparisonSpec(ContractSpec):
 
 @dataclass(frozen=True)
 class SharedValueSpec(ContractSpec):
-    left_relation: EffectRelation
+    left_relation: Relation
     left_filter: LambdaSpec | None
-    right_relation: EffectRelation
+    right_relation: Relation
     right_filter: LambdaSpec | None
     key: LambdaSpec
 

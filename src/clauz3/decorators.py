@@ -45,6 +45,9 @@ GUARANTEE = "clauz3.guarantee"
 #: A fluent update registered when the trusted layer is imported.
 FLUENT_EFFECT = "clauz3.fluent.effect"
 
+#: The events a trusted function performs, registered when it is imported.
+PERFORMS = "clauz3.events.performs"
+
 Module: TypeAlias = ast.Module | astroid.Module
 DecoratorNode: TypeAlias = ast.expr | astroid.NodeNG
 
