@@ -40,6 +40,7 @@ import sys
 from collections.abc import Callable, Container, Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from types import GenericAlias
 from typing import Any, ClassVar, TypeVar, cast, dataclass_transform
 
 from clauz3 import spec
@@ -176,6 +177,15 @@ class EventRelation(Relation):
         self.check_performed()
         derived = []
         for fact in ctx.facts:
+            # A call whose function cannot be found would perform nothing,
+            # and contracts over its events would hold vacuously.
+            if spec._EFFECT_SIGNATURES is not None and (
+                _resolve(fact.qualified_name) is None
+            ):
+                raise RelationError(
+                    f"cannot find the trusted function {fact.qualified_name!r} "
+                    "to read the events it performs"
+                )
             for name, values in self.derive(fact.qualified_name, fact.args):
                 # Same reachability, loop quantifiers and call as the tool.
                 derived.append(fact._replace(name=name, args=values))
@@ -269,8 +279,27 @@ def performed(qualified_name: str) -> tuple[Event, ...]:
     ((), ())
     """
 
+    return _declared(_resolve(qualified_name))
+
+
+def _type_name(annotation: object) -> str:
+    """An annotation's name, whether postponed (a string) or evaluated.
+
+    >>> _type_name(int), _type_name("int"), _type_name(list[str])
+    ('int', 'int', 'list[str]')
+    """
+    if isinstance(annotation, str):
+        return annotation
+    if isinstance(annotation, type) and not isinstance(annotation, GenericAlias):
+        return annotation.__name__
+    return str(annotation)
+
+
+def _resolve(qualified_name: str) -> object:
+    """The function named ``module.function`` in the installed modules, or None."""
+
     module_name, _, name = qualified_name.rpartition(".")
-    return _declared(getattr(sys.modules.get(module_name), name, None))
+    return getattr(sys.modules.get(module_name), name, None)
 
 
 def performs(builder: Callable[..., Event | list[Event]]) -> Callable[[F], F]:
@@ -323,6 +352,20 @@ def performs(builder: Callable[..., Event | list[Event]]) -> Callable[[F], F]:
                 f"@performs on {func.__name__} names {unbound!r}, which have "
                 "defaults or are variadic; events need parameters every call binds"
             )
+        # An event field takes the parameter's value, so their declared types
+        # must agree; otherwise the mismatch surfaces only when a proof runs.
+        for event in events:
+            for field in dataclasses.fields(event):
+                ref = getattr(event, field.name)
+                declared = parameters[ref.name].annotation
+                if declared is not parameters[ref.name].empty and _type_name(
+                    declared
+                ) != _type_name(field.type):
+                    raise RelationError(
+                        f"@performs on {func.__name__} maps {ref.name!r} "
+                        f"({declared}) to {type(event).__name__}.{field.name} "
+                        f"({field.type})"
+                    )
         # A second @performs would replace the first; list every event in one.
         if _declared(func):
             raise RelationError(

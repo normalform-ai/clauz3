@@ -27,7 +27,8 @@ def superseded_message(library: str, stale: list[str]) -> str:
         f"stdlib:{library} now provides the tools of {', '.join(stale)}, whose "
         "copies define effects with the same names. Remove those libraries "
         "(from the Libraries view, or delete them under .clauz3/tools/), then "
-        f"install stdlib:{library} again."
+        f"install stdlib:{library} again. Some contracts were renamed; see the "
+        f"stdlib:{library} README."
     )
 
 

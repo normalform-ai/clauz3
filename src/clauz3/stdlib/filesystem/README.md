@@ -38,6 +38,7 @@ Programs that imported them need the new names. `edit_file` is gone; use
 | --- | --- |
 | `grep.searches_at_most` | `fs.reads_at_most` |
 | `find.searches_at_most` | `fs.lists_at_most` |
+| `find.never_read_under` | `fs.never_list_under` (`fs.never_read_under` covers contents only, not listings) |
 | `editor.no_edits` | `fs.read_only` |
 | `editor.only_edit_under`, `coreutils.only_create_under`, `only_copy_under`, `only_move_under`, `only_chmod_under` | `fs.only_write_under` |
 | `editor.never_edit_under`, `coreutils.never_create_under` | `fs.never_write_under` |
@@ -108,7 +109,7 @@ Import with `from tools.filesystem.trusted import contracts as fs`:
 | `fs.no_guarantees()` | nothing |
 | `fs.no_reads()`, `fs.only_read_under(root)` | `Observe` (reads and listings) |
 | `fs.never_read_under(prefix)`, `fs.reads_at_most(count)` | `Read` |
-| `fs.lists_at_most(count)` | `List` |
+| `fs.never_list_under(prefix)`, `fs.lists_at_most(count)` | `List` |
 | `fs.read_only()`, `fs.only_write_under(root)`, `fs.never_write_under(prefix)`, `fs.writes_at_most(count)` | `Write` (every modification) |
 | `fs.must_not_write(substring)`, `fs.write_length_at_most(max_chars)` | `WriteText` |
 | `fs.no_deletes()`, `fs.only_delete_under(root)`, `fs.never_delete_under(prefix)`, `fs.deletes_at_most(count)` | `Delete` |
@@ -151,7 +152,8 @@ under one. The `never_*` contracts therefore also refuse an event whose path is
 a prefix of the forbidden one: `never_delete_under("/home/user/.ssh")` refuses
 `remove("/home/user")`. Listing is not reading, so `never_read_under` allows
 `find` over a directory containing the prefix. It reveals names, not contents;
-use `only_read_under` to confine listings too.
+use `never_list_under` to keep `find` away from a prefix, or `only_read_under`
+to confine listings too.
 
 ## Example
 

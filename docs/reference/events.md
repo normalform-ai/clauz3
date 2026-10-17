@@ -64,7 +64,8 @@ The builder's parameters name the tool's parameters, and it may take any subset
 of them, in any order. It returns one event or a list of them. Each event field
 must be one of those parameters; a literal or computed value is refused when the
 trusted layer is imported, as is a parameter the tool does not have, one with a
-default, or a variadic one. Declare every event in one `@performs`: a second
+default, or a variadic one, or one whose declared type differs from the
+event field's. Declare every event in one `@performs`: a second
 one stacked on the same function is refused rather than replacing the first.
 
 At prove time, each reachable call to the tool is read as these events, with
@@ -102,7 +103,8 @@ name is refused at the move, because a move reads its source.
 
 A contract over an event that no trusted effect of the proof's layer performs
 is refused: it would hold vacuously, typically because a tool lost its
-`@performs`.
+`@performs`. So is a recorded call whose trusted function cannot be found in the
+installed modules, rather than being read as performing nothing.
 
 A predicate may read the event's fields. A relation over a base class offers
 the base class's fields. Event fields cannot be named after the query methods

@@ -347,3 +347,20 @@ def test_stacked_performs_is_refused() -> None:
 def test_performs_must_declare_an_event() -> None:
     with pytest.raises(RelationError, match="at least one event"):
         performs(lambda path: [])
+
+
+def test_performs_refuses_a_parameter_of_another_type() -> None:
+    with pytest.raises(RelationError, match="maps 'count'"):
+
+        @performs(lambda count: Sent(count))
+        def send(count: int) -> None: ...
+
+
+def test_an_unresolvable_call_is_refused_not_read_as_no_events(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A recorded call whose function cannot be found must not perform nothing."""
+
+    monkeypatch.setattr("clauz3.events._resolve", lambda qualified_name: None)
+    conclusion = _prove(tmp_path, 'remove("/a")', "read_only()")
+    assert conclusion == Conclusion.SKIP

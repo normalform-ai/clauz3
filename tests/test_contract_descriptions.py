@@ -173,7 +173,7 @@ def test_bundled_schema_covers_all_filesystem_contracts() -> None:
     classes = cast(dict[str, dict[str, object]], bundled_schema()["classes"])
     contracts = [value for value in classes.values() if value.get("is_a") == "Contract"]
     effects = [value for value in classes.values() if value.get("is_a") == "EffectCall"]
-    assert len(contracts) == 21
+    assert len(contracts) == 22
     assert len(effects) == 13
     assert all(
         "cnl_template" in cast(dict[str, object], c["annotations"]) for c in contracts

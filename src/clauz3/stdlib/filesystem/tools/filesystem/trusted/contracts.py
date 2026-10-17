@@ -96,6 +96,7 @@ def _under(event: type[FsEvent], root: str) -> ContractSpec:
                     and not e.path.startswith("../")
                     and not e.path.endswith("/..")
                     and e.path != ".."
+                    and ":.." not in e.path
                 )
             )
             and e.path.startswith(root)
@@ -147,6 +148,7 @@ def _never_under(event: type[FsEvent], prefix: str) -> ContractSpec:
                     and not e.path.startswith("../")
                     and not e.path.endswith("/..")
                     and e.path != ".."
+                    and ":.." not in e.path
                 )
             )
             and e.path.startswith("/") == absolute
@@ -203,6 +205,22 @@ def never_read_under(prefix: str) -> ContractSpec:
 def reads_at_most(count: int) -> ContractSpec:
     """Guarantee at most ``count`` reads (a copy or move reads its source)."""
     return Read.count() <= count
+
+
+@contract(
+    description=(
+        "No filesystem tool lists a directory starting with {prefix}, or one "
+        "containing it (paths compared as written)."
+    )
+)
+def never_list_under(prefix: str) -> ContractSpec:
+    """Guarantee no ``find`` walk starts at, under, or above ``prefix``.
+
+    The listing counterpart of ``never_read_under``, which covers contents
+    only. Walking a directory that contains ``prefix`` reveals its names, so
+    that is refused too. This is what ``find.never_read_under`` used to say.
+    """
+    return _never_under(List, prefix)
 
 
 @contract(description="Filesystem tools list directories at most {count} times.")
