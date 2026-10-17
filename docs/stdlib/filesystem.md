@@ -2,6 +2,8 @@
 
 ## Source
 
+{{ include_file("src/clauz3/stdlib/filesystem/tools/filesystem/trusted/events.py") }}
+
 {{ include_file("src/clauz3/stdlib/filesystem/tools/filesystem/trusted/effects.py") }}
 
 {{ include_file("src/clauz3/stdlib/filesystem/tools/filesystem/trusted/contracts.py") }}

@@ -100,15 +100,15 @@ rename:
 
 ```python
 from clauz3.spec import effect
-from tools.editor.trusted.effects import append_file, edit_file
+from tools.filesystem.trusted.effects import append_file, write_file
 
-EditFile = effect(edit_file)              # one effect
-Edit = effect(edit_file, append_file)     # both editor effects
-Any = effect()                           # every trusted call
+WriteFile = effect(write_file)                # one effect
+WriteText = effect(write_file, append_file)   # both text-writing effects
+Any = effect()                                # every trusted call
 ```
 
 A string names the same thing for a layer that cannot import its effects
-(`effect("edit_file")`), and is checked against the trusted layer when the
+(`effect("write_file")`), and is checked against the trusted layer when the
 proof loads it.
 
 **An unresolvable relation is refused.** A name that is not a trusted effect
@@ -129,7 +129,7 @@ would make its guarantees hold however the program behaves.
 `e.msg`, and a predicate reading anything else is refused where the relation is
 used, naming what is available. A relation over several effects offers the
 fields they *share*, since the predicate is applied to every matching fact —
-which is what makes a group like `effect(edit_file, append_file)` safe to write.
+which is what makes a group like `effect(write_file, append_file)` safe to write.
 `effect()` covers whatever a program calls, so no field is guaranteed and the
 check falls back to the one the expression compiler does per fact.
 
@@ -138,15 +138,10 @@ name a `@deal.has` marker instead — `effect("read")` matched whichever
 functions carried the string `read` — which made the membership of a relation
 something no contract stated: a later effect, or an unrelated layer installed
 alongside, silently joined or left it, and the matched facts need not even have
-the same fields. A layer that wants another layer's rule applied to its own
-effect says so, the way `stdlib:grep` does:
-
-```python
-# grep/trusted/contracts.py
-@contract
-def only_read_under(root: str) -> ContractSpec:
-    return filesystem.reads_under(Grep, root)
-```
+the same fields. When several tools act on the same resource, declare the
+[events](events.md) each one performs and state contracts over the events, as
+`stdlib:filesystem` does: its `only_read_under` is a query over `Read` and
+`List` events, so it covers `read_file`, `grep` and `find` alike.
 
 ## Relation Primitives
 

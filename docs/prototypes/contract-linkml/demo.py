@@ -21,7 +21,7 @@ SCHEMA = Path(__file__).resolve().parents[2] / "reference/contracts.linkml.json"
 CASES = (
     ("FilesystemReadOnly", {}),
     ("FilesystemOnlyReadUnder", {"root": "test.md"}),
-    ("EditorNoEdits", {}),
+    ("FilesystemNoDeletes", {}),
 )
 
 
@@ -54,10 +54,10 @@ def main() -> None:
     view = SchemaView(SCHEMA)
     descriptions = [describe(view, name, values) for name, values in CASES]
     expected = [
-        "No calls to filesystem.write_file are permitted.",
-        "Every filesystem.read_file or filesystem.read_lines "
-        'path must start with "test.md".',
-        "No calls to editor.edit_file or editor.append_file are permitted.",
+        "No filesystem tool modifies anything. "
+        "Effects of other libraries, such as git or rsync, are not covered.",
+        'Every file a filesystem tool reads or lists starts with "test.md".',
+        "No filesystem tool deletes or moves anything away.",
     ]
     assert descriptions == expected
     for invalid in ({}, {"root": 4}, {"root": "test.md", "unknown": True}):

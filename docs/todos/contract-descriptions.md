@@ -30,12 +30,12 @@ no LinkML runtime dependency is added to clauz3.
 
 | Expression | Faithful description |
 | --- | --- |
-| `rules.read_only()` | No calls to filesystem.write_file are permitted. |
-| `rules.only_read_under('test.md')` | Every filesystem.read_file or filesystem.read_lines path must start with "test.md". |
-| `editor_rules.no_edits()` | No calls to editor.edit_file or editor.append_file are permitted. |
+| `rules.read_only()` | No filesystem tool modifies anything. Effects of other libraries, such as git or rsync, are not covered. |
+| `rules.only_read_under('test.md')` | Every file a filesystem tool reads or lists starts with "test.md". |
+| `rules.no_deletes()` | No filesystem tool deletes or moves anything away. |
 
-These apply to the named effects, not to every operation classified as a read
-or write. `read_only()` does not prohibit rsync, git, or another layer's
+These apply to the filesystem library's tools, through the events they
+perform, not to every operation that touches a file. `read_only()` does not prohibit rsync, git, or another layer's
 effects. Preserve the approval coverage display alongside these statements.
 Do not summarize the conjunction as "the program cannot modify files".
 
@@ -66,8 +66,8 @@ its slots. Its result constrains a set of effect events. It is not itself an
 effect. Nor is its class automatically the OWL class of executions satisfying
 that constraint. Such an execution class requires a semantic translation.
 
-Use qualified identities and eventually stable URIs. `rules` and
-`editor_rules` are local source aliases, not identifiers. Even a canonical
+Use qualified identities and eventually stable URIs. `rules` is a local
+source alias, not an identifier. Even a canonical
 Python module name needs the selected layer's source identity: two installed
 libraries can expose the same name with different code. The generated catalog
 uses a versioned project namespace plus qualified Python symbols and includes

@@ -351,9 +351,9 @@ def check() -> None:
                 expect(page.locator(".request-card")).to_contain_text("bob@example.com")
                 page.get_by_role("link", name="▦ Libraries", exact=True).click()
                 expect(page.locator("#libraries-view")).to_be_visible()
-                page.locator("#library-search").fill("stdlib:find")
+                page.locator("#library-search").fill("stdlib:filesystem")
                 page.get_by_role(
-                    "button", name="Review install stdlib:find", exact=True
+                    "button", name="Review install stdlib:filesystem", exact=True
                 ).click()
                 expect(page.locator("#library-review-apply")).to_be_enabled(
                     timeout=20000
@@ -370,15 +370,12 @@ def check() -> None:
                 )
                 expect(page.locator("#library-list")).to_contain_text("Simulated")
                 # The toggle sets the default for new conversations only.
-                page.get_by_role("switch", name="Use find in new conversations").check()
+                page.get_by_role(
+                    "switch", name="Use filesystem in new conversations"
+                ).check()
                 expect(page.locator("#libraries-status")).to_contain_text(
-                    "email, filesystem, find"
+                    "email, filesystem"
                 )
-                expect(
-                    page.get_by_role(
-                        "switch", name="Use filesystem in new conversations"
-                    )
-                ).to_be_checked()
                 assert page.request.get(url + "/api/chat/transcript").json()[
                     "libraries"
                 ] == ["email"]
@@ -399,23 +396,23 @@ def check() -> None:
                 expect(page.locator("#libraries")).to_have_text("email")
                 page.locator("#library-menu-toggle").click()
                 page.locator("#library-menu-list label").filter(
-                    has_text="find"
+                    has_text="filesystem"
                 ).locator("input").check()
                 page.locator("#library-menu-apply").click()
                 expect(page.locator("#library-confirm-title")).to_have_text(
-                    "Add filesystem, find to this conversation?"
+                    "Add filesystem to this conversation?"
                 )
                 page.screenshot(path="/tmp/clauz3-workspace-library-confirm.png")
                 page.get_by_role("button", name="Add and continue").click()
                 expect(page.locator("#library-menu")).to_be_hidden(timeout=20000)
                 expect(page.locator(".library-marker")).to_contain_text(
-                    "+ find · automatic approvals paused"
+                    "+ filesystem · automatic approvals paused"
                 )
                 assert page.evaluate(
                     "document.querySelector('#conversation .library-marker') !== null"
                 )
                 expect(page.locator("#approvals-paused")).to_be_visible()
-                expect(page.locator("#libraries li")).to_have_count(3)
+                expect(page.locator("#libraries li")).to_have_count(2)
                 expect(page.locator("#send")).to_be_enabled(timeout=20000)
                 page.screenshot(
                     path="/tmp/clauz3-workspace-library-added.png", full_page=True
@@ -427,7 +424,7 @@ def check() -> None:
                 expect(page.locator("#approvals-paused")).to_be_hidden()
                 assert page.request.get(url + "/api/chat/transcript").json()[
                     "libraries"
-                ] == ["email", "filesystem", "find"]
+                ] == ["email", "filesystem"]
                 page.locator("#prompt").fill(
                     "run:" + str(EMAIL / "cases/only_bob_pass.py")
                 )
@@ -460,7 +457,7 @@ def check() -> None:
                     expect(page.locator("#send")).to_be_enabled()
                 page.get_by_role("link", name="▦ Libraries", exact=True).click()
                 page.get_by_role(
-                    "button", name="Review update stdlib:find", exact=True
+                    "button", name="Review update stdlib:filesystem", exact=True
                 ).click()
                 expect(page.locator("#library-review-status")).to_contain_text(
                     "Stop the current conversation"

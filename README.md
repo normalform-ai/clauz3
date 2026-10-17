@@ -228,12 +228,12 @@ Use `-g` / `--global` for a reusable user-wide installation, then select it into
 individual projects:
 
 ```bash
-clauz3 install -g stdlib:grep
-clauz3 install global:grep
+clauz3 install -g stdlib:filesystem
+clauz3 install global:filesystem
 ```
 
-The second command copies `grep` and its `filesystem` dependency into this
-project. Global installations are not automatically trusted by projects;
+The second command copies `filesystem`, and any libraries it declares as
+dependencies, into this project. Global installations are not automatically trusted by projects;
 updating the global copy leaves existing project copies unchanged. The store
 defaults to `~/.local/share/clauz3` (honoring `XDG_DATA_HOME` and `CLAUZ3_HOME`).
 
@@ -256,7 +256,7 @@ one into the current repo with the `stdlib:` scheme:
 
 ```bash
 clauz3 install stdlib:filesystem
-clauz3 install stdlib:grep
+clauz3 install stdlib:git
 ```
 
 The bundled tools are located with `importlib.resources`, so this works the
@@ -265,8 +265,12 @@ filesystem` also works as a shorthand.)
 
 | Tool | Effects | Headline contracts |
 | --- | --- | --- |
-| [`filesystem`](src/clauz3/stdlib/filesystem) | `read_file`, `read_lines`, `write_file` | `read_only`, `only_write_under`, `never_read_under`, `writes_at_most` |
-| [`grep`](src/clauz3/stdlib/grep) | `grep` (imports `filesystem`) | `only_read_under`, `never_read_under`, `searches_at_most`, `only_pattern` |
+| [`filesystem`](src/clauz3/stdlib/filesystem) | `read_file`, `grep`, `find`, `write_file`, `copy`, `move`, `remove`, `chmod`, ... | `read_only`, `only_read_under`, `never_read_under`, `only_write_under`, `no_deletes` |
+
+`filesystem` states its contracts over the events each tool performs, so one
+policy covers every tool: `never_read_under` refuses `read_file`, `grep`, and a
+`copy` or `move` from the forbidden path. See the full
+[list of stdlib tools](src/clauz3/stdlib/README.md).
 
 These differ from the `examples/` layers in two ways: their effect bodies do
 real work (so the prover skips them but `clauz3 run` executes them), and their
@@ -356,7 +360,7 @@ Implemented pieces include:
   [docs/reference/fluents.md](docs/reference/fluents.md).
 - `clauz3 prove` for proving examples from the CLI.
 - `clauz3 install` for copying a trusted `tools/` layer from a local path or a
-  bundled stdlib tool (`stdlib:filesystem`, `stdlib:grep`) into the project's
+  bundled stdlib tool (`stdlib:filesystem`, `stdlib:git`) into the project's
   `.clauz3/tools/`, optionally generating `.clauz3/skills/<domain>/SKILL.md`
   stubs.
 - `clauz3 test` for running a library's bundled `tests/Justfile` with `just`,

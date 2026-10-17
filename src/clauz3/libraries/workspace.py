@@ -11,10 +11,12 @@ from typing import Any
 from uuid import uuid4
 
 from clauz3.libraries.discovery import (
+    SUPERSEDED,
     Library,
     catalog,
     global_catalog,
     installed_domains,
+    superseded_message,
 )
 from clauz3.libraries.install import install_library
 from clauz3.libraries.layout import domain_path, ensure_project_dir
@@ -246,6 +248,11 @@ class WorkspaceLibraries:
             expected = {d for key in planned for d in sources[key].domains}
             results = install_library(source, into=stage)
             received = {d for result in results for d in result.domains}
+            for provided in sorted(received):
+                installed = self.installed()
+                stale = [d for d in SUPERSEDED.get(provided, ()) if d in installed]
+                if stale:
+                    raise ValueError(superseded_message(provided, stale))
             if received != expected:
                 raise ValueError(
                     "Source contents do not match the catalogue's declared domains"

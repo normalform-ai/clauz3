@@ -1,14 +1,5 @@
 [
   {
-    "source": "stdlib:coreutils",
-    "description": "Create, copy, move, delete and chmod files and directories.",
-    "domains": [
-      "coreutils"
-    ],
-    "dependencies": [],
-    "requirements": []
-  },
-  {
     "source": "stdlib:db",
     "description": "Read typed rows from DuckDB, CSV and Parquet databases.",
     "domains": [
@@ -18,15 +9,6 @@
     "requirements": [
       "Python package duckdb"
     ]
-  },
-  {
-    "source": "stdlib:editor",
-    "description": "Edit and append text files with path and content contracts.",
-    "domains": [
-      "editor"
-    ],
-    "dependencies": [],
-    "requirements": []
   },
   {
     "source": "stdlib:env",
@@ -39,24 +21,13 @@
   },
   {
     "source": "stdlib:filesystem",
-    "description": "Read and write files with path and access contracts.",
+    "description": "Read, search, list, write, copy, move, delete and chmod files, with contracts over what each tool does to the filesystem.",
     "domains": [
       "filesystem"
     ],
     "dependencies": [],
-    "requirements": []
-  },
-  {
-    "source": "stdlib:find",
-    "description": "Find and list files under a directory tree.",
-    "domains": [
-      "find"
-    ],
-    "dependencies": [
-      "stdlib:filesystem"
-    ],
     "requirements": [
-      "find executable"
+      "find executable (for find)"
     ]
   },
   {
@@ -82,17 +53,6 @@
     ]
   },
   {
-    "source": "stdlib:grep",
-    "description": "Search file contents for matching text.",
-    "domains": [
-      "grep"
-    ],
-    "dependencies": [
-      "stdlib:filesystem"
-    ],
-    "requirements": []
-  },
-  {
     "source": "stdlib:rsync",
     "description": "Synchronize files with destination and deletion contracts.",
     "domains": [
@@ -102,17 +62,6 @@
     "requirements": [
       "rsync executable"
     ]
-  },
-  {
-    "source": "stdlib:text",
-    "description": "Read a selected UTF-8 text line by line number, with path and read-count contracts.",
-    "domains": [
-      "text"
-    ],
-    "dependencies": [
-      "stdlib:filesystem"
-    ],
-    "requirements": []
   },
   {
     "source": "stdlib:web_fetch",

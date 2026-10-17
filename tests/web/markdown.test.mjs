@@ -8,36 +8,36 @@ const { parse, parseInline } = globalThis.clauz3Markdown;
 
 test("list items keep indented fences and inline markup", () => {
   const source = [
-    "Counting files needs `stdlib:find`. Do one of these:",
+    "Checking the history needs `stdlib:git`. Do one of these:",
     "",
-    "- **Libraries view:** add `stdlib:find`, then start again.",
+    "- **Libraries view:** add `stdlib:git`, then start again.",
     "- **Terminal:** run the commands below.",
     "  ```",
     "  clauz3 install stdlib:filesystem",
-    "  clauz3 install stdlib:find",
+    "  clauz3 install stdlib:git",
     "  ```",
     "",
-    "Once it's installed, I can count them.",
+    "Once it's installed, I can check it.",
   ].join("\n");
   assert.deepEqual(parse(source), [
-    { type: "paragraph", text: "Counting files needs `stdlib:find`. Do one of these:" },
+    { type: "paragraph", text: "Checking the history needs `stdlib:git`. Do one of these:" },
     {
       type: "list",
       ordered: false,
       start: 1,
       items: [
-        [{ type: "paragraph", text: "**Libraries view:** add `stdlib:find`, then start again." }],
+        [{ type: "paragraph", text: "**Libraries view:** add `stdlib:git`, then start again." }],
         [
           { type: "paragraph", text: "**Terminal:** run the commands below." },
           {
             type: "code",
             lang: "",
-            text: "clauz3 install stdlib:filesystem\nclauz3 install stdlib:find",
+            text: "clauz3 install stdlib:filesystem\nclauz3 install stdlib:git",
           },
         ],
       ],
     },
-    { type: "paragraph", text: "Once it's installed, I can count them." },
+    { type: "paragraph", text: "Once it's installed, I can check it." },
   ]);
 });
 

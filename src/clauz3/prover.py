@@ -262,11 +262,17 @@ def _declared_contracts(
     name = decorators_mod.condition_contract(node, aliases)
     if name is None:
         # These decorators preserve the Python function. Guarantees are read
-        # separately; fluent updates are registered when the trusted layer is
-        # imported. Neither permits us to ignore an arbitrary decorator that
-        # might instead hide a trusted boundary or a condition.
+        # separately; fluent updates and performed events are registered when
+        # the trusted layer is imported. None of this permits us to ignore an
+        # arbitrary decorator that might instead hide a trusted boundary or a
+        # condition.
         if (
-            canonical in {decorators_mod.GUARANTEE, decorators_mod.FLUENT_EFFECT}
+            canonical
+            in {
+                decorators_mod.GUARANTEE,
+                decorators_mod.FLUENT_EFFECT,
+                decorators_mod.PERFORMS,
+            }
             and isinstance(node, astroid.Call)
             and len(node.args) == 1
             and not node.keywords
@@ -1164,6 +1170,7 @@ _FORBIDDEN_QUALIFIED = frozenset(
         "clauz3.spec.contract",
         "clauz3.spec.effect",
         decorators_mod.FLUENT_EFFECT,
+        decorators_mod.PERFORMS,
         "clauz3.solver",
     }
 )
@@ -1176,7 +1183,16 @@ _FORBIDDEN_QUALIFIED = frozenset(
 # where ``from clauz3 import contract`` resolved to a dotted name and slipped
 # past an unqualified-only check.
 _FORBIDDEN_LEAF = frozenset(
-    {"has", "trusted", "requires", "ensures", "contract", "effect", "solver"}
+    {
+        "has",
+        "trusted",
+        "requires",
+        "ensures",
+        "contract",
+        "effect",
+        "performs",
+        "solver",
+    }
 )
 
 

@@ -94,8 +94,8 @@ see [Publishing trusted layers](publish-layers.md#repository-layout) for the
 full rule. A `global:` selection
 copies only the named domain and its declared dependencies.
 
-Declared library dependencies are installed automatically; for example,
-`clauz3 install stdlib:grep` also installs `filesystem`. Existing dependency
+Declared library dependencies are installed automatically: installing a
+library also installs the libraries it lists as dependencies. Existing dependency
 directories are preserved, including when `--force` updates the selected
 library. Runtime requirements such as `git`, `gh`, or Python packages are
 listed by `clauz3 libraries` and installed separately.
@@ -140,8 +140,8 @@ Install a library once in your user-wide store, then select it into each
 project that needs it:
 
 ```bash
-clauz3 install -g stdlib:grep
-clauz3 install global:grep --into my-project
+clauz3 install -g stdlib:filesystem
+clauz3 install global:filesystem --into my-project
 ```
 
 The store defaults to `~/.local/share/clauz3` (or

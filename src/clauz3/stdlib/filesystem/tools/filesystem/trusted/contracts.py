@@ -1,36 +1,167 @@
-"""Filesystem path policies built from generic trusted effect facts.
+"""Filesystem policies, stated over the events the tools perform.
 
-These contracts let an agent state *where* it is allowed to read and write, as
-path-prefix policies over this layer's effects. The prefix checks use the
-relation-lambda ``str.startswith`` support in ``clauz3.spec``.
+Each contract below is a query over an event class from ``events.py``, so it
+governs every tool that performs that event: ``never_read_under`` covers
+``read_file``, ``read_lines``, ``read_line``, ``grep`` and the source of
+``copy`` and ``move``; ``only_write_under`` covers every modification,
+including deletes, creates and chmods.
 
-The ``reads_under`` / ``never_reads_under`` builders take the relation to
-constrain, so a layer whose effect is *also* a read --- ``grep``, ``find`` ---
-can apply this layer's path rule to its own effect. That delegation used to be
-implicit: every read effect declared a ``read`` marker and ``Read`` matched
-whatever carried it, including effects from layers this one has never heard
-of. It is a line of code in the dependent layer now, so which effects a policy
-governs is something the contract states rather than something a string
-collision decides.
+Every contract covers this library's tools only. Effects of other libraries
+that touch files (git, rsync, db) are not events here, and the approval text
+says so by naming "filesystem tools".
+
+Prefix checks are literal string prefixes, not resolved directory containment:
+``only_read_under("test.md")`` also admits ``test.md.bak``. The ``never_*``
+contracts also refuse an event whose path is a prefix of the forbidden one,
+since that path may be a directory containing it. The effects refuse ``..``,
+``/./`` and ``//`` so a path cannot be respelled around a prefix, but the check
+stays lexical. A relative prefix is compared in both its bare and ``./``
+spellings, and ``.`` counts as an ancestor of every relative path, but a
+relative prefix says nothing about an absolute spelling of the same file.
+Symbolic links, hard links and case-insensitive filesystems are not modelled.
+
+``Delete`` means ``remove`` or a ``move``'s source. Overwriting a file with
+``write_file``, ``copy`` or ``move`` is a ``Write``, not a ``Delete``: protect
+contents with ``never_write_under``. Parent directories that ``write_file``,
+``touch`` and ``copy`` create on the way are not ``Create`` events; they lie on
+the path of the ``Write`` that created them.
+
+A few contracts are about one tool's own arguments (``only_pattern``,
+``only_modes``) and are stated over that tool or event alone.
 """
 
-from tools.filesystem.trusted.effects import read_file, read_lines, write_file
+from tools.filesystem.trusted.effects import grep
+from tools.filesystem.trusted.events import (
+    Chmod,
+    Create,
+    Delete,
+    FsEvent,
+    List,
+    Observe,
+    Read,
+    Write,
+    WriteText,
+)
 
-from clauz3.spec import ContractSpec, EffectRelation, contract, effect
+from clauz3._path_safety import is_plain_path
+from clauz3.spec import ContractSpec, contract, effect
 from clauz3.spec import no_guarantees as core_no_guarantees
 
-Read = effect(read_file, read_lines)
-Write = effect(write_file)
+Grep = effect(grep)
 
 
-def reads_under(relation: EffectRelation, root: str) -> ContractSpec:
-    """Every call in ``relation`` touches a path under ``root``."""
-    return relation.all(lambda e: e.path.startswith(root))
+def _checked(prefix: str) -> str:
+    """Refuse a prefix no effect path can be written as, or the empty prefix.
+
+    Every effect refuses ``..``, ``/./``, ``//`` and backslashes, so a policy
+    over ``data//secret`` would match nothing while ``data/secret`` stayed
+    unconstrained, and ``only_read_under("")`` would admit every path. Raising
+    here makes the proof a refusal, not a vacuous pass.
+
+    >>> _checked("data/./secret")
+    Traceback (most recent call last):
+    ...
+    ValueError: path prefix 'data/./secret' is not written the way effect paths are
+    """
+    if not (prefix and is_plain_path(prefix)):
+        raise ValueError(
+            f"path prefix {prefix!r} is not written the way effect paths are"
+        )
+    return prefix
 
 
-def never_reads_under(relation: EffectRelation, prefix: str) -> ContractSpec:
-    """No call in ``relation`` touches a path under ``prefix``."""
-    return relation.all(lambda e: not e.path.startswith(prefix))
+# Each path contract also checks the event path is plain, the condition
+# ``is_plain_path`` states for the filesystem effects' preconditions. A tool
+# from another layer may perform the same events without that precondition,
+# and a respelled path (``/home/user//.ssh``) would otherwise step around a
+# prefix. Contract lambdas cannot call helpers, so the clauses are inline.
+
+
+def _under(event: type[FsEvent], root: str) -> ContractSpec:
+    _checked(root)
+    return event.all(
+        lambda e: (
+            "//" not in e.path
+            and "\\" not in e.path
+            # Shortcut first disjuncts, as in is_plain_path, keep the solver
+            # from re-deriving the detail from an agent's simpler guard.
+            and (
+                "/." not in e.path
+                or ("/./" not in e.path and not e.path.endswith("/."))
+            )
+            and (
+                ".." not in e.path
+                or (
+                    "/../" not in e.path
+                    and not e.path.startswith("../")
+                    and not e.path.endswith("/..")
+                    and e.path != ".."
+                    and ":.." not in e.path
+                )
+            )
+            and e.path.startswith(root)
+        )
+    )
+
+
+def _spellings(prefix: str) -> tuple[str, str]:
+    """A prefix written bare and with ``./``; the effects admit both spellings.
+
+    ``.`` and ``./`` are the working directory, the bare prefix ``""``.
+
+    >>> _spellings("./data/.env"), _spellings("data"), _spellings("/etc")
+    (('data/.env', './data/.env'), ('data', './data'), ('/etc', '/etc'))
+    >>> _spellings("."), _spellings("./")
+    (('', './'), ('', './'))
+    """
+    if prefix.startswith("/"):
+        return prefix, prefix
+    bare = "" if prefix == "." else prefix.removeprefix("./")
+    return bare, "./" + bare
+
+
+def _never_under(event: type[FsEvent], prefix: str) -> ContractSpec:
+    """Refuse an event at, under, or containing either spelling of ``prefix``.
+
+    An event path written the other way (relative under an absolute prefix,
+    or absolute under a relative one) is refused outright: whether it reaches
+    the prefix depends on the working directory, which a proof cannot see.
+    An event path contains the prefix only at a ``/`` boundary, so
+    ``never_write_under("/repo/notes.md.orig")`` allows ``/repo/notes.md``.
+    """
+    bare, dotted = _spellings(_checked(prefix))
+    absolute = prefix.startswith("/")
+    return event.all(
+        lambda e: (
+            "//" not in e.path
+            and "\\" not in e.path
+            # Shortcut first disjuncts, as in is_plain_path, keep the solver
+            # from re-deriving the detail from an agent's simpler guard.
+            and (
+                "/." not in e.path
+                or ("/./" not in e.path and not e.path.endswith("/."))
+            )
+            and (
+                ".." not in e.path
+                or (
+                    "/../" not in e.path
+                    and not e.path.startswith("../")
+                    and not e.path.endswith("/..")
+                    and e.path != ".."
+                    and ":.." not in e.path
+                )
+            )
+            and e.path.startswith("/") == absolute
+            # at or under the prefix
+            and not e.path.startswith(bare)
+            and not e.path.startswith(dotted)
+            # a directory containing it
+            and not bare.startswith(e.path + "/")
+            and not dotted.startswith(e.path + "/")
+            and not (e.path.endswith("/") and bare.startswith(e.path))
+            and not (e.path.endswith("/") and dotted.startswith(e.path))
+        )
+    )
 
 
 @contract(description="No restrictions are imposed on filesystem effects.")
@@ -39,93 +170,213 @@ def no_guarantees() -> ContractSpec:
     return core_no_guarantees()
 
 
-@contract(description="No calls to filesystem.write_file are permitted.")
-def read_only() -> ContractSpec:
-    """Guarantee ``write_file`` is never called.
+# -- reading -----------------------------------------------------------------
 
-    This layer's write effect, and only that one. A program can still write
-    through another layer --- ``coreutils.make_dir``, ``editor.edit_file``,
-    ``rsync.rsync`` --- and each states its own: ``coreutils.no_creates()``,
-    ``editor.no_edits()``, ``rsync.no_syncs()``.
+
+@contract(description="No filesystem tool reads a file or lists a directory.")
+def no_reads() -> ContractSpec:
+    """Guarantee the program neither reads files nor lists directories."""
+    return Observe.empty()
+
+
+@contract(description="Every file a filesystem tool reads or lists starts with {root}.")
+def only_read_under(root: str) -> ContractSpec:
+    """Guarantee every read, search, listing, and copy or move source is under
+    ``root``."""
+    return _under(Observe, root)
+
+
+@contract(
+    description=(
+        "No filesystem tool reads, copies or moves a path starting with "
+        "{prefix}, or a directory containing it (paths compared as written)."
+    )
+)
+def never_read_under(prefix: str) -> ContractSpec:
+    """Guarantee no file contents under ``prefix`` reach the program or a copy.
+
+    Listing a directory that contains ``prefix`` is allowed: it reveals the
+    name, not the contents. Use ``only_read_under`` to confine listings too.
     """
+    return _never_under(Read, prefix)
+
+
+@contract(description="Filesystem tools read files at most {count} times.")
+def reads_at_most(count: int) -> ContractSpec:
+    """Guarantee at most ``count`` reads (a copy or move reads its source)."""
+    return Read.count() <= count
+
+
+@contract(
+    description=(
+        "No filesystem tool lists a directory starting with {prefix}, or one "
+        "containing it (paths compared as written)."
+    )
+)
+def never_list_under(prefix: str) -> ContractSpec:
+    """Guarantee no ``find`` walk starts at, under, or above ``prefix``.
+
+    The listing counterpart of ``never_read_under``, which covers contents
+    only. Walking a directory that contains ``prefix`` reveals its names, so
+    that is refused too. This is what ``find.never_read_under`` used to say.
+    """
+    return _never_under(List, prefix)
+
+
+@contract(description="Filesystem tools list directories at most {count} times.")
+def lists_at_most(count: int) -> ContractSpec:
+    """Guarantee at most ``count`` ``find`` walks occur."""
+    return List.count() <= count
+
+
+@contract(description="Every grep search uses exactly the pattern {pattern}.")
+def only_pattern(pattern: str) -> ContractSpec:
+    """Guarantee every ``grep`` search uses exactly this pattern."""
+    return Grep.all(lambda e: e.pattern == pattern)
+
+
+# -- writing -----------------------------------------------------------------
+
+
+@contract(
+    description=(
+        "No filesystem tool modifies anything. Effects of other libraries, such"
+        " as git or rsync, are not covered."
+    )
+)
+def read_only() -> ContractSpec:
+    """Guarantee no write, append, create, delete, move, copy or chmod occurs."""
     return Write.empty()
 
 
 @contract(
     description=(
-        "No calls to filesystem.read_file or filesystem.read_lines are permitted."
+        "Every modification by a filesystem tool is to a path starting with {root}."
     )
 )
-def no_reads() -> ContractSpec:
-    """Guarantee neither ``read_file`` nor ``read_lines`` is called.
-
-    This layer's read effects only. Reading through another
-    layer is that layer's to state: ``grep.searches_at_most(0)``,
-    ``find.searches_at_most(0)``, ``db.no_db_reads()``, ``env.no_env_reads()``.
-    """
-    return Read.empty()
-
-
-@contract(
-    description=(
-        "Every filesystem.read_file or filesystem.read_lines "
-        "path must start with {root}."
-    )
-)
-def only_read_under(root: str) -> ContractSpec:
-    """Guarantee every ``read_file``/``read_lines`` path starts with ``root``.
-
-    This is a literal string-prefix check, not resolved directory containment
-    or an exact-file check. For example, ``test.md`` also matches ``test.md.bak``.
-
-    A read through another layer is that layer's to state:
-    ``grep.only_read_under``, ``find.only_read_under``, ``db.only_read_under``.
-    """
-    return reads_under(Read, root)
-
-
-@contract(description="Every filesystem.write_file path must start with {root}.")
 def only_write_under(root: str) -> ContractSpec:
-    """Guarantee every ``write_file`` call has a path under ``root``.
+    """Guarantee every modification, of any kind, has a path under ``root``.
 
-    A write through another layer is that layer's to state:
-    ``coreutils.only_create_under``, ``editor.only_edit_under``,
-    ``rsync.only_dest_under``.
+    A move deletes its source, so moving a file out of ``root`` is refused too.
     """
-    return Write.all(lambda e: e.path.startswith(root))
+    return _under(Write, root)
 
 
 @contract(
     description=(
-        "No filesystem.read_file or filesystem.read_lines path may start with {prefix}."
+        "No filesystem tool modifies a path starting with {prefix}, or a "
+        "directory containing it (paths compared as written)."
     )
 )
-def never_read_under(prefix: str) -> ContractSpec:
-    """Guarantee no ``read_file``/``read_lines`` path is under ``prefix``.
-
-    A read through another layer is that layer's to state:
-    ``grep.never_read_under``, ``find.never_read_under``,
-    ``db.never_read_under``.
-    """
-    return never_reads_under(Read, prefix)
-
-
-@contract(description="No filesystem.write_file path may start with {prefix}.")
 def never_write_under(prefix: str) -> ContractSpec:
-    """Guarantee no ``write_file`` call has a path under ``prefix``.
-
-    A write through another layer is that layer's to state:
-    ``coreutils.never_create_under``, ``editor.never_edit_under``,
-    ``rsync.never_dest_under``.
-    """
-    return Write.all(lambda e: not e.path.startswith(prefix))
+    """Guarantee no modification, of any kind, touches ``prefix``."""
+    return _never_under(Write, prefix)
 
 
-@contract(description="Calls to filesystem.write_file are limited to {count} in total.")
+@contract(description="Filesystem tools make at most {count} modifications.")
 def writes_at_most(count: int) -> ContractSpec:
-    """Guarantee at most ``count`` ``write_file`` calls occur.
-
-    Other layers count their own: ``coreutils.creates_at_most``,
-    ``editor.edits_at_most``, ``rsync.syncs_at_most``.
-    """
+    """Guarantee at most ``count`` modifications (a move counts twice)."""
     return Write.count() <= count
+
+
+@contract(
+    description="No text a filesystem tool writes to a file contains {substring}."
+)
+def must_not_write(substring: str) -> ContractSpec:
+    """Guarantee no written or appended text contains ``substring``.
+
+    A secrets / banned-content guard before content reaches disk. Copies and
+    moves write existing contents, not text, so they are not covered.
+    """
+    return WriteText.all(lambda e: substring not in e.text)
+
+
+@contract(
+    description=(
+        "Text a filesystem tool writes to a file is at most {max_chars} characters."
+    )
+)
+def write_length_at_most(max_chars: int) -> ContractSpec:
+    """Guarantee every written or appended text is at most ``max_chars`` long."""
+    return WriteText.all(lambda e: len(e.text) <= max_chars)
+
+
+# -- deleting ----------------------------------------------------------------
+
+
+@contract(description="No filesystem tool deletes or moves anything away.")
+def no_deletes() -> ContractSpec:
+    """Guarantee nothing is removed, including by moving it.
+
+    Overwriting a file is a write, not a delete; see ``never_write_under``.
+    """
+    return Delete.empty()
+
+
+@contract(
+    description="Everything a filesystem tool deletes or moves away starts with {root}."
+)
+def only_delete_under(root: str) -> ContractSpec:
+    """Guarantee every removed (or moved) path is under ``root``."""
+    return _under(Delete, root)
+
+
+@contract(
+    description=(
+        "No filesystem tool deletes or moves a path starting with {prefix}, or "
+        "a directory containing it (paths compared as written)."
+    )
+)
+def never_delete_under(prefix: str) -> ContractSpec:
+    """Guarantee nothing under ``prefix`` is removed or moved.
+
+    The blast-radius guard for handing an agent ``rm``: e.g.
+    ``never_delete_under("/home/user/.ssh")``.
+    """
+    return _never_under(Delete, prefix)
+
+
+@contract(description="Filesystem tools delete or move away at most {count} paths.")
+def deletes_at_most(count: int) -> ContractSpec:
+    """Guarantee at most ``count`` removals (a move counts as one)."""
+    return Delete.count() <= count
+
+
+# -- creating ----------------------------------------------------------------
+
+
+@contract(description="No filesystem tool creates a directory or empty file.")
+def no_creates() -> ContractSpec:
+    """Guarantee no ``make_dir`` or ``touch`` occurs."""
+    return Create.empty()
+
+
+@contract(
+    description="Filesystem tools create at most {count} directories or empty files."
+)
+def creates_at_most(count: int) -> ContractSpec:
+    """Guarantee at most ``count`` directories or empty files are created."""
+    return Create.count() <= count
+
+
+# -- permissions -------------------------------------------------------------
+
+
+@contract(description="No filesystem tool changes permission bits.")
+def no_chmods() -> ContractSpec:
+    """Guarantee the program changes no permission bits."""
+    return Chmod.empty()
+
+
+@contract(
+    description="Every filesystem chmod sets a mode in {allowlist}, written in decimal."
+)
+def only_modes(allowlist: list[int]) -> ContractSpec:
+    """Guarantee every chmod sets a mode in ``allowlist``.
+
+    Bitwise masking is not expressible in a contract lambda, so permission
+    safety is stated as an explicit allowlist of whole modes, e.g.
+    ``only_modes([0o644, 0o755, 0o600, 0o700])`` — which by construction admits
+    no world-writable, setuid, or setgid bits.
+    """
+    return Chmod.all(lambda e: e.mode in allowlist)

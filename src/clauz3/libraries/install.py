@@ -22,11 +22,13 @@ from shutil import copytree, ignore_patterns
 
 from clauz3 import decorators as decorators_mod
 from clauz3.libraries.discovery import (
+    SUPERSEDED,
     Library,
     catalog,
     global_catalog,
     global_domain,
     global_library_root,
+    superseded_message,
 )
 from clauz3.libraries.layout import (
     authored_tools,
@@ -190,6 +192,15 @@ def install_library(
         plan.append((selected, library))
 
     add(key)
+    for _, library in plan:
+        for domain in library.domains if library is not None else ():
+            stale = [
+                old
+                for old in SUPERSEDED.get(domain, ())
+                if _has_domain(into, old, globally=globally)
+            ]
+            if stale:
+                raise InstallError(superseded_message(domain, stale))
     results = []
     for selected, library in plan:
         if (

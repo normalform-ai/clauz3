@@ -8,7 +8,7 @@ wheel):
 
 ```bash
 clauz3 install stdlib:filesystem
-clauz3 install stdlib:grep
+clauz3 install stdlib:git
 ```
 
 Each tool directory is self-contained:
@@ -30,14 +30,21 @@ repo's `just stdlib` target.
 
 | Tool | What it does | Headline policies |
 | --- | --- | --- |
-| [`filesystem`](filesystem) | read and write files | `read_only`, `only_write_under`, `never_read_under` |
-| [`grep`](grep) | search files for a substring (imports `filesystem`) | `only_read_under`, `searches_at_most`, `only_pattern` |
+| [`filesystem`](filesystem) | read, search, list, write, copy, move, delete and chmod files | `never_read_under`, `only_write_under`, `read_only`, `no_deletes` |
 | [`db`](db) | read typed rows from DuckDB/CSV/Parquet | `only_read_under`, `only_table`, `reads_at_most` |
 | [`git`](git) | run local `git` subcommands and pushes | `read_only`, `never_subcommands`, `only_push_to_branch` |
 | [`gh`](gh) | run the GitHub CLI (`gh`) | `read_only`, `only_commands`, `only_repo` |
-| [`find`](find) | list files under a tree (imports `filesystem`) | `only_read_under`, `never_read_under`, `searches_at_most` |
 | [`rsync`](rsync) | synchronize files with `rsync` | `only_dest_under`, `no_delete`, `syncs_at_most` |
-| [`coreutils`](coreutils) | delete/move/copy/chmod (`rm`, `mv`, `cp`, `chmod`) | `only_delete_under`, `never_delete_under`, `only_modes` |
+| [`env`](env) | read environment variables | `only_vars`, `never_vars` |
+| [`web_fetch`](web_fetch) | fetch URLs and send HTTP requests | `only_fetch_under`, `https_only`, `no_posts` |
+| [`web_search`](web_search) | search the web | `searches_at_most`, `no_query_contains` |
+
+`filesystem` states its policies over *events* rather than functions (see its
+README): every tool that reads a file performs a `Read`, so one
+`never_read_under` covers `read_file`, `grep`, and the source of a `copy` or
+`move`. The other libraries still state policies over their own effects;
+`git`, `rsync` and `db` also touch files, and a filesystem policy does not yet
+cover them.
 
 ## Path safety
 
@@ -45,8 +52,7 @@ Trusted effects with path-like arguments reject lexical `..` components
 before proof or execution. The check recognizes POSIX separators, Windows
 separators, mixed-separator paths, and the Windows drive delimiter — `C:..`
 is a drive-relative parent reference even with no separator before the dots.
-It applies across filesystem, editor, database, find/grep, git, rsync,
-coreutils, and web-fetch URL paths. This prevents a raw prefix guarantee such
+It applies across filesystem, database, git, rsync and web-fetch URL paths. This prevents a raw prefix guarantee such
 as `only_write_under("/sandbox")` from accepting `/sandbox/../etc/passwd`.
 
 URL effects go further, because a remote decoder can reconstruct a traversal

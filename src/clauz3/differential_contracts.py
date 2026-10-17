@@ -21,6 +21,7 @@ import z3
 from clauz3._vendor.deal_solver._exceptions import UnsupportedError
 from clauz3._vendor.deal_solver._proxies import ProxySort
 from clauz3._vendor.deal_solver._strings import is_string_expr, string_value
+from clauz3.events import EventRelation
 from clauz3.fluent import Fluent, FluentAllSpec, FluentCompareSpec, _ParamRef
 from clauz3.row import ColumnRef, Row
 from clauz3.spec import (
@@ -32,6 +33,7 @@ from clauz3.spec import (
     EmptySpec,
     LambdaSpec,
     NoGuaranteesSpec,
+    Relation,
     SharedValueSpec,
     SumSpec,
 )
@@ -81,6 +83,7 @@ def check_contract(
 class _Fact:
     name: str
     args: dict[str, Any]
+    qualified_name: str = ""
 
 
 class _EffectRow:
@@ -107,7 +110,7 @@ def _bind_effect(
         raise ContractEvaluationError(f"missing trusted signature for {qualified!r}")
     bound = signature.bind(*args, **kwargs)
     bound.apply_defaults()
-    return _Fact(name, dict(bound.arguments))
+    return _Fact(name, dict(bound.arguments), qualified)
 
 
 @dataclass
@@ -184,7 +187,7 @@ class _Oracle:
 
     def select(
         self,
-        relation: EffectRelation,
+        relation: Relation,
         predicate: LambdaSpec | None,
         facts: list[_Fact],
     ) -> list[_Fact]:
@@ -194,10 +197,24 @@ class _Oracle:
         )
         return [
             fact
-            for fact in facts
-            if (not relation.names or fact.name in relation.names)
-            and (test is None or bool(test(fact.args)))
+            for fact in self.covered(relation, facts)
+            if test is None or bool(test(fact.args))
         ]
+
+    def covered(self, relation: Relation, facts: list[_Fact]) -> list[_Fact]:
+        if type(relation) is EventRelation:
+            return [
+                _Fact(name, values, fact.qualified_name)
+                for fact in facts
+                for name, values in relation.derive(fact.qualified_name, fact.args)
+            ]
+        if type(relation) is EffectRelation:
+            return [
+                fact
+                for fact in facts
+                if not relation.names or fact.name in relation.names
+            ]
+        raise ContractEvaluationError(f"unsupported relation {type(relation).__name__}")
 
     def total(self, spec: SumSpec, facts: list[_Fact]) -> Any:
         if type(spec) is not SumSpec:
@@ -212,7 +229,13 @@ class _Oracle:
         selected = self.select(spec.relation, spec.predicate, facts)
         return sum(1 if selector is None else selector(fact.args) for fact in selected)
 
-    def relation_fields(self, relation: EffectRelation) -> frozenset[str]:
+    def relation_fields(self, relation: Relation) -> frozenset[str]:
+        if type(relation) is EventRelation:
+            return relation.fields
+        if type(relation) is not EffectRelation:
+            raise ContractEvaluationError(
+                f"unsupported relation {type(relation).__name__}"
+            )
         names = {name.rsplit(".", 1)[-1] for name in self.signatures}
         unknown = set(relation.names) - names
         if unknown:

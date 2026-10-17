@@ -225,23 +225,28 @@ def main() -> None:
     ("domain", "effect_import", "call"),
     [
         (
-            "editor",
-            "from tools.editor.trusted.effects import edit_file",
-            'edit_file("/repo/out/../escape", "x")',
+            "filesystem",
+            "from tools.filesystem.trusted.effects import append_file",
+            'append_file("/repo/out/../escape", "x")',
         ),
         (
-            "coreutils",
-            "from tools.coreutils.trusted.effects import remove",
+            "filesystem",
+            "from tools.filesystem.trusted.effects import remove",
             'remove("/repo/out/../escape")',
         ),
         (
-            "find",
-            "from tools.find.trusted.effects import find",
+            "filesystem",
+            "from tools.filesystem.trusted.effects import copy",
+            'copy("/repo/src", "/repo/out/../escape")',
+        ),
+        (
+            "filesystem",
+            "from tools.filesystem.trusted.effects import find",
             'find("/repo/out/../escape", [])',
         ),
         (
-            "grep",
-            "from tools.grep.trusted.effects import grep",
+            "filesystem",
+            "from tools.filesystem.trusted.effects import grep",
             'grep("needle", "/repo/out/../escape")',
         ),
         (
@@ -277,9 +282,7 @@ import clauz3
 def main() -> None:
     {call}
 """,
-        # find and grep import tools.filesystem, so its domain must be on the
-        # path; an earlier test used to leave it cached (issue #111).
-        import_paths=[domain_root, FILESYSTEM_TRUSTED.parents[2]],
+        import_paths=[domain_root],
         trusted_roots=[trusted_root],
     )
     assert len(results) == 1

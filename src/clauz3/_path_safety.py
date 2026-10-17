@@ -30,6 +30,45 @@ def has_no_parent_segments(path: str) -> bool:
     )
 
 
+def has_plain_segments(path: str) -> bool:
+    r"""Return whether ``path`` has no backslash and no empty or ``.`` component
+    after the first.
+
+    ``/repo//PRECIOUS.md`` and ``/home/user/./.ssh`` name the same files as
+    ``/repo/PRECIOUS.md`` and ``/home/user/.ssh`` but do not start with them, so
+    a lexical deny-list prefix would miss them. A leading ``./`` and a bare
+    ``.`` are allowed: they are how relative paths are commonly written, and
+    ``find`` returns them. Contracts compare both spellings.
+
+    Separators are POSIX only. A backslash is refused outright, because on
+    Windows it is a separator and ``C:\repo\.\x`` would step around the same
+    prefixes.
+
+    >>> [has_plain_segments(p) for p in ("./data/a", ".", "/a/.env", "a/b/")]
+    [True, True, True, True]
+    >>> [has_plain_segments(p) for p in ("/a//b", "/a/./b", "/a/.", ".//a", "a\\b")]
+    [False, False, False, False, False]
+    """
+    # As in ``has_no_parent_segments``, the first disjunct is a guard an agent
+    # can establish directly; it is stronger than needed.
+    return (
+        "//" not in path
+        and "\\" not in path
+        and ("/." not in path or ("/./" not in path and not path.endswith("/.")))
+    )
+
+
+def is_plain_path(path: str) -> bool:
+    """Return whether ``path`` has no ``..``, ``.`` or empty segments, or backslashes.
+
+    The precondition every filesystem effect states on its path arguments.
+
+    >>> is_plain_path("./data/a"), is_plain_path("/a/../b"), is_plain_path("/a//b")
+    (True, False, False)
+    """
+    return has_no_parent_segments(path) and has_plain_segments(path)
+
+
 def url_has_no_parent_segments(url: str) -> bool:
     """Return whether a URL has no literal or percent-encoded dot segments.
 

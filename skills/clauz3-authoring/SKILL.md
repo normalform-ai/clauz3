@@ -67,7 +67,7 @@ Three things to internalise:
 1. **`@clauz3.trusted` takes no arguments.** A function either is the
    boundary or it is not, and its *name* is how a contract addresses it:
    `effect(send_email)` with the function imported. To span several, name them —
-   `effect(edit_file, append_file)` — and to span every trusted call
+   `effect(write_file, append_file)` — and to span every trusted call
    in a program, `effect()`. Keep the grouping in the contract that needs
    it rather than in a string on the declaration, so a later effect cannot
    silently join a relation the contract already constrains.
@@ -140,16 +140,22 @@ def must_not_contain(substring: str) -> ContractSpec:
 ```
 
 For a layer with several effects, import the functions the relation covers.
-For example, these declarations belong to the editor layer's `contracts.py`:
+For example, these declarations could belong to a filesystem layer's
+`contracts.py`:
 
 ```python
 from clauz3.spec import effect
-from tools.editor.trusted.effects import append_file, edit_file
+from tools.filesystem.trusted.effects import append_file, write_file
 
-EditFile = effect(edit_file)              # one effect
-Edit = effect(edit_file, append_file)     # both editor effects
-Any = effect()                           # every trusted call
+WriteFile = effect(write_file)                # one effect
+WriteText = effect(write_file, append_file)   # both text-writing effects
+Any = effect()                                # every trusted call
 ```
+
+When several tools act on the same resource, declare the events each performs
+with `@performs` and state contracts over the events instead, so a new tool is
+covered without changing the contract. `stdlib:filesystem` does this; see
+[Events](../../docs/reference/events.md).
 
 ### Relation primitives
 
@@ -317,8 +323,8 @@ the guarantee is enforced, only that there's no error path.
 For working examples in increasing order of complexity:
 
 - `examples/email/` in the `clauz3` repo — minimal mock, single effect.
-- `src/clauz3/stdlib/filesystem/` — real reads and writes with path policies.
-- `src/clauz3/stdlib/editor/` — an explicit group over edit and append effects.
+- `src/clauz3/stdlib/filesystem/` — real file effects whose contracts are
+  stated over events, so one path policy covers every tool.
 - `examples/home-automation/` — relational + fluent contracts in one
   layer.
 - `normalform-ai/clauz3-tools-autolabs` — production LIMS layer with

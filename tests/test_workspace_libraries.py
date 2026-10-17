@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 from starlette.testclient import WebSocketTestSession
 
 from clauz3.approvals.service import create_approval_app
+from clauz3.libraries.discovery import Library
 from clauz3.libraries.workspace import WorkspaceLibraries
 from clauz3.sessions import providers
 from clauz3.sessions.chat import ChatConfig
@@ -45,19 +46,21 @@ def manager(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> WorkspaceLibrari
     return WorkspaceLibraries(project, tmp_path / "state", [])
 
 
-def test_review_install_dependencies_and_selection(manager: WorkspaceLibraries) -> None:
-    review = manager.prepare("install", "stdlib:find", "")
+def test_review_install_dependencies_and_selection(
+    manager: WorkspaceLibraries, dependent_library: Library
+) -> None:
+    review = manager.prepare("install", dependent_library.source, "")
     assert not (manager.project / ".clauz3/tools").exists()
-    assert set(review["domains"]) == {"find", "filesystem"}
+    assert set(review["domains"]) == {"search", "filesystem"}
     assert review["api"] and review["sourceCode"]
-    assert "find executable" in review["requirements"]
+    assert "search executable" in review["requirements"]
     manager.apply(review["id"], [])
-    assert manager.select(["find"]) == ["filesystem", "find"]
+    assert manager.select(["search"]) == ["filesystem", "search"]
     assert WorkspaceLibraries(manager.project, manager.storage, []).selected == [
         "filesystem",
-        "find",
+        "search",
     ]
-    assert manager.inspect("stdlib:find")["api"]
+    assert manager.inspect(dependent_library.source)["api"]
     with pytest.raises(ValueError, match="depends"):
         manager.prepare("remove", "", "filesystem")
 
@@ -257,13 +260,15 @@ def test_changed_libraries_keep_old_conversations_read_only(client: TestClient) 
 
 
 def test_failed_install_rolls_back_all_domains(
-    manager: WorkspaceLibraries, monkeypatch: pytest.MonkeyPatch
+    manager: WorkspaceLibraries,
+    monkeypatch: pytest.MonkeyPatch,
+    dependent_library: Library,
 ) -> None:
-    review = manager.prepare("install", "stdlib:find", "")
+    review = manager.prepare("install", dependent_library.source, "")
     real_rename = Path.rename
 
     def fail_second(path: Path, target: str | Path) -> Path:
-        if path.name == "find" and path.parent.name == "tools":
+        if path.name == "search" and path.parent.name == "tools":
             raise OSError("disk write failed")
         return real_rename(path, target)
 
@@ -460,22 +465,22 @@ def test_the_agent_hears_every_change_since_its_last_prompt(
 
 
 def test_removing_libraries_mid_conversation_applies_without_pausing(
-    client: TestClient,
+    client: TestClient, dependent_library: Library
 ) -> None:
     client.get("/ui/login?key=decide")
-    install(client, "stdlib:find")
+    install(client, dependent_library.source)
     with client.websocket_connect("ws://127.0.0.1/api/chat/acp", headers=ORIGIN) as ws:
         ready(ws)
-        ws.send_json({"method": "clauz3/new", "params": {"domains": ["find"]}})
+        ws.send_json({"method": "clauz3/new", "params": {"domains": ["search"]}})
         until(ws, lambda m: m["method"] == "clauz3/restore")
         ready(ws)
         app = cast(FastAPI, client.app)
         # Dependencies come along, and the saved default is untouched.
-        assert app.state.conversation.config.libraries == ["filesystem", "find"]
+        assert app.state.conversation.config.libraries == ["filesystem", "search"]
         assert client.get("/api/workspace/libraries").json()["selected"] == []
         prompt(ws, "Started")
         marker = change(ws, ["filesystem"])
-        assert marker is not None and marker["params"]["removed"] == ["find"]
+        assert marker is not None and marker["params"]["removed"] == ["search"]
         assert not marker["params"]["paused"]
         assert app.state.conversation.config.libraries == ["filesystem"]
         assert not app.state.conversation.config.approvals_paused
@@ -687,23 +692,24 @@ def test_paused_conversations_ignore_policy_approvals_but_not_rejections(
 
 
 @pytest.mark.parametrize(
-    ("source", "deleted", "dropped"),
+    ("domain", "deleted", "dropped"),
     [
-        ("stdlib:env", "env", "env isn't installed"),
-        # find depends on filesystem, so it cannot stay without it.
-        ("stdlib:find", "filesystem", "filesystem, find aren't installed"),
+        ("env", "env", "env isn't installed"),
+        # search depends on filesystem, so it cannot stay without it.
+        ("search", "filesystem", "filesystem, search aren't installed"),
     ],
 )
 def test_uninstalled_defaults_are_dropped_with_a_notice(
     client: TestClient,
     manager: WorkspaceLibraries,
-    source: str,
+    dependent_library: Library,
+    domain: str,
     deleted: str,
     dropped: str,
 ) -> None:
     client.get("/ui/login?key=decide")
-    install(client, source)
-    post(client, "select", {"domains": [source.removeprefix("stdlib:")]})
+    install(client, "stdlib:env" if domain == "env" else dependent_library.source)
+    post(client, "select", {"domains": [domain]})
     # Removed outside the Libraries page, e.g. deleted by hand.
     shutil.rmtree(manager.project / ".clauz3/tools" / deleted)
     with client.websocket_connect("ws://127.0.0.1/api/chat/acp", headers=ORIGIN) as ws:
@@ -719,17 +725,17 @@ def test_uninstalled_defaults_are_dropped_with_a_notice(
 
 
 def test_uninstalled_defaults_do_not_stop_startup(
-    manager: WorkspaceLibraries, tmp_path: Path
+    manager: WorkspaceLibraries, tmp_path: Path, dependent_library: Library
 ) -> None:
     from clauz3.libraries.install import install_library
 
-    install_library("stdlib:find", into=manager.project)
+    install_library(dependent_library.source, into=manager.project)
     # The workspace keeps its default next to the conversation store.
     cwd = str(manager.project.resolve())
     storage = tmp_path / "workspaces" / hashlib.sha256(cwd.encode()).hexdigest()
-    assert WorkspaceLibraries(manager.project, storage, []).select(["find"]) == [
+    assert WorkspaceLibraries(manager.project, storage, []).select(["search"]) == [
         "filesystem",
-        "find",
+        "search",
     ]
     shutil.rmtree(manager.project / ".clauz3/tools/filesystem")
     config = ChatConfig(
@@ -749,5 +755,5 @@ def test_uninstalled_defaults_do_not_stop_startup(
         api.get("/ui/login?key=decide")
         with api.websocket_connect("ws://127.0.0.1/api/chat/acp", headers=ORIGIN) as ws:
             notice = until(ws, lambda m: m["method"] == "clauz3/notice")
-            assert "filesystem, find aren't installed" in notice["params"]["text"]
+            assert "filesystem, search aren't installed" in notice["params"]["text"]
     assert WorkspaceLibraries(manager.project, storage, []).selected == []

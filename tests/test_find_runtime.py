@@ -1,26 +1,21 @@
 """The find trusted boundary must never expose find's action language."""
 
-import importlib.util
 import subprocess
 from collections.abc import Callable
 from pathlib import Path
+from types import ModuleType
 from typing import cast
 from unittest.mock import patch
 
+import deal
 import pytest
 
 
 @pytest.fixture
-def find_effect() -> Callable[[str, list[str]], list[str]]:
-    path = (
-        Path(__file__).resolve().parents[1]
-        / "src/clauz3/stdlib/find/tools/find/trusted/effects.py"
-    )
-    spec = importlib.util.spec_from_file_location("test_find_effect", path)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return cast(Callable[[str, list[str]], list[str]], module.find)
+def find_effect(
+    filesystem_effects: ModuleType,
+) -> Callable[[str, list[str]], list[str]]:
+    return cast(Callable[[str, list[str]], list[str]], filesystem_effects.find)
 
 
 @pytest.mark.parametrize(
@@ -118,7 +113,7 @@ def test_find_does_not_follow_directory_symlinks(
     assert find_effect(str(link), ["-type", "f"]) == []
 
 
-@pytest.mark.parametrize("suffix", ["/", "/."])
+@pytest.mark.parametrize("suffix", ["/"])
 def test_root_path_resolution_can_follow_a_symlink(
     find_effect: Callable[[str, list[str]], list[str]], tmp_path: Path, suffix: str
 ) -> None:
@@ -132,6 +127,15 @@ def test_root_path_resolution_can_follow_a_symlink(
     result = find_effect(str(link) + suffix, ["-type", "f"])
     assert len(result) == 1
     assert Path(result[0]).resolve() == target
+
+
+@pytest.mark.parametrize("path", ["/tmp/x/.", "/tmp//x", "/tmp/./x", "C:\\tmp\\x"])
+def test_dot_and_empty_segments_are_refused_before_running(
+    find_effect: Callable[[str, list[str]], list[str]], path: str
+) -> None:
+    # The precondition refuses the path before the body's own check runs.
+    with pytest.raises(deal.PreContractError, match=r"\.\., \. or empty segments"):
+        find_effect(path, ["-type", "f"])
 
 
 @pytest.mark.parametrize("root", [".", "src", "./src"])

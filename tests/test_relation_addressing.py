@@ -372,8 +372,8 @@ def test_a_relation_imported_from_outside_the_roots_is_checked_on_use(
     """Neither check at load time sees it, so the one on use is what refuses it.
 
     A contract module may import a relation from a layer that is not part of
-    this proof --- ``stdlib:grep`` imports ``stdlib:filesystem``'s contracts
-    for their path rule --- so a relation built outside the selected roots is
+    this proof --- a library may import another library's contracts for
+    their path rule --- so a relation built outside the selected roots is
     deliberately not checked as it is built. It is still an empty relation if
     it names nothing, and this program reads ``/etc/shadow`` under a ``/srv``
     guarantee, so without the check on use it reported ``proved!``.
@@ -434,8 +434,8 @@ def test_two_effects_with_one_name_are_refused(tmp_path: Path) -> None:
     """Addressing is by name, so a name meaning two functions means nothing.
 
     ``load_trusted_effects`` keyed a dict on the name alone, so proving two
-    layers that share one — installing ``stdlib:editor`` beside a layer of your
-    own with its own ``edit_file`` — kept whichever file was read last. A
+    layers that share one — installing ``stdlib:filesystem`` beside a layer of
+    your own with its own ``write_file`` — kept whichever file was read last. A
     relation naming it then offered the *other* module's parameters, and the
     failure surfaced as a puzzling field error rather than the collision.
     """

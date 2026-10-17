@@ -15,6 +15,7 @@ from pathlib import Path
 
 from clauz3.contract_metadata import (
     RENDERER_VERSION,
+    element_kind,
     parameter_types,
     validate_template,
 )
@@ -45,6 +46,8 @@ def _signature(node: ast.FunctionDef) -> inspect.Signature:
             annotation = arg.annotation.id
         elif isinstance(arg.annotation, ast.Constant):
             annotation = arg.annotation.value
+        elif isinstance(arg.annotation, ast.Subscript):
+            annotation = ast.unparse(arg.annotation)
         kind = (
             inspect.Parameter.POSITIONAL_ONLY
             if index < len(node.args.posonlyargs)
@@ -66,7 +69,7 @@ def _signature(node: ast.FunctionDef) -> inspect.Signature:
 
 
 def schema_for_sources(sources: Mapping[str, Path]) -> dict[str, object]:
-    """Extract the scalar-parameter catalog from explicit module/source pairs."""
+    """Extract the parameter catalog from explicit module/source pairs."""
     classes: dict[str, object] = {
         "Contract": {
             "abstract": True,
@@ -126,13 +129,16 @@ def schema_for_sources(sources: Mapping[str, Path]) -> dict[str, object]:
                 slot_annotations = {"python_parameter_kind": parameter.kind.name}
                 if has_default:
                     slot_annotations["python_default"] = json.dumps(parameter.default)
+                element = element_kind(kind)
                 attributes[parameter_name] = {
                     "slot_uri": f"cz:{symbol}.{parameter_name}",
-                    "range": _RANGES[kind],
+                    "range": _RANGES[element or kind],
                     "required": not has_default,
                     "description": f"The {parameter_name} argument to {symbol}.",
                     "annotations": slot_annotations,
                 }
+                if element is not None:
+                    attributes[parameter_name]["multivalued"] = True
             classes[name] = {
                 "is_a": parent,
                 "class_uri": f"cz:{symbol}",
@@ -144,7 +150,7 @@ def schema_for_sources(sources: Mapping[str, Path]) -> dict[str, object]:
         "id": NAMESPACE.rstrip("/"),
         "name": "clauz3_contracts",
         "version": str(RENDERER_VERSION),
-        "title": "clauz3 filesystem and editor contract catalog",
+        "title": "clauz3 filesystem contract catalog",
         "description": (
             "Generated from trusted Python definitions. Classes describe contract "
             "invocations and effect calls; exports do not establish program safety."
@@ -167,7 +173,7 @@ def bundled_schema() -> dict[str, object]:
             / library
             / "trusted"
             / f"{module}.py"
-            for library in ("filesystem", "editor")
+            for library in ("filesystem",)
             for module in ("contracts", "effects")
         }
     )

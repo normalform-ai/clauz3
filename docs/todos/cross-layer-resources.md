@@ -8,6 +8,11 @@ claims, and work items below describe that snapshot; they are not current
 runtime guarantees or supported API examples. The proposed `clauz3.resource`
 API is not implemented.
 
+The stdlib filesystem library now takes a different route: its effects declare
+the events they perform with `@performs`, and its contracts are stated over
+those events, so one policy covers every filesystem tool. See
+[Events](../reference/events.md).
+
 Two prerequisites have changed since that snapshot:
 
 - Effect relations now name trusted functions explicitly (for example,
