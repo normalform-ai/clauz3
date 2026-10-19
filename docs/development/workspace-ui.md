@@ -303,6 +303,12 @@ at the top of this page. Unlike the check above, it runs the real
 and makes model requests. It uses a temporary data directory and fast-forwards
 the agent's thinking time with ffmpeg.
 
+Re-record only after visible changes to the tutorial flow, not for every UI
+tweak. Each recording adds about 1.7 MB of binary files to the repository's
+history, and slightly stale media is better than a growing clone. The README
+loads the GIF from `main` on GitHub so it also renders on PyPI, so new media
+appears there only after merging.
+
 An additional local check initialized `claude-agent-acp` 0.89.1 and created a
 session with the configured MCP server, capturing the spawned CLI arguments to
 verify restriction forwarding. No model prompt was sent in that check.

@@ -42,7 +42,7 @@ prompts, sandboxes, guardrails, and runtime policy monitors, see
 ## See it in the browser
 
 <p align="center">
-  <img src="docs/assets/tutorial.gif"
+  <img src="https://raw.githubusercontent.com/normalform-ai/clauz3/main/docs/assets/tutorial.gif"
        alt="The ClauZ3 browser workspace running the email approvals tutorial: a starter prompt asks for one mock email to bob@example.com, the agent submits a program, an approval card lists the proved guarantees (only bob@example.com, at most one email, unique recipients), the user approves, the program runs, and the decision appears in the approval history."
        width="880">
 </p>
@@ -66,7 +66,7 @@ branch and that only the named account is touched; the user approves the
 *guarantees*, not the code; only then does the runtime execute it.
 
 <p align="center">
-  <img src="docs/assets/figure-sequence.png"
+  <img src="https://raw.githubusercontent.com/normalform-ai/clauz3/main/docs/assets/figure-sequence.png"
        alt="UML sequence diagram of a ClauZ3 run. Lifelines: User, Agent, ClauZ3 gate, Python runtime. The User asks the Agent to pay a card bill capped at $500. The Agent submits a program plus guarantees to the ClauZ3 gate as a single tool call. The prover proves spending stays under $500 in both branches and that only the card account is paid, then presents only the two guarantees to the User, who approves. ClauZ3 invokes the Python runtime to execute the program; the result returns up through the agent, which summarizes success in plain English."
        width="900">
 </p>
