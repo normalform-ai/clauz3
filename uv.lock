@@ -287,7 +287,6 @@ wheels = [
 
 [[package]]
 name = "clauz3"
-version = "0.1.4"
 source = { editable = "." }
 dependencies = [
     { name = "astroid" },
@@ -344,7 +343,7 @@ requires-dist = [
     { name = "websockets", specifier = ">=14,<17" },
     { name = "z3-solver", specifier = ">=4.16.0.0" },
 ]
-provides-extras = ["mcp", "db"]
+provides-extras = ["db", "mcp"]
 
 [package.metadata.requires-dev]
 dev = [

@@ -1,6 +1,7 @@
 """Static contract experiments for agent-authored Python."""
 
 from collections.abc import Callable
+from importlib.metadata import version
 from inspect import Signature
 from typing import TypeVar
 
@@ -11,7 +12,7 @@ from clauz3.paths import DirectoryPath, FilePath
 from clauz3.row import ColumnRef, Row
 from clauz3.spec import ContractSpec, contract, effect
 
-__version__ = "0.1.0"
+__version__ = version("clauz3")
 
 F = TypeVar("F", bound=Callable[..., object])
 
