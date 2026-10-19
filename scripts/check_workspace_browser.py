@@ -230,7 +230,7 @@ def check() -> None:
                 result = page.request.get(url + "/api/chat/transcript").json()
                 assert "receipt=clz2." in json.dumps(result)
                 page.locator("#prompt").fill("Draft for the first conversation")
-                page.get_by_role("link", name="≡ Approval profile & history").click()
+                page.locator('.sidebar nav a[href="/ui/profile"]').click()
                 expect(page.locator("#approvals-view")).to_be_visible()
                 page.get_by_role("tab", name="Decision history").click()
                 expect(page.locator(".profile-card")).to_have_count(1)
@@ -254,7 +254,7 @@ def check() -> None:
                     "No matching decisions"
                 )
                 page.locator("#profile-search").fill("")
-                page.get_by_role("link", name="◉ Conversation").click()
+                page.locator(".conversation-link[aria-current]").click()
                 expect(page.locator("#prompt")).to_have_value(
                     "Draft for the first conversation"
                 )
@@ -271,7 +271,8 @@ def check() -> None:
                     "Draft for the first conversation"
                 )
                 expect(page.locator(".phase")).to_have_text("Completed")
-                page.get_by_role("button", name="Rename hello", exact=True).click()
+                page.get_by_role("button", name="Actions for hello", exact=True).click()
+                page.get_by_role("menuitem", name="Rename").click()
                 page.get_by_role("textbox", name="Conversation title").fill(
                     "Email planning"
                 )
@@ -326,7 +327,7 @@ def check() -> None:
                 )
                 page.locator("#files-close").press("Escape")
                 expect(page.locator("#files-panel")).to_be_hidden()
-                page.get_by_role("link", name="≡ Approval profile & history").click()
+                page.locator('.sidebar nav a[href="/ui/profile"]').click()
                 expect(page.locator("#approvals-view")).to_be_visible()
                 page.screenshot(
                     path="/tmp/clauz3-workspace-profile-mobile.png", full_page=True
@@ -367,7 +368,7 @@ def check() -> None:
                     "Saved approval request"
                 )
                 expect(page.locator(".request-card")).to_contain_text("bob@example.com")
-                page.get_by_role("link", name="▦ Libraries", exact=True).click()
+                page.locator('.sidebar nav a[href="/ui/libraries"]').click()
                 expect(page.locator("#libraries-view")).to_be_visible()
                 page.locator("#library-search").fill("stdlib:filesystem")
                 page.get_by_role(
@@ -410,7 +411,7 @@ def check() -> None:
                 ).to_be_visible()
 
                 # Adding a library to a started conversation asks first.
-                page.get_by_role("link", name="◉ Conversation").click()
+                page.locator(".conversation-link[aria-current]").click()
                 expect(page.locator("#libraries")).to_contain_text("email")
                 page.locator("#library-menu-toggle").click()
                 page.locator("#library-menu-list label").filter(
@@ -451,10 +452,10 @@ def check() -> None:
                 approve.click()
                 expect(page.locator(".phase")).to_have_text("Completed", timeout=20000)
                 expect(page.locator("#send")).to_be_enabled()
-                page.get_by_role("link", name="▦ Libraries", exact=True).click()
+                page.locator('.sidebar nav a[href="/ui/libraries"]').click()
                 # Identical-source request IDs recur: each fresh submission
                 # must have working controls after both approval and rejection.
-                page.get_by_role("link", name="◉ Conversation", exact=True).click()
+                page.locator(".conversation-link[aria-current]").click()
                 for decision, phase in (
                     ("rejected", "Did not execute"),
                     ("approved_once", "Completed"),
@@ -473,7 +474,7 @@ def check() -> None:
                         phase, timeout=20000
                     )
                     expect(page.locator("#send")).to_be_enabled()
-                page.get_by_role("link", name="▦ Libraries", exact=True).click()
+                page.locator('.sidebar nav a[href="/ui/libraries"]').click()
                 page.get_by_role(
                     "button", name="Review update stdlib:filesystem", exact=True
                 ).click()
@@ -482,10 +483,10 @@ def check() -> None:
                 )
                 expect(page.locator("#library-review-apply")).to_be_disabled()
                 page.get_by_role("button", name="Cancel", exact=True).click()
-                page.get_by_role("link", name="◉ Conversation", exact=True).click()
+                page.locator(".conversation-link[aria-current]").click()
                 page.locator("#stop").click()
                 expect(page.locator("#status")).to_contain_text("Conversation stopped")
-                page.get_by_role("link", name="▦ Libraries", exact=True).click()
+                page.locator('.sidebar nav a[href="/ui/libraries"]').click()
                 page.get_by_role("button", name="Remove filesystem", exact=True).click()
                 expect(page.locator("#library-review-apply")).to_be_enabled()
                 page.get_by_role("button", name="Remove library", exact=True).click()
@@ -504,7 +505,7 @@ def check() -> None:
                 )
                 # The removed library belonged to the stopped conversation;
                 # start with the updated default before leaving the workspace.
-                page.get_by_role("link", name="◉ Conversation", exact=True).click()
+                page.locator(".conversation-link[aria-current]").click()
                 page.locator("#new").click()
                 expect(page.locator("#send")).to_be_enabled(timeout=20000)
                 # Packaged tutorial: distinct workspace, editable prompt, reset,

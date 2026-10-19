@@ -5,6 +5,12 @@ repository's mock sender, inspect the guarantees, and approve the request.
 Proofs, approval decisions and execution receipts are real; the sender's
 implementation does nothing.
 
+<video src="../assets/videos/tutorial.mp4" poster="../assets/workspace-ui.png" controls autoplay muted loop playsinline width="100%"
+       aria-label="The email approvals tutorial: the agent submits a program to send one mock email, an approval card lists its proved guarantees, the user approves, and the program runs."></video>
+
+*The whole tutorial, start to finish. Time spent waiting for the agent is sped
+up.*
+
 ## Open the tutorial
 
 No repository checkout is needed. Install [uv](https://docs.astral.sh/uv/),

@@ -294,7 +294,14 @@ reload and draft recovery, pending approval across reload, execution after
 approval, export, Stop, switching/resuming/renaming conversations, service
 restart recovery, approval profile curation, file browsing, library installation,
 selection and removal, tutorial entry/reset, active workspace switching, approved execution with newly selected roots, and mobile overflow. It sends no
-model requests. Screenshots are written under `/tmp/clauz3-workspace-*.png`.
+model requests. Screenshots are written under `/tmp/clauz3-workspace-*.png`;
+the Files, Approvals and Libraries images in this page come from that run.
+
+`just docs-videos` re-records the tutorial video, README GIF and the screenshot
+at the top of this page. Unlike the check above, it runs the real
+`clauz3 ui --tutorial` with your default agent, so it needs that agent's login
+and makes model requests. It uses a temporary data directory and fast-forwards
+the agent's thinking time with ffmpeg.
 
 An additional local check initialized `claude-agent-acp` 0.89.1 and created a
 session with the configured MCP server, capturing the spawned CLI arguments to

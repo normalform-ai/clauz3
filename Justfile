@@ -28,6 +28,11 @@ node-test:
     done
     node --test tests/web/*.test.mjs
 
+# Re-record the tutorial video, README GIF and workspace screenshot.
+# Runs the real agent: needs its login, ffmpeg and Playwright's Chromium.
+docs-videos:
+    uv run --with playwright python scripts/record_ui_videos.py
+
 # The fast CI tier for changes that touch only web assets.
 ui-test: node-test
     uv run pytest -n auto tests/test_workspace.py tests/test_workspace_files.py tests/test_workspace_libraries.py tests/test_approval_profiles.py tests/test_start.py

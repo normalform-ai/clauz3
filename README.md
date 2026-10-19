@@ -39,6 +39,19 @@ about; `clauz3` is built for that input. For how this compares with permission
 prompts, sandboxes, guardrails, and runtime policy monitors, see
 [How ClauZ3 compares](docs/explanation/comparison.md).
 
+## See it in the browser
+
+<p align="center">
+  <img src="docs/assets/tutorial.gif"
+       alt="The ClauZ3 browser workspace running the email approvals tutorial: a starter prompt asks for one mock email to bob@example.com, the agent submits a program, an approval card lists the proved guarantees (only bob@example.com, at most one email, unique recipients), the user approves, the program runs, and the decision appears in the approval history."
+       width="880">
+</p>
+
+The [email approvals tutorial](docs/quickstarts/mock-email.md)
+(`uvx clauz3 ui --tutorial`): the agent writes a program to send one mock
+email, ClauZ3 proves its guarantees, and the program runs only after you
+approve them. Time spent waiting for the agent is sped up.
+
 ## In one picture
 
 Want to try it first? The browser-first quickstarts walk through

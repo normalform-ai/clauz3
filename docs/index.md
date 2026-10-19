@@ -14,6 +14,12 @@ message, review its proved guarantees, and approve a sender that does nothing.
 Then try [real file work](quickstarts/real-files.md): install a library,
 approve a file write, inspect the result, and count its lines.
 
+<video src="assets/videos/tutorial.mp4" poster="assets/workspace-ui.png" controls autoplay muted loop playsinline width="100%"
+       aria-label="The email approvals tutorial: the agent submits a program to send one mock email, an approval card lists its proved guarantees, the user approves, and the program runs."></video>
+
+*The email approvals tutorial in the browser workspace. Time spent waiting for
+the agent is sped up.*
+
 Both quickstarts use the browser workspace for chat and inline approvals,
 with a terminal alternative. The explanation and reference guides below
 describe how the workflow works.
