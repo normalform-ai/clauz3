@@ -22,6 +22,7 @@ import astroid
 import pytest
 
 from clauz3._vendor.deal_solver import Conclusion
+from clauz3.differential import corpus_roots
 from clauz3.imports_policy import build_policy
 from clauz3.interp import UnsupportedNode, execute
 from clauz3.prover import prove_path
@@ -29,7 +30,6 @@ from clauz3.runner import (
     RunConfigError,
     _preflight_nodes,
     _preflight_structure,
-    discover_trusted_roots,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -54,28 +54,6 @@ def _cases() -> list[Path]:
 
 def _skip_cases() -> list[Path]:
     return [case for case in _all_case_files() if case.name.endswith("_skip.py")]
-
-
-def _roots_for(case: Path) -> tuple[list[Path], list[Path]]:
-    """Locate a case's import roots and trusted roots by directory convention."""
-    for parent in case.parents:
-        tools = parent / "tools"
-        if not tools.is_dir():
-            continue
-        siblings: list[Path] = []
-        if "stdlib" in parent.parts:
-            # stdlib packages cross-import (find -> filesystem), so every
-            # sibling package is an import root too.
-            siblings = [
-                path
-                for path in sorted(parent.parent.iterdir())
-                if (path / "tools").is_dir() and path != parent
-            ]
-        roots = [parent, *siblings]
-        # Nested domains (tools/google_workspace/gmail/trusted) follow the
-        # same discovery rule as the runner and `clauz3 install`.
-        return roots, discover_trusted_roots(import_roots=roots)
-    return [], []
 
 
 def _has_parameters(case: Path) -> bool:
@@ -134,8 +112,7 @@ def test_corpus_is_mostly_runnable() -> None:
 # from that eviction and leaks the registrations to later tests on the worker.
 @pytest.mark.parametrize("case", _runnable_cases(), ids=_case_id)
 def test_interpreter_runs_corpus_case(case: Path) -> None:
-    import_roots, trusted_roots = _roots_for(case)
-    assert import_roots, f"{case}: no tools root"
+    import_roots, trusted_roots = corpus_roots(case)
     execute(
         case.read_text(),
         source_name=str(case),
@@ -173,9 +150,7 @@ def test_preflight_admits_every_case_the_interpreter_runs() -> None:
     for case in _cases():
         if _has_parameters(case):
             continue
-        import_roots, trusted_roots = _roots_for(case)
-        if not import_roots:  # pragma: no cover
-            continue
+        import_roots, trusted_roots = corpus_roots(case)
         # The shipped node gate, without ``target_node``: that half executes
         # module level for real, and ``test_interpreter_runs_corpus_case``
         # already covers it. An earlier version carried its own copy of the
@@ -224,7 +199,7 @@ def _assert_skip_case_refused(case: Path) -> None:
     ]
     # Missing arguments would prevent the body reaching the pinned refusal.
     assert not _has_parameters(case), case
-    import_roots, trusted_roots = _roots_for(case)
+    import_roots, trusted_roots = corpus_roots(case)
     policy = build_policy(trusted_roots=trusted_roots, import_roots=import_roots)
     with pytest.raises(UnsupportedNode, match=interpreter_match):
         execute(
