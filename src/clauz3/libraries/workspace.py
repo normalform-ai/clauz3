@@ -16,6 +16,7 @@ from clauz3.libraries.discovery import (
     catalog,
     global_catalog,
     installed_domains,
+    installed_libraries,
     superseded_message,
 )
 from clauz3.libraries.install import install_library
@@ -75,7 +76,14 @@ class WorkspaceLibraries:
         self.staging: tempfile.TemporaryDirectory[str] | None = None
 
     def sources(self) -> dict[str, Library]:
-        return {lib.source: lib for lib in [*catalog(), *global_catalog()]}
+        return {
+            lib.source: lib
+            for lib in [
+                *catalog(),
+                *global_catalog(),
+                *installed_libraries(self.project),
+            ]
+        }
 
     def installed(self) -> list[str]:
         return sorted(installed_domains(self.project))
@@ -130,7 +138,11 @@ class WorkspaceLibraries:
                 declarations[domain] = mock_declarations(self.project, [root])
         return {
             "catalog": [
-                {**asdict(lib), "installed": all(d in installed for d in lib.domains)}
+                {
+                    **asdict(lib),
+                    "installed": bool(lib.domains)
+                    and all(d in installed for d in lib.domains),
+                }
                 for lib in self.sources().values()
             ],
             "installed": installed,
@@ -217,6 +229,7 @@ class WorkspaceLibraries:
         )
         stage = Path(self.staging.name)
         requirements: list[str] = []
+        warnings: list[str] = []
         if action == "remove":
             if domain not in self.installed():
                 raise ValueError("Library is not installed")
@@ -235,17 +248,6 @@ class WorkspaceLibraries:
             library = self.sources().get(source)
             if library is None:
                 raise ValueError("Choose a library from the catalogue")
-            sources = self.sources()
-            pending = [source]
-            planned = set()
-            while pending:
-                key = pending.pop()
-                if key not in sources:
-                    raise ValueError(f"Unknown dependency: {key}")
-                if key not in planned:
-                    planned.add(key)
-                    pending.extend(sources[key].dependencies)
-            expected = {d for key in planned for d in sources[key].domains}
             results = install_library(source, into=stage)
             received = {d for result in results for d in result.domains}
             for provided in sorted(received):
@@ -253,13 +255,17 @@ class WorkspaceLibraries:
                 stale = [d for d in SUPERSEDED.get(provided, ()) if d in installed]
                 if stale:
                     raise ValueError(superseded_message(provided, stale))
-            if received != expected:
-                raise ValueError(
-                    "Source contents do not match the catalogue's declared domains"
-                )
             domains = sorted(
-                d for d in received if d in library.domains or d not in self.installed()
+                d
+                for d in received
+                if d in results[-1].domains or d not in self.installed()
             )
+            warnings = [
+                warning
+                for result in results
+                if any(d in domains for d in result.domains)
+                for warning in result.warnings
+            ]
             if action == "install" and any(
                 safe_path(self.project, d).exists() for d in domains
             ):
@@ -270,8 +276,10 @@ class WorkspaceLibraries:
                 d in self.installed() for d in library.domains
             ):
                 raise ValueError("This library is not installed yet")
-            for key in planned:
-                requirements.extend(sources[key].requirements)
+            for staged_library in installed_libraries(stage):
+                requirements.extend(staged_library.requirements)
+            if not requirements:
+                requirements.extend(library.requirements)
         else:
             raise ValueError("Unknown library operation")
         for left in domains:
@@ -329,6 +337,12 @@ class WorkspaceLibraries:
             "after": after,
             "changes": changes,
             "requirements": sorted(set(requirements)),
+            "warnings": warnings,
+            "manifests": [
+                m for lib in installed_libraries(stage) for m in lib.manifests
+            ]
+            if action != "remove"
+            else [],
             "api": preview["api"],
             "sourceCode": preview["source"],
             "mockDeclarations": mock_declarations(

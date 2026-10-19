@@ -5,6 +5,7 @@ import typing
 import z3
 
 from .._exceptions import UnsupportedError
+from .._slices import sequence_index, sequence_slice
 from .._strings import is_string_expr
 from ._funcs import random_name
 from ._proxy import ProxySort
@@ -87,27 +88,12 @@ class VarTupleSort(ProxySort):
 
     @methods.add(name='__getitem__')
     def m_getitem(self, index: ProxySort, ctx: Context) -> ProxySort:
-        if not isinstance(index, types.int):
-            msg = '{} indices must be integers or slices, not {}'
-            msg = msg.format(self.type_name, index.type_name)
-            ctx.add_exception(exc=TypeError, msg=msg)
-            return self.subtypes[0].default
-        ctx.add_exception(
-            exc=IndexError,
-            msg='{} index out of range'.format(self.type_name),
-            cond=types.bool(expr=index.expr >= z3.Length(self.expr)),
-        )
-        expr = self.expr[index.expr]
+        index_expr = sequence_index(self.expr, index, ctx=ctx, type_name=self.type_name)
+        expr = self.expr[index_expr]
         return self.subtypes[0].wrap(expr)
 
     def get_slice(self, start: ProxySort, stop: ProxySort, ctx: Context) -> ProxySort:
-        start_expr = start.expr
-        stop_expr = stop.expr
-        expr = z3.SubSeq(
-            s=self.expr,
-            offset=start_expr,
-            length=stop_expr - start_expr,
-        )
+        expr = sequence_slice(self.expr, start, stop, ctx=ctx)
         return self.evolve(expr=expr)
 
     @methods.add(name='__contains__')
@@ -236,6 +222,7 @@ class UntypedVarTupleSort(VarTupleSort):
         return self
 
     def get_slice(self, start: ProxySort, stop: ProxySort, ctx: Context) -> ProxySort:
+        sequence_slice(self.expr, start, stop, ctx=ctx)
         return self
 
     @methods.add(name='__contains__')

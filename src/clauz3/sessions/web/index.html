@@ -10,33 +10,67 @@
     <link rel="stylesheet" href="/ui/approval-assets/profile.css" />
   </head>
   <body>
+    <svg width="0" height="0" class="icon-sprite" aria-hidden="true">
+      <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+      <symbol id="icon-libraries" viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></symbol>
+      <symbol id="icon-approvals" viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></symbol>
+      <symbol id="icon-updown" viewBox="0 0 24 24"><path d="M8 9l4-4 4 4M8 15l4 4 4-4"/></symbol>
+      <symbol id="icon-dots" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></symbol>
+      <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></symbol>
+      <symbol id="icon-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+      <symbol id="icon-files" viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/></symbol>
+    </svg>
     <aside class="sidebar">
       <a class="brand" href="/ui"><img src="/ui/assets/logo.svg" alt="ClauZ3" /></a>
-      <div class="eyebrow">WORKSPACE</div>
-      <h2 id="project-name">Your project</h2>
-      <p id="project-path" class="path"></p>
-      <label id="agent-select-label" for="agent-select">Agent for new conversations</label>
-      <select id="agent-select" aria-label="Agent for new conversations"></select>
-      <details id="agent-install"><summary>Optional agent setup</summary><ul id="agent-install-list"></ul></details>
-      <button id="new" class="new-button" disabled>＋ New conversation</button>
-      <nav>
-        <a class="selected" href="/ui">◉ Conversation</a
-        ><a href="/ui/profile">≡ Approval profile &amp; history</a
-        ><a href="/ui/libraries">▦ Libraries</a
-        ><a href="/api/chat/transcript" download>↓ Export conversation</a>
+      <button
+        id="workspace-picker"
+        class="workspace-switcher"
+        aria-haspopup="menu"
+        aria-expanded="false"
+        aria-controls="workspace-menu"
+        hidden
+      >
+        <span id="workspace-avatar" class="workspace-avatar" aria-hidden="true"></span>
+        <span class="workspace-label">
+          <span id="project-name">Your project</span>
+          <span id="project-path" class="path"></span>
+        </span>
+        <svg class="icon"><use href="#icon-updown" /></svg>
+      </button>
+      <p id="workspace-status" role="status"></p>
+      <button id="new" class="new-button" disabled>
+        <svg class="icon"><use href="#icon-plus" /></svg>New conversation
+      </button>
+      <nav aria-label="Workspace">
+        <a href="/ui/libraries"
+          ><svg class="icon"><use href="#icon-libraries" /></svg>Libraries<span
+            id="library-count"
+            class="nav-count"
+          ></span></a
+        ><a href="/ui/profile"
+          ><svg class="icon"><use href="#icon-approvals" /></svg>Approvals<span
+            id="approval-count"
+            class="nav-count waiting"
+            title="Actions waiting for your approval"
+            hidden
+          ></span
+        ></a>
       </nav>
       <section class="conversation-history" aria-label="Conversation history">
-        <div class="eyebrow">CONVERSATIONS</div>
-        <input
-          id="history-search"
-          type="search"
-          aria-label="Search conversations"
-          placeholder="Search conversations…"
-        />
+        <label class="history-search">
+          <svg class="icon"><use href="#icon-search" /></svg>
+          <input
+            id="history-search"
+            type="search"
+            aria-label="Search conversations"
+            placeholder="Search conversations"
+          />
+          <kbd>⌘K</kbd>
+        </label>
         <ul id="conversation-list"></ul>
       </section>
       <div class="sidebar-bottom">
-        <span class="shield">✓</span>
+        <span class="proof-dot" aria-hidden="true"></span>
         <div>
           Proof before execution
           <p id="confinement" class="muted">Your approval controls effects.</p>
@@ -54,10 +88,23 @@
             <span id="model" class="model">Agent</span>
             <button
               id="files-toggle"
+              class="icon-button"
               aria-expanded="false"
               aria-controls="files-panel"
+              title="Workspace files"
             >
-              ▤ Files
+              <svg class="icon"><use href="#icon-files" /></svg>Files
+            </button>
+            <button
+              id="conversation-actions-toggle"
+              class="icon-button"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              aria-controls="conversation-actions"
+              aria-label="Conversation actions"
+              title="Conversation actions"
+            >
+              <svg class="icon"><use href="#icon-dots" /></svg>
             </button>
           </div>
         </header>
@@ -90,10 +137,22 @@
             <pre id="resume-detail"></pre>
           </details>
         </div>
+        <section id="tutorial-help" hidden aria-label="Email approvals tutorial">
+          <div class="files-heading"><strong>Tutorial · Email approvals</strong><button id="tutorial-reset">Reset tutorial</button></div>
+          <p>Proofs and approvals are real. The mock sender delivers no email and needs no email account. There is no simulated outbox.</p>
+          <p>Ask for an email, inspect its guarantees, then approve or reject it. Try “Approve and remember” to see how matching future actions are handled.</p>
+          <div class="suggestions" id="tutorial-prompts">
+            <button data-prompt="send">Send a mock email</button>
+            <button data-prompt="reject">Try rejecting an action</button>
+            <button data-prompt="remember">Try a remembered approval</button>
+          </div>
+          <a href="https://normalform-ai.github.io/clauz3/quickstarts/mock-email/" target="_blank" rel="noopener noreferrer">Full walkthrough ↗</a>
+        </section>
         <div id="conversation" role="log" aria-label="Conversation">
           <section id="welcome">
             <img class="welcome-mark" src="/ui/assets/favicon.svg" alt="" />
             <h2>What would you like to do?</h2>
+            <button type="button" class="try-tutorial">Try the email approvals tutorial</button>
             <div class="suggestions">
               <button>What tools are available in this project?</button
               ><button>
@@ -145,10 +204,15 @@
           ></textarea>
           <div class="composer-bottom">
             <span>Enter to send · Shift+Enter for a new line</span
+            ><select id="agent-select" aria-label="Agent" hidden></select
             ><button id="send" type="submit" disabled>Send ↑</button>
           </div>
         </form>
       </section>
+      <p id="approvals-waiting" role="status" hidden>
+        <span id="approvals-waiting-text"></span
+        ><button id="approvals-waiting-review">Review in conversation</button>
+      </p>
       <!-- APPROVALS -->
       <section id="libraries-view" hidden>
         <header>
@@ -210,6 +274,44 @@
         Read-only
       </p>
     </aside>
+    <div id="workspace-menu" class="menu workspace-menu" popover role="menu" aria-label="Switch workspace">
+      <div class="menu-heading">Recent workspaces</div>
+      <ul id="workspace-recents"></ul>
+      <div class="menu-separator"></div>
+      <button id="workspace-open-toggle" role="menuitem">
+        <svg class="icon"><use href="#icon-folder" /></svg>Open folder…
+      </button>
+      <form id="workspace-open" hidden>
+        <input id="workspace-folder" aria-label="Folder path" placeholder="/absolute/path/to/project" required /><button>Open</button>
+      </form>
+      <div class="menu-separator"></div>
+      <div class="menu-heading">Tutorials</div>
+      <button id="workspace-email" role="menuitem">
+        <span class="workspace-avatar tutorial" aria-hidden="true">✉</span>
+        <span class="menu-label">Email approvals<small>Practice approving and rejecting a mock email</small></span>
+      </button>
+      <button id="workspace-reset" role="menuitem" hidden>Reset this tutorial…</button>
+    </div>
+    <dialog id="workspace-confirm" aria-labelledby="workspace-confirm-text">
+      <p id="workspace-confirm-text"></p>
+      <div class="dialog-actions">
+        <button id="workspace-confirm-no">Cancel</button><button id="workspace-confirm-yes" class="primary">Stop and switch</button>
+      </div>
+    </dialog>
+    <div id="conversation-menu" class="menu" popover role="menu" aria-label="Conversation">
+      <button id="conversation-menu-rename" role="menuitem">Rename</button>
+      <button id="conversation-menu-handoff" role="menuitem">Copy handoff</button>
+    </div>
+    <div id="conversation-actions" class="menu" popover role="menu" aria-label="Conversation actions">
+      <button id="conversation-rename-current" role="menuitem">Rename</button>
+      <button
+        id="copy-handoff"
+        role="menuitem"
+        title="Save a local transcript snapshot and copy its reference for debugging"
+        disabled
+      >Copy handoff</button>
+      <a href="/api/chat/transcript" role="menuitem" download>Export transcript</a>
+    </div>
     <dialog id="library-review" aria-labelledby="library-review-title">
       <div class="files-heading">
         <h2 id="library-review-title">Review library</h2>
@@ -225,8 +327,14 @@
       </div>
     </dialog>
     <script src="/ui/approval-assets/guarantees.js" defer></script>
+    <script src="/ui/assets/copy.js" defer></script>
     <script src="/ui/assets/markdown.js" defer></script>
+    <script src="/ui/assets/tool-cards.js" defer></script>
+    <script src="/ui/assets/run-status.js" defer></script>
+    <script src="/ui/assets/menus.js" defer></script>
+    <script src="/ui/assets/history.js" defer></script>
     <script src="/ui/assets/workspace.js" defer></script>
+    <script src="/ui/assets/workspaces.js" defer></script>
     <script src="/ui/assets/libraries.js" defer></script>
     <script src="/ui/assets/files.js" defer></script>
     <script src="/ui/approval-assets/profile.js" defer></script>

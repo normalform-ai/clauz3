@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 
-from tools.db.trusted.effects import read_rows
+from tools.db.trusted.effects import create_table, insert_row, read_rows
 
 import clauz3
 
@@ -65,6 +65,17 @@ def main() -> None:
         assert "no_such_table" in str(exc)
     else:
         raise AssertionError("missing table must raise, not return an empty result")
+
+    written = str(DATA / "duckdb" / "writes.duckdb")
+    create_table(UserRow, written, "users")
+    insert_row(
+        written,
+        "users",
+        UserRow(name="Fiction", email="fiction@example.test", consented=True),
+    )
+    assert [row.email for row in read_rows(UserRow, written, "users", {})] == [
+        "fiction@example.test"
+    ]
 
     print("runtime smoke passed")
 

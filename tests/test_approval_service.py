@@ -122,7 +122,8 @@ def test_approval_service_ui_lists_and_shows_requests() -> None:
     assert "main: proved! guarantee" in detail.text
     assert "Awaiting approval" in detail.text
     assert "Reject contract" in detail.text
-    assert "Show source" in detail.text
+    assert "Program source" in detail.text
+    assert "Verified limits" in detail.text
 
     decision = client.post(
         "/api/requests/clr_ui/decision",
@@ -133,6 +134,7 @@ def test_approval_service_ui_lists_and_shows_requests() -> None:
     assert not thread.is_alive()
 
     decided = client.get("/ui/requests/clr_ui")
+    assert "No note provided." not in decided.text
     assert (
         '<div class="decision-summary"><p><strong>Approved once</strong>'
         in decided.text

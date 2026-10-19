@@ -86,7 +86,7 @@ from .values import (
 DEFAULT_STEP_BUDGET = 1_000_000
 
 #: The only names ``import clauz3`` exposes to an interpreted program.
-CLAUZ3_SURFACE = frozenset({"guarantee", "Row"})
+CLAUZ3_SURFACE = frozenset({"guarantee", "Row", "FilePath", "DirectoryPath"})
 
 #: Modelled library functions whose return value can never enter the value
 #: domain, so exposing them would only defer the refusal to ``marshal_in``.
@@ -1955,8 +1955,15 @@ def _expr_subscript(node: astroid.Subscript, frame: Frame) -> Any:
     if not isinstance(value, (list, tuple, str, dict)):
         raise UnsupportedNode(f"cannot subscript {type_name(value)} in the subset")
     if isinstance(node.slice, astroid.Slice):
-        if node.slice.step is not None:
-            raise UnsupportedNode("slice step is not in the subset")
+        if node.slice.step is not None and not (
+            isinstance(node.slice.step, astroid.Const)
+            and (
+                node.slice.step.value is None
+                or type(node.slice.step.value) in (int, bool)
+                and node.slice.step.value == 1
+            )
+        ):
+            raise UnsupportedNode("only literal slice steps 1 and None are supported")
         if isinstance(value, dict):
             raise UnsupportedNode("cannot slice a dict")
         lower = None if node.slice.lower is None else eval_expr(node.slice.lower, frame)

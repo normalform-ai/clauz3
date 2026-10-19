@@ -123,11 +123,20 @@ SCRIPT = r"""
 
 STYLE = """
 
-.contract-description { margin: 0; }
+.contract-description { margin: .3rem 0 0; color: #53635c; }
+.contract-expression { display: block; overflow-wrap: anywhere; }
+.contract-list > li, .profile-guarantees > li { margin-bottom: 1rem; }
 .request-card .contract-details, .profile-guarantees .contract-details {
   margin: .15rem 0 .65rem;
 }
 .contract-details > code { display: block; margin-top: .5rem; }
+.contract-library { font-weight: 650; margin: .8rem 0 .35rem; }
+.contract-mock { color: #63417f; background: #f1eafa; border-radius: 1rem;
+  padding: .15rem .5rem; font-size: .8rem; margin-left: .5rem; }
+.contract-symbol, .contract-identity-unavailable { font-size: .85rem; color: #58665f; }
+.contract-symbol code, .contract-provenance code { overflow-wrap: anywhere; }
+.contract-source { max-height: 24rem; overflow: auto; white-space: pre-wrap;
+  overflow-wrap: anywhere; }
     .tabs { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1.5rem 0; }
     .tabs button { background: #fff; border: 1px solid #d5d7db; border-radius: 999px;
       margin: 0; padding: .65rem 1rem; cursor: pointer; font: inherit; }

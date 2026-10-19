@@ -164,7 +164,9 @@ async def main() -> None:
                 "SIGNING" in e["name"] or "DECISION" in e["name"] for e in bridge["env"]
             )
             if method == "session/load":
-                if "--missing-session" in sys.argv:
+                if "--missing-session" in sys.argv or os.environ.get(
+                    "CLAUZ3_FIXTURE_EMPTY_SESSION"
+                ):
                     emit(
                         {
                             "id": message["id"],
@@ -186,6 +188,21 @@ async def main() -> None:
                                     "type": "text",
                                     "text": "REPLAY_MUST_NOT_DUPLICATE",
                                 },
+                            },
+                        },
+                    }
+                )
+            if os.environ.get("CLAUZ3_FIXTURE_EMPTY_SESSION"):
+                # Real adapters announce commands before the user sends a
+                # prompt, when there is no persisted agent session to load yet.
+                emit(
+                    {
+                        "method": "session/update",
+                        "params": {
+                            "sessionId": "fixture",
+                            "update": {
+                                "sessionUpdate": "available_commands_update",
+                                "availableCommands": [],
                             },
                         },
                     }

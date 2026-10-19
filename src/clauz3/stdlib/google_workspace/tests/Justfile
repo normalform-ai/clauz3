@@ -1,0 +1,90 @@
+# Runner commands. Default to `uv run` for the source-checkout dev flow;
+# `clauz3 test` overrides CLAUZ3/PYTHON so the suite also runs from an
+# installed wheel, where `uv` is absent.
+clauz3 := env_var_or_default("CLAUZ3", "uv run clauz3")
+python := env_var_or_default("PYTHON", "uv run python")
+
+trusted := "../tools/google_workspace/gmail/trusted"
+effects := trusted + "/effects.py"
+prove := clauz3 + " prove --trusted-root " + trusted + " --import-root .."
+
+test: lint cases signature-regressions drafts runtime
+
+# The selected email layer must load even when the program never imports it.
+signature-regressions:
+    {{prove}} cases/unused_email_pass.py
+    if {{prove}} cases/send_invalid_recipient_fail.py; then exit 1; fi
+    if {{prove}} cases/send_empty_subject_fail.py; then exit 1; fi
+
+lint:
+    {{clauz3}} lint {{effects}}
+
+cases: dry-run-only-pass dry-run-only-default-fail dry-run-only-explicit-false-fail only-recipients-pass only-recipients-fail unique-recipients-pass unique-recipients-fail emails-at-most-pass emails-at-most-fail subject-must-contain-pass subject-must-contain-fail no-body-contains-pass no-body-contains-fail no-emails-pass no-emails-fail campaign-pass email-no-guarantees-pass
+
+dry-run-only-pass:
+    {{prove}} cases/dry_run_only_pass.py
+
+dry-run-only-default-fail:
+    if {{prove}} cases/dry_run_only_default_fail.py; then exit 1; fi
+
+dry-run-only-explicit-false-fail:
+    if {{prove}} cases/dry_run_only_explicit_false_fail.py; then exit 1; fi
+
+only-recipients-pass:
+    {{prove}} cases/only_recipients_pass.py
+
+only-recipients-fail:
+    if {{prove}} cases/only_recipients_fail.py; then exit 1; fi
+
+unique-recipients-pass:
+    {{prove}} cases/unique_recipients_pass.py
+
+unique-recipients-fail:
+    if {{prove}} cases/unique_recipients_fail.py; then exit 1; fi
+
+emails-at-most-pass:
+    {{prove}} cases/emails_at_most_pass.py
+
+emails-at-most-fail:
+    if {{prove}} cases/emails_at_most_fail.py; then exit 1; fi
+
+subject-must-contain-pass:
+    {{prove}} cases/subject_must_contain_pass.py
+
+subject-must-contain-fail:
+    if {{prove}} cases/subject_must_contain_fail.py; then exit 1; fi
+
+no-body-contains-pass:
+    {{prove}} cases/no_body_contains_pass.py
+
+no-body-contains-fail:
+    if {{prove}} cases/no_body_contains_fail.py; then exit 1; fi
+
+no-emails-pass:
+    {{prove}} cases/no_emails_pass.py
+
+no-emails-fail:
+    if {{prove}} cases/no_emails_fail.py; then exit 1; fi
+
+campaign-pass:
+    {{prove}} cases/campaign_pass.py
+
+email-no-guarantees-pass:
+    {{prove}} cases/email_no_guarantees_pass.py
+
+# Runtime tests mock subprocess.run: no mailbox operations occur.
+runtime:
+    {{python}} -m unittest discover -s . -p 'test_*.py'
+
+drafts:
+    {{prove}} cases/draft_pass.py
+    if {{prove}} cases/drafts_only_send_fail.py; then exit 1; fi
+    if {{prove}} cases/drafts_only_preview_fail.py; then exit 1; fi
+    if {{prove}} cases/draft_recipients_fail.py; then exit 1; fi
+    if {{prove}} cases/draft_count_fail.py; then exit 1; fi
+    if {{prove}} cases/draft_body_fail.py; then exit 1; fi
+    if {{prove}} cases/draft_subject_fail.py; then exit 1; fi
+    if {{prove}} cases/mixed_count_fail.py; then exit 1; fi
+    if {{prove}} cases/no_drafts_fail.py; then exit 1; fi
+    if {{prove}} cases/draft_invalid_recipient_fail.py; then exit 1; fi
+    {{prove}} cases/preview_pass.py

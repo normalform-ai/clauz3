@@ -4,9 +4,11 @@ import fcntl
 import json
 import os
 import sqlite3
+import tempfile
 import time
 from collections.abc import Iterator
 from contextlib import closing, contextmanager
+from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
@@ -54,6 +56,16 @@ class ConversationStore:
             db.row_factory = sqlite3.Row
             with db:
                 yield db
+
+    def clear(self) -> None:
+        """Reset only this project's conversations, while its lease is held."""
+        with self.connection() as db:
+            db.execute(
+                "DELETE FROM messages WHERE conversation IN "
+                "(SELECT id FROM conversations WHERE project=?)",
+                (self.project,),
+            )
+            db.execute("DELETE FROM conversations WHERE project=?", (self.project,))
 
     def create(self) -> str:
         identifier = uuid4().hex
@@ -112,6 +124,50 @@ class ConversationStore:
                     "UPDATE conversations SET title=? WHERE id=? AND project=?",
                     (title, identifier, self.project),
                 )
+
+    def handoff(self, identifier: str) -> dict[str, str]:
+        """Save a private, immutable snapshot usable without a running UI.
+
+        Resolve the ID within this project before creating any file. Export
+        saved conversation state only, never process configuration/credentials.
+        """
+        saved = self.load(identifier)
+        captured = datetime.now(UTC).isoformat()
+        snapshot = {
+            **saved["state"],
+            "schemaVersion": 1,
+            "conversationId": saved["id"],
+            "title": saved["title"],
+            "cwd": self.project,
+            "capturedAt": captured,
+            "history": saved["history"],
+        }
+        directory = self.path.resolve().parent / "handoffs"
+        directory.mkdir(mode=0o700, exist_ok=True)
+        descriptor, filename = tempfile.mkstemp(
+            prefix=f"{saved['id']}-", suffix=".json", dir=directory
+        )
+        path = Path(filename)
+        try:
+            with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+                json.dump(snapshot, stream, indent=2)
+                stream.write("\n")
+        except BaseException:
+            path.unlink(missing_ok=True)
+            raise
+        return {
+            "conversationId": saved["id"],
+            "path": str(path),
+            "text": (
+                f"Clauz3 conversation: {saved['id']}\n"
+                f"Project: {self.project}\n"
+                f"Title: {saved['title']}\n"
+                f"Local transcript snapshot: {path}\n"
+                f"Captured: {captured}\n"
+                "Includes messages, tool calls, run diagnostics, and conversation "
+                "settings. Read this local JSON file to inspect the conversation."
+            ),
+        }
 
     def save(self, identifier: str, state: dict[str, Any]) -> None:
         with self.connection() as db:

@@ -25,9 +25,11 @@ from tools.filesystem.trusted.events import (
     Chmod,
     Create,
     Delete,
+    DirectoryCreate,
     List,
     Read,
-    Write,
+    RecursiveRead,
+    RecursiveWrite,
     WriteText,
 )
 
@@ -238,7 +240,7 @@ def append_file(path: str, text: str) -> None:
 @clauz3.requires(lambda path: len(path) > 0, message="path must be non-empty")
 @deal.has("write", "io")
 @clauz3.trusted
-@performs(lambda path: Create(path))
+@performs(lambda path: DirectoryCreate(path))
 def make_dir(path: str) -> None:
     """Create directory ``path`` (with parents)."""
     Path(path).mkdir(parents=True, exist_ok=True)
@@ -286,7 +288,7 @@ def remove(path: str) -> None:
 )
 @deal.has("read", "write", "io")
 @clauz3.trusted
-@performs(lambda src, dest: [Read(src), Delete(src), Write(dest)])
+@performs(lambda src, dest: [RecursiveRead(src), Delete(src), RecursiveWrite(dest)])
 def move(src: str, dest: str) -> None:
     """Move ``src`` to ``dest``.
 
@@ -307,7 +309,7 @@ def move(src: str, dest: str) -> None:
 )
 @deal.has("read", "write", "io")
 @clauz3.trusted
-@performs(lambda src, dest: [Read(src), Write(dest)])
+@performs(lambda src, dest: [RecursiveRead(src), RecursiveWrite(dest)])
 def copy(src: str, dest: str) -> None:
     """Copy ``src`` to ``dest`` (file or directory tree)."""
     if Path(src).is_dir():

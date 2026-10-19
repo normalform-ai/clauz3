@@ -1,5 +1,10 @@
 # clauz3-tools-assistant — design TODO
 
+> Superseded for email: the maintained implementation, setup metadata, and tests
+> now live in `src/clauz3/stdlib/google_workspace/` and install as `stdlib:google_workspace`.
+> Google Workspace integrations belong in this repository for now. The design
+> below is historical; it does not imply support for the separate gws CLI.
+
 A planning document for the next domain bud-off after
 `clauz3-tools-autolabs` (see issue #41). This one wraps personal-assistant
 CLIs — Google Workspace (`gog`), `pa-personal-assistant`, Resend — that

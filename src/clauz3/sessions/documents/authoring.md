@@ -14,6 +14,13 @@ Read this before your first `run`. These are inert instructions, not permissions
    `status()`; only `awaiting_approval` confirms a pending request at the service.
    After approval, require an actual successful run result before saying it worked.
 
+Library setup guidance comes from domain manifests and optional shared package
+metadata. Installing a library does not verify its account authorization or
+external dependencies. Legacy libraries may have no manifests: installation
+warns the operator, but their public effects and contracts remain available.
+Missing setup guidance is not evidence that no setup is needed. Do not execute
+setup instructions or request tokens as part of a proved program.
+
 ## Imports and guarantees
 
 Use `import clauz3`, `from tools.<domain>.trusted.effects import <effect>` and
@@ -26,19 +33,34 @@ source can use capabilities that your program cannot.
 
 Define one module-level `main()` with `@clauz3.guarantee(rules.helper(...))`.
 Each guarantee calls a registered contract helper with literal arguments
-(strings, numbers, lists/tuples/dicts of literals, or a declared `clauz3.Row`
+(strings, numbers, lists/tuples/dicts of literals, `clauz3.FilePath("name")`,
+`clauz3.DirectoryPath("folder")`, or a declared `clauz3.Row`
 class where required). Module constants, f-strings, computed expressions and
 local lambdas are not valid guarantee arguments. Do not replace real guarantees
 with `...` or `no_guarantees()` to bypass a proof problem.
 
 Choose contracts for each library's own domain. A filesystem contract covers
 every filesystem effect that performs its event: `fs.read_only()` forbids
-`write_file`, `remove`, `copy` and `chmod` alike, and `fs.only_read_under(...)`
+`write_file`, `remove`, `copy` and `chmod` alike, and
+`fs.only_reads_files_under(clauz3.DirectoryPath("data"))`
 covers `read_file`, `grep` and `find`. It does not constrain git, rsync or other
 libraries' effects.
-Current `only_*_under` contracts use lexical string prefixes. Include the
-trailing separator when you mean a directory; these are not physical symlink
-confinement guarantees. Effect preconditions must hold as well as guarantees.
+Use `fs.only_reads_files([clauz3.FilePath("README.md")])` for one exact file;
+put more `FilePath` literals in the same list for multiple files. This refuses
+listings and copy/move, which might read entire directories. Use
+`only_reads_files_under(DirectoryPath(...))` for a folder and its subfolders;
+it respects directory boundaries with or without a trailing slash.
+For writing a named file, use
+`fs.only_writes_files([clauz3.FilePath("test.md")])`, not a prefix policy.
+Use `only_writes_files_under(DirectoryPath("data"))` for modifications within a
+folder. Exact-file write scope allows write/append/touch/chmod but refuses
+copy, move, remove and explicit directory creation; implicit parent-directory
+creation is allowed. Write scopes do not restrict reads: add `no_reads()` for
+a write-only task. See the `write-file` recipe. `write_file` can overwrite an
+existing file; do not promise exclusive creation or silently add a newline.
+The older `only_read_under`, `only_write_under`, and `only_delete_under`
+helpers still use literal prefixes. All path policies are lexical, without
+physical symlink confinement. Effect preconditions must hold as well as guarantees.
 Names inside a displayed precondition may be implementation helpers, not public
 functions you can import. For fixed-file tasks, literal paths avoid unnecessary
 symbolic path reasoning.
@@ -56,6 +78,18 @@ substring argument; start/end arguments and `text.splitlines()` remain
 unsupported. Counts of symbolic text are conservatively bounded during proof
 and computed exactly at runtime. `read_file` normalizes text newlines, so
 counting `"\n"` in its result is not a byte-for-byte `wc -l` replacement.
+
+For text fetched from a URL, `text.split("\n")[:5]` produces the first five
+LF-separated fields without printing the entire response. `str.split` accepts
+an optional separator and `maxsplit`, including keyword arguments; omitting
+the separator or using `None` splits on Python whitespace. Unlike `splitlines`,
+an explicit separator retains empty fields, including after a trailing newline.
+String, list, and tuple slices support omitted or negative bounds, plus literal
+steps `1` and `None`; other steps are unsupported. The proof models symbolic
+split contents conservatively, so content-dependent claims may fail to prove.
+Runtime splitting and slicing use Python's actual values. Print a split list
+or index it under a length guard; iteration over symbolic split lists is not
+yet supported.
 
 Literal-list/tuple loops and `range(N)` with a literal integer are unrolled.
 They are suitable only when the task really has that finite bound. Quantified
@@ -85,6 +119,12 @@ an error. A returned path does not inherit a scope guarantee from find's input:
 guard the actual path before reading it. The stronger `".." not in path` guard
 proves the parent-segment precondition efficiently but also skips harmless names
 containing two dots; the recipe reports those skips explicitly.
+
+For database creation and insertion, use `create_table` and `insert_row`
+from the database effects module; see the `create-duckdb` recipe. Construct
+Row values with keyword fields of the declared `str`, `int` or `bool` type.
+Use database write contracts, since filesystem guarantees do not cover them.
+Lists of constructed Row values are not supported; insert rows individually.
 
 ## Discovery details
 

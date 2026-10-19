@@ -39,6 +39,19 @@ about; `clauz3` is built for that input. For how this compares with permission
 prompts, sandboxes, guardrails, and runtime policy monitors, see
 [How ClauZ3 compares](docs/explanation/comparison.md).
 
+## See it in the browser
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/normalform-ai/clauz3/main/docs/assets/tutorial.gif"
+       alt="The ClauZ3 browser workspace running the email approvals tutorial: a starter prompt asks for one mock email to bob@example.com, the agent submits a program, an approval card lists the proved guarantees (only bob@example.com, at most one email, unique recipients), the user approves, the program runs, and the decision appears in the approval history."
+       width="880">
+</p>
+
+The [email approvals tutorial](docs/quickstarts/mock-email.md)
+(`uvx clauz3 ui --tutorial`): the agent writes a program to send one mock
+email, ClauZ3 proves its guarantees, and the program runs only after you
+approve them. Time spent waiting for the agent is sped up.
+
 ## In one picture
 
 Want to try it first? The browser-first quickstarts walk through
@@ -53,7 +66,7 @@ branch and that only the named account is touched; the user approves the
 *guarantees*, not the code; only then does the runtime execute it.
 
 <p align="center">
-  <img src="docs/assets/figure-sequence.png"
+  <img src="https://raw.githubusercontent.com/normalform-ai/clauz3/main/docs/assets/figure-sequence.png"
        alt="UML sequence diagram of a ClauZ3 run. Lifelines: User, Agent, ClauZ3 gate, Python runtime. The User asks the Agent to pay a card bill capped at $500. The Agent submits a program plus guarantees to the ClauZ3 gate as a single tool call. The prover proves spending stays under $500 in both branches and that only the card account is paid, then presents only the two guarantees to the User, who approves. ClauZ3 invokes the Python runtime to execute the program; the result returns up through the agent, which summarizes success in plain English."
        width="900">
 </p>
@@ -76,6 +89,17 @@ approval profiles, and library management. In a fresh folder, **Libraries**
 opens automatically: review an installation, select tools, and start a new
 conversation. Claude must already be authenticated. See the
 [UI reference](docs/reference/cli.md#clauz3-ui) for setup and session lifetime.
+
+Try the bundled mock email tutorial without cloning this repository:
+
+```bash
+uvx clauz3 ui --tutorial
+```
+
+The tutorial uses a separate persistent workspace and sends no email. Your
+agent still needs its normal setup and authentication. The top-left workspace
+picker switches between recent folders and tutorials; **Reset tutorial** starts
+the exercise over. See the [mock email quickstart](docs/quickstarts/mock-email.md).
 
 For an agent session, run:
 
@@ -196,12 +220,22 @@ Browse bundled and curated external libraries with `clauz3 libraries`, or search
 with `clauz3 libraries email`. Results show dependencies and install commands;
 listing never downloads or executes library code.
 
+Library descriptions and setup guidance live in `tools/<domain>/clauz3.yaml`.
+An optional root `clauz3.yaml` (`kind: package`) shares prerequisites across
+domains; installation snapshots that metadata beside each installed domain.
+Legacy libraries with no manifests still install with a warning. A root package
+manifest is optional, but declaring one requires valid domain manifests.
+See [Library manifests and setup](docs/reference/library-manifests.md).
+
 To start a new project from an existing one, copy its trusted `tools/` layer
 with `clauz3 install`. It accepts a local path, a `gh:org/repo` shorthand, or
 a full git URL, and copies each `tools/<domain>/` into the current project's
 `.clauz3/tools/`, keeping the project's top level clear:
 
 ```bash
+# Bundled Gmail drafts and sending through gog
+clauz3 install stdlib:google_workspace --skills
+
 # Local path
 clauz3 install /path/to/repo/examples/email
 
@@ -212,7 +246,7 @@ clauz3 install gh:normalform-ai/clauz3-tools-autolabs
 clauz3 install gh:normalform-ai/clauz3-tools-autolabs@v0.3.1
 
 # Full URL (HTTPS or SSH)
-clauz3 install git@github.com:normalform-ai/clauz3-tools-assistant.git
+clauz3 install git@github.com:normalform-ai/clauz3-tools-autolabs.git
 ```
 
 Pass `--into <dir>` to target a different destination, `--force` to overwrite an
@@ -265,7 +299,7 @@ filesystem` also works as a shorthand.)
 
 | Tool | Effects | Headline contracts |
 | --- | --- | --- |
-| [`filesystem`](src/clauz3/stdlib/filesystem) | `read_file`, `grep`, `find`, `write_file`, `copy`, `move`, `remove`, `chmod`, ... | `read_only`, `only_read_under`, `never_read_under`, `only_write_under`, `no_deletes` |
+| [`filesystem`](src/clauz3/stdlib/filesystem) | `read_file`, `grep`, `find`, `write_file`, `copy`, `move`, `remove`, `chmod`, ... | `read_only`, `only_reads_files`, `only_reads_files_under`, `only_writes_files`, `only_writes_files_under`, `no_deletes` |
 
 `filesystem` states its contracts over the events each tool performs, so one
 policy covers every tool: `never_read_under` refuses `read_file`, `grep`, and a

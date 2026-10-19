@@ -355,6 +355,43 @@ def test_libraries_change_freely_before_the_first_message(client: TestClient) ->
         assert client.get("/api/workspace/libraries").json()["selected"] == []
 
 
+def test_startup_updates_do_not_require_resuming_an_empty_session(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CLAUZ3_FIXTURE_EMPTY_SESSION", "1")
+    client.get("/ui/login?key=decide")
+    install(client, "stdlib:env")
+    with client.websocket_connect("ws://127.0.0.1/api/chat/acp", headers=ORIGIN) as ws:
+        ready(ws)
+        app = cast(FastAPI, client.app)
+        first = app.state.conversation.identifier
+        assert app.state.conversation.history  # Adapter metadata, no user turns.
+        ws.send_json({"method": "clauz3/libraries", "params": {"domains": ["env"]}})
+        response = until(
+            ws,
+            lambda m: m["method"] in {"clauz3/restore", "clauz3/confirm_libraries"},
+        )
+        assert response["method"] == "clauz3/restore"
+        state = until(
+            ws,
+            lambda m: (
+                m["method"] == "clauz3/state"
+                and (m["params"]["sessionId"] or m["params"]["ended"])
+            ),
+        )["params"]
+        assert not state["error"]
+        assert not state["approvalsPaused"]
+        assert state["libraries"] == ["env"]
+        assert state["conversationId"] == first
+        assert app.state.conversation.resume_id is None
+        assert not app.state.conversation.library_changes
+        # Further changes still need neither confirmation nor a saved session.
+        change(ws, [])
+        change(ws, ["env"])
+        prompt(ws, "Use the selected libraries")
+        assert app.state.conversation.turn == 1
+
+
 @pytest.mark.parametrize("client", ["claude", "codex", "opencode"], indirect=True)
 def test_adding_libraries_mid_conversation_needs_confirmation_and_pauses(
     client: TestClient,

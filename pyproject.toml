@@ -9,7 +9,9 @@ dependencies = [
     "cryptography>=42",
     "deal>=4.24.6",
     "fastapi>=0.136.3",
+    "jsonschema>=4,<5",
     "mcp>=1.0,<2",
+    "pyyaml>=6,<7",
     "uvicorn>=0.48.0",
     "websockets>=14,<17",
     "z3-solver>=4.16.0.0",
@@ -28,15 +30,21 @@ clauz3 = "clauz3.cli:main"
 mcp = [
     "mcp>=1.0,<2",
 ]
+db = [
+    "duckdb>=1.4,<2",
+]
 
 [dependency-groups]
 dev = [
+    "duckdb>=1.4,<2",
     "httpx>=0.28.1",
     "mcp>=1.0,<2",
     "mypy>=1.15.0",
     "pytest>=8.3.0",
     "pytest-xdist>=3.6",
     "ruff>=0.11.0",
+    "types-jsonschema>=4.26.0.20261006",
+    "types-pyyaml>=6.0.12.20260906",
 ]
 docs = [
     "mkdocs>=1.6.0",
@@ -77,7 +85,7 @@ python_version = "3.11"
 strict = true
 mypy_path = "src"
 explicit_package_bases = true
-exclude = "(src/clauz3/_vendor|src/clauz3/stdlib|tests/fixtures/.*/cases/.*)"
+exclude = "(src/clauz3/_vendor|src/clauz3/stdlib|src/clauz3/tutorials|tests/fixtures/.*/cases/.*)"
 
 [[tool.mypy.overrides]]
 module = ["astroid.*", "deal.*", "z3"]

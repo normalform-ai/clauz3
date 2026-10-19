@@ -1,0 +1,8 @@
+schema_version: 1
+name: env
+title: Environment variables
+summary: >-
+  Read environment variables with name-based contracts.
+description: |
+  Read selected environment variables from the process running Clauz3.
+  Contracts can limit which variable names a program may inspect.

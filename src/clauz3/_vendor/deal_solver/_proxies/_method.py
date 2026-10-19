@@ -9,6 +9,7 @@ from .._exceptions import UnsupportedError
 from ._none import NoneSort
 from .._context._trace import BOOLEAN_OPERAND, GUARDED_EXPRESSION
 from ._proxy import ProxySort
+from ._registry import types
 
 
 if typing.TYPE_CHECKING:
@@ -81,7 +82,9 @@ class Method(ProxySort):
             if self.name == 'append' and args:
                 ctx.ownership.share(args[0])
             ctx.ownership.require_write(self.obj, var_name, ctx=ctx)
-        if self.name not in {'__eq__', '__ne__', '__call__'} and any(
+        if self.name not in {'__eq__', '__ne__', '__call__'} and not (
+            isinstance(self.obj, types.str) and self.name == 'split'
+        ) and any(
             isinstance(value, NoneSort) for value in (*args, *kwargs.values())
         ):
             raise UnsupportedError('unsupported operation on None', self.name)
@@ -137,7 +140,10 @@ def _returns_fresh_collection(receiver_type: type[ProxySort], name: str) -> bool
     from ._dict import DictSort, UntypedDictSort
     from ._list import ListSort, UntypedListSort
     from ._set import SetSort, UntypedSetSort
+    from ._str import StrSort
 
+    if receiver_type is StrSort:
+        return name == 'split'
     if receiver_type in (ListSort, UntypedListSort):
         return name in {'copy', '__add__'}
     if receiver_type in (DictSort, UntypedDictSort):

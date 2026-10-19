@@ -1,13 +1,23 @@
 # Contract descriptions and LinkML
 
-Verified approval requests can show a deterministic sentence above each
-contract expression. The full trusted docstring remains visible beneath it.
-For example, `rules.only_read_under('test.md')` displays:
+Verified approval requests show the library title (and declared Mock/Mixed badge),
+a library-qualified call with named arguments, and a deterministic sentence.
+The fully resolved Python symbol is visible beneath the sentence. For example,
+an agent's `rules.only_reads_files([clauz3.FilePath("test.md")])` displays
+`filesystem.only_reads_files(files=[clauz3.FilePath('test.md')])`, followed by:
 
-> Every filesystem.read_file or filesystem.read_lines path must start with "test.md".
+> Filesystem tools read only the exact files ["test.md"]; directory listings and copy or move sources are forbidden.
 
-This describes the actual string-prefix policy: it also permits
-`test.md.bak`. It is not an exact-file or resolved directory-containment rule.
+The visible symbol is `tools.filesystem.trusted.contracts.only_reads_files`.
+**Source and documentation** is an expandable section containing the original
+expression, source file and line, captured function source, source and selected
+layer fingerprints, recorded library origin/revision, and full docstring.
+Titles, origins, and mock badges are library declarations; the SHA-256
+fingerprints identify the selected source. A mock badge does not enforce isolation.
+
+For a directory boundary use
+`rules.only_reads_files_under(clauz3.DirectoryPath("data"))`. The legacy
+`only_read_under("test.md")` still permits `test.md.bak`.
 Descriptions name the specific effects they constrain; the coverage panel
 continues to show which other effects have guarantees.
 
@@ -33,8 +43,9 @@ changes trusted source identity, so remembered approvals cannot silently match
 a modified library.
 
 The first renderer supports parameters annotated as `str`, `int`, `float`, or
-`bool`, or a list of one of these (`list[str]`), including ordinary postponed
-annotations. A list renders as a JSON array. Every parameter must appear in the
+`bool`, `FilePath`, `DirectoryPath`, or a list of one of these (`list[FilePath]`), including ordinary postponed
+annotations. Typed paths render as quoted path strings while their signature and exported
+LinkML ranges retain the file/directory distinction. A list renders as a JSON array. Every parameter must appear in the
 template. Variadic parameters and other composite types are unsupported.
 Existing contracts without a description can continue using any parameter
 types supported by the prover.
@@ -46,29 +57,65 @@ The renderer requires the declared scalar type, quotes strings as JSON, and
 escapes control characters. It does not execute the function body. HTML
 escaping happens separately in the UI.
 
-Invalid template definitions fail when the trusted library loads. If a call
-cannot be rendered (for example, an unsupported literal value or missing
-metadata), the UI shows the original expression without a placeholder. When a
-verified description is available, it is the primary text. Full docstrings,
-including scope limitations, remain under **Details**. When a description is
-shown, **Details** also includes the original expression. The renderer never
-guesses a stronger guarantee.
+Invalid template definitions fail when the trusted library loads. If a sentence
+cannot be generated (for example, an unsupported literal value or missing
+template), the first paragraph of the verified docstring appears instead.
+The resolved identity does not depend on a description template. Full docstrings,
+including scope limitations, remain under **Source and documentation**. The
+renderer never guesses a stronger guarantee or interpolates docstring text.
 
-![Compact approval card for contracts without description templates](../assets/compact-action-review.png)
+## Where descriptions come from
+
+These descriptions have different sources and audiences:
+
+| Display | Source |
+| --- | --- |
+| Library summary in the Libraries view and `clauz3 libraries` | The installed library's `summary` in `tools/<domain>/clauz3.yaml` |
+| Library setup in the Libraries view and generated skills | Domain manifest requirements combined with the generated `.clauz3-package.yaml` snapshot, when present |
+| Sentence beneath an approval's Python contract | The trusted helper's `@contract(description="...")` template, filled with its literal arguments; otherwise the first docstring paragraph |
+| Expanded contract scope in an approval | The trusted contract function's Python docstring |
+| Effect and contract documentation returned by the `tools` tool | Function signatures and docstrings, read from the selected trusted source |
+| API summaries in generated library skills | The first line of each function's docstring, captured by `clauz3 install --skills` |
+
+Library descriptions and setup requirements live in the library's own
+[manifest](library-manifests.md), alongside its code. The central
+`library_registry.yaml` lists only source locations. Bundled and installed
+manifests are read locally; external metadata is cached during explicit
+installation or review. No README or module docstring is used to guess a
+library summary.
+
+The optional source-root package manifest owns shared requirements only; it
+does not override domain descriptions. Legacy sources without manifests install
+with a metadata warning; missing descriptions do not prevent effect/contract
+docstrings from being displayed. See the manifest reference for validation rules.
+
+Write a concise first line and fuller scope documentation in each public
+effect and contract docstring. After changing a library, reinstall its source
+with `--force --skills` to refresh the project's copied code and generated
+skill. Existing approval history retains its original metadata snapshots.
 
 ## Verification and history
 
-The approval service obtains descriptions during independent profile
+The approval service obtains identity and descriptions during independent
 verification, using the same selected contract registrations as the prover.
 Two libraries with identical qualified Python names retain their own metadata.
-Agent-supplied `contract_descriptions` and `contract_documentation` are ignored.
+Agent-supplied `contract_identities`, `contract_descriptions`, and
+`contract_documentation` are ignored. Identity binds arguments to the registered
+signature, expands defaults and imported argument aliases, and records the
+defining Python symbol and source fingerprints. It does not execute a helper
+body to produce a display label.
 
 Each generated description saves its exact text, canonical Python symbol,
 bound parameters, template digest, and renderer version. These snapshots are
 preserved in history and remembered rules. Documentation changes do not rewrite
-old decisions. Records predating description snapshots remain code-only.
-Manual-only services and failed profile verification also retain the existing
-code-only presentation.
+old decisions. Identity snapshots likewise retain the code and metadata that
+were reviewed, even after installation changes. Records without identity
+snapshots retain their original expression and explicitly say **Resolved
+identity not recorded**; the service does not reinterpret them against today's
+libraries. Failed verification and manual services without an operator-authorized
+layer cannot provide verified identity. With an authorized layer, manual
+requests can display verified identity even when their arguments (such as Row
+classes) are ineligible for remembered approval rules.
 
 Descriptions explain the displayed formal contract. They do not broaden
 profile matching or replace the program/guarantee/coverage binding in execution

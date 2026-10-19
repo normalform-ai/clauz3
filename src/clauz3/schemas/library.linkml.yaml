@@ -1,0 +1,130 @@
+id: https://normalform-ai.github.io/clauz3/schema/library/v1
+name: clauz3_library
+prefixes:
+  linkml: https://w3id.org/linkml/
+  cz3: https://normalform-ai.github.io/clauz3/schema/library/v1/
+imports:
+  - linkml:types
+default_prefix: cz3
+default_range: string
+classes:
+  PackageManifest:
+    description: Optional source-root metadata for requirements shared by every discovered domain. Does not select domains or grant trust.
+    attributes:
+      schema_version:
+        range: integer
+        required: true
+        minimum_value: 1
+        maximum_value: 1
+      kind:
+        required: true
+        pattern: '^package$'
+      name:
+        required: true
+        pattern: '^[A-Za-z_][\w-]*$'
+      title:
+        required: true
+        pattern: '\S'
+      documentation:
+        pattern: '^https?://[^\s]+$'
+      requirements:
+        range: Requirements
+        inlined: true
+        description: Shared prerequisites. Effect-specific applies_to belongs in domain manifests.
+  LibraryManifest:
+    tree_root: true
+    description: Library-owned, declarative documentation and prerequisites; never executable setup.
+    attributes:
+      schema_version:
+        range: integer
+        required: true
+        minimum_value: 1
+        maximum_value: 1
+      name:
+        required: true
+        pattern: '^[A-Za-z_][\w-]*(/[A-Za-z_][\w-]*)*$'
+        description: The domain path below tools; must match the installed directory.
+      title:
+        required: true
+        pattern: '\S'
+      summary:
+        required: true
+        pattern: '\S'
+        description: Short human-facing library card text.
+      description:
+        required: true
+        pattern: '\S'
+        description: Human-facing overview; not an agent instruction or a proved guarantee.
+      documentation:
+        pattern: '^https?://[^\s]+$'
+        description: Public documentation URL.
+      dependencies:
+        multivalued: true
+        description: Clauz3 source references installed before this library; not Python packages.
+        pattern: '^(stdlib:[A-Za-z_][\w/-]*|global:[A-Za-z_][\w/-]*|gh:[\w.-]+/[\w.-]+(@[\w./-]+)?|https://[^\s]+)$'
+      requirements:
+        range: Requirements
+        inlined: true
+  Requirements:
+    attributes:
+      python:
+        multivalued: true
+        description: Python package requirement specifiers; informational, not automatically installed.
+      tools:
+        range: ToolRequirement
+        multivalued: true
+        inlined_as_list: true
+      setup:
+        range: SetupRequirement
+        multivalued: true
+        inlined_as_list: true
+  ToolRequirement:
+    attributes:
+      name:
+        required: true
+        pattern: '\S'
+      description:
+        required: true
+        pattern: '\S'
+      instructions:
+        description: Human-readable installation instructions. Never executed by the manifest loader.
+      documentation:
+        pattern: '^https?://[^\s]+$'
+  SetupRequirement:
+    description: User-managed prerequisites; no credentials, token values, or automatic setup hooks.
+    attributes:
+      id:
+        required: true
+        pattern: '^[a-z][a-z0-9_-]*$'
+      kind:
+        range: SetupKind
+        required: true
+      title:
+        required: true
+        pattern: '\S'
+      description:
+        required: true
+        pattern: '\S'
+      instructions:
+        required: true
+        pattern: '\S'
+        description: Steps for a person to perform; not commands to execute automatically.
+      documentation:
+        pattern: '^https?://[^\s]+$'
+      permissions:
+        multivalued: true
+        description: Provider permissions the person must grant; no token or secret values.
+      applies_to:
+        multivalued: true
+        description: Public effect names that require this setup. Omit when it applies to the whole library.
+enums:
+  SetupKind:
+    permissible_values:
+      authentication:
+        description: User login, OAuth consent, or credentials managed by an external tool.
+      configuration:
+        description: Account selection or other local runtime configuration.
+      service:
+        description: A running service or enabled external API.
+      access:
+        description: Organization membership, repository access, or provider entitlement.

@@ -27,7 +27,14 @@ from clauz3.decorators import (
 )
 
 NAMESPACE = "https://normalform-ai.github.io/clauz3/schema/contracts/v1/"
-_RANGES = {"str": "string", "int": "integer", "float": "double", "bool": "boolean"}
+_RANGES = {
+    "str": "string",
+    "int": "integer",
+    "float": "double",
+    "bool": "boolean",
+    "FilePath": "FilePath",
+    "DirectoryPath": "DirectoryPath",
+}
 
 
 def _signature(node: ast.FunctionDef) -> inspect.Signature:
@@ -159,6 +166,16 @@ def schema_for_sources(sources: Mapping[str, Path]) -> dict[str, object]:
         "imports": ["linkml:types"],
         "default_prefix": "cz",
         "default_range": "string",
+        "types": {
+            "FilePath": {
+                "typeof": "string",
+                "description": "An exact lexical file path.",
+            },
+            "DirectoryPath": {
+                "typeof": "string",
+                "description": "A lexical directory boundary.",
+            },
+        },
         "classes": classes,
     }
 

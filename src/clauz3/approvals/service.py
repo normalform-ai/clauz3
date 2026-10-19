@@ -25,6 +25,7 @@ from clauz3.approvals.authority import (
 )
 from clauz3.approvals.client import (
     APPROVAL_SERVICE_ENV,
+    APPROVAL_TOKEN_ENV,
     request_id_from_payload,
     sign_approval_receipt,
 )
@@ -165,10 +166,16 @@ def create_approval_app(
     def workspace_asset(name: str) -> Response:
         if name not in {
             "workspace.js",
+            "workspaces.js",
             "workspace.css",
             "files.js",
             "libraries.js",
             "markdown.js",
+            "tool-cards.js",
+            "run-status.js",
+            "copy.js",
+            "menus.js",
+            "history.js",
             "logo.svg",
             "favicon.svg",
         }:
@@ -266,16 +273,49 @@ def create_approval_app(
     # policy allows) for a conversation that gained libraries after it
     # started; automatic rejections still apply.
     approvals_paused = False
+    workspace_generation = 0
     if chat_config is not None:
         from clauz3.libraries.layout import LayoutError, expand_import_roots
         from clauz3.sessions.chat import install_chat
+
+        workspace_project = Path(chat_config.cwd).resolve()
+        initial_project, initial_policy = workspace_project, policy
+        profile_path = (
+            profile.path
+            if profile
+            else Path(chat_config.history_file or chat_config.status_file).parent
+            / "approval-history.sqlite"
+        )
+
+        def activate_workspace(project: Path, reset: bool) -> dict[str, str]:
+            nonlocal profile, policy, workspace_project
+            nonlocal authorized_layers, auth_token, workspace_generation
+            next_policy = initial_policy if project == initial_project else None
+            next_profile = (
+                None if next_policy else ProfileStore(profile_path, project=project)
+            )
+            with condition:
+                if reset:
+                    (
+                        next_profile or ProfileStore(profile_path, project=project)
+                    ).clear()
+                workspace_generation += 1
+                auth_token = secrets.token_urlsafe(32)
+                profile, policy = next_profile, next_policy
+                workspace_project = project
+                authorized_layers = ()
+                records.clear()
+                record_layers.clear()
+                order.clear()
+                condition.notify_all()
+            return {APPROVAL_TOKEN_ENV: auth_token}
 
         def activate_workspace_libraries(roots: list[Path], paused: bool) -> None:
             nonlocal authorized_layers, approvals_paused
             # Only the operator-owned workspace manager supplies this selection;
             # incoming approval requests still select, never authorize, roots.
             try:
-                import_roots = tuple(expand_import_roots([Path(chat_config.cwd)]))
+                import_roots = tuple(expand_import_roots([workspace_project]))
             except LayoutError:
                 # An unusable project layout authorizes nothing. Report it for a
                 # selection; the empty fallback selection must not raise again.
@@ -294,6 +334,7 @@ def create_approval_app(
             chat_config,
             lambda session: _is_approver(None, session),
             activate_workspace_libraries,
+            activate_workspace,
         )
 
     @app.get("/health")
@@ -343,12 +384,17 @@ def create_approval_app(
         origin: str | None = Header(default=None),
     ) -> dict[str, object]:
         _check_origin(origin)
-        _check_auth(authorization)
+        with condition:
+            _check_auth(authorization)
+            generation = workspace_generation
+            request_profile = profile
+            request_policy = policy
+            request_layers = authorized_layers
         selected_layer: ApprovedLayer | None = None
-        if policy is not None or profile is not None:
+        if request_policy is not None or request_profile is not None:
             try:
                 selected_layer = authorize_layer(
-                    payload, authorized_layers=authorized_layers
+                    payload, authorized_layers=request_layers
                 )
             except ApprovalAuthorizationError as exc:
                 raise HTTPException(status_code=403, detail=str(exc)) from exc
@@ -356,10 +402,10 @@ def create_approval_app(
         # Only operator-authorized paths may supply UI metadata. A manual-only
         # service must not read arbitrary paths from a submitted request.
         metadata_layer = selected_layer
-        if metadata_layer is None and authorized_layers:
+        if metadata_layer is None and request_layers:
             with suppress(ApprovalAuthorizationError):
                 metadata_layer = authorize_layer(
-                    payload, authorized_layers=authorized_layers
+                    payload, authorized_layers=request_layers
                 )
         declarations = None
         if metadata_layer is not None and metadata_layer.trusted_roots:
@@ -376,19 +422,35 @@ def create_approval_app(
             )
             declarations = mock_declarations(project, roots)
         basis = None
+        presentation = None
         profile_error = None
-        if profile is not None:
-            assert selected_layer is not None
+        if metadata_layer is not None:
             # Do not hold the UI/decision lock during proof. The worker has a
             # wall-clock deadline and no signing key or approver credential.
             try:
-                basis = verify_profile(payload, selected_layer, project=profile.project)
+                presentation = verify_profile(
+                    payload,
+                    metadata_layer,
+                    project=request_profile.project
+                    if request_profile
+                    else str((metadata_layer.import_roots or (Path.cwd(),))[-1]),
+                )
+                if presentation.get("profile_eligible", True):
+                    basis = presentation
+                else:
+                    profile_error = (
+                        "This verified contract requires approval each time; "
+                        "remembering its arguments is not supported."
+                    )
+
             except Exception:
                 profile_error = (
                     "Independent verification unavailable; "
                     "this request cannot be remembered."
                 )
         with condition:
+            if generation != workspace_generation:
+                raise HTTPException(409, "Workspace changed during verification")
             previous = records.get(request_id)
             if profile is not None and previous is not None:
                 fields = (
@@ -431,6 +493,14 @@ def create_approval_app(
                 record["library_mock_declarations"] = declarations
             record.pop("contract_documentation", None)
             record.pop("contract_descriptions", None)
+            record.pop("contract_identities", None)
+            if presentation is not None:
+                for field in (
+                    "contract_documentation",
+                    "contract_descriptions",
+                    "contract_identities",
+                ):
+                    record[field] = presentation.get(field, {})
             for field in (
                 "profile_eligible",
                 "profile_error",
@@ -440,13 +510,6 @@ def create_approval_app(
             ):
                 record.pop(field, None)
             if profile is not None:
-                if basis is not None:
-                    record["contract_documentation"] = basis.get(
-                        "contract_documentation", {}
-                    )
-                    record["contract_descriptions"] = basis.get(
-                        "contract_descriptions", {}
-                    )
                 record["profile_eligible"] = basis is not None
                 record["profile_signature"] = basis["signature"] if basis else None
                 if profile_error:
@@ -555,6 +618,8 @@ def create_approval_app(
                 else time.monotonic() + max_wait_seconds
             )
             while True:
+                if generation != workspace_generation:
+                    raise HTTPException(409, "Workspace changed; request cancelled")
                 if (
                     selected_layer is not None
                     and record_layers.get(request_id) != selected_layer
@@ -816,16 +881,17 @@ def _render_card(record: Mapping[str, object], *, single: bool = False) -> str:
       </div>
       <a class="request-link" href="/ui/requests/{escape(request_id)}">
         {escape(request_id)}</a>
-      <h3>Guarantees</h3><ul>{guarantees}</ul>
+      <h3>Verified limits</h3><ul class="contract-list">{guarantees}</ul>
       {_render_mock_declarations(record.get("library_mock_declarations"))}
       {_render_coverage(record.get("coverage"))}
       {_render_auto_decision(record.get("auto_decision"))}
       {_render_approval_block(approval=approval)}
       {_render_paused(record, approval)}{_render_remember(record, approval)}
-      <details data-panel="source"><summary>Show source</summary>
+      <details data-panel="source"><summary>Program source</summary>
         <pre>{escape(str(record.get("program", "")))}</pre></details>
-      <details data-panel="proofs"><summary>Proofs</summary><ul>{proofs}</ul></details>
-      <details data-panel="record"><summary>Request details</summary>
+      <details data-panel="proofs"><summary>Proof results</summary>
+        <ul>{proofs}</ul></details>
+      <details data-panel="record"><summary>Technical request details</summary>
         {policy_note}
         <pre>{escape(dumps(dict(record), indent=2, sort_keys=True))}</pre></details>
     </article>
@@ -921,7 +987,8 @@ def _render_approval_block(
     approval: Mapping[str, object],
 ) -> str:
     if approval:
-        feedback = str(approval.get("feedback") or "No note provided.")
+        feedback = str(approval.get("feedback") or "")
+        note = f'<p class="decision-note">{escape(feedback)}</p>' if feedback else ""
         receipt = approval.get("receipt")
         receipt_panel = (
             '<details data-panel="receipt"><summary>Approval receipt</summary>'
@@ -932,7 +999,7 @@ def _render_approval_block(
         return (
             '<div class="decision-summary">'
             f"<p><strong>{escape(_decision_label(approval))}</strong></p>"
-            f'<p class="decision-note">{escape(feedback)}</p>'
+            f"{note}"
             f"{receipt_panel}</div>"
         )
 

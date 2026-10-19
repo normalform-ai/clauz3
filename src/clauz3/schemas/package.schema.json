@@ -1,0 +1,316 @@
+{
+  "$comment": "LinkML source SHA256: be2649fcdd591a1efbf517539ad7bebcd46e94e344451489a56b9bab7cd8570c",
+  "$defs": {
+    "LibraryManifest": {
+      "additionalProperties": false,
+      "description": "Library-owned, declarative documentation and prerequisites; never executable setup.",
+      "properties": {
+        "dependencies": {
+          "description": "Clauz3 source references installed before this library; not Python packages.",
+          "items": {
+            "pattern": "^(stdlib:[A-Za-z_][\\w/-]*|global:[A-Za-z_][\\w/-]*|gh:[\\w.-]+/[\\w.-]+(@[\\w./-]+)?|https://[^\\s]+)$",
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "description": {
+          "description": "Human-facing overview; not an agent instruction or a proved guarantee.",
+          "pattern": "\\S",
+          "type": "string"
+        },
+        "documentation": {
+          "description": "Public documentation URL.",
+          "pattern": "^https?://[^\\s]+$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "description": "The domain path below tools; must match the installed directory.",
+          "pattern": "^[A-Za-z_][\\w-]*(/[A-Za-z_][\\w-]*)*$",
+          "type": "string"
+        },
+        "requirements": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Requirements"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "schema_version": {
+          "maximum": 1,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "summary": {
+          "description": "Short human-facing library card text.",
+          "pattern": "\\S",
+          "type": "string"
+        },
+        "title": {
+          "pattern": "\\S",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "name",
+        "title",
+        "summary",
+        "description"
+      ],
+      "title": "LibraryManifest",
+      "type": "object"
+    },
+    "PackageManifest": {
+      "additionalProperties": false,
+      "description": "Optional source-root metadata for requirements shared by every discovered domain. Does not select domains or grant trust.",
+      "properties": {
+        "documentation": {
+          "pattern": "^https?://[^\\s]+$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "kind": {
+          "pattern": "^package$",
+          "type": "string"
+        },
+        "name": {
+          "pattern": "^[A-Za-z_][\\w-]*$",
+          "type": "string"
+        },
+        "requirements": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Requirements"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Shared prerequisites. Effect-specific applies_to belongs in domain manifests."
+        },
+        "schema_version": {
+          "maximum": 1,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "title": {
+          "pattern": "\\S",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "kind",
+        "name",
+        "title"
+      ],
+      "title": "PackageManifest",
+      "type": "object"
+    },
+    "Requirements": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "python": {
+          "description": "Python package requirement specifiers; informational, not automatically installed.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "setup": {
+          "items": {
+            "$ref": "#/$defs/SetupRequirement"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "tools": {
+          "items": {
+            "$ref": "#/$defs/ToolRequirement"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "title": "Requirements",
+      "type": "object"
+    },
+    "SetupKind": {
+      "description": "",
+      "enum": [
+        "authentication",
+        "configuration",
+        "service",
+        "access"
+      ],
+      "title": "SetupKind",
+      "type": "string"
+    },
+    "SetupRequirement": {
+      "additionalProperties": false,
+      "description": "User-managed prerequisites; no credentials, token values, or automatic setup hooks.",
+      "properties": {
+        "applies_to": {
+          "description": "Public effect names that require this setup. Omit when it applies to the whole library.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "description": {
+          "pattern": "\\S",
+          "type": "string"
+        },
+        "documentation": {
+          "pattern": "^https?://[^\\s]+$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "type": "string"
+        },
+        "instructions": {
+          "description": "Steps for a person to perform; not commands to execute automatically.",
+          "pattern": "\\S",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/SetupKind"
+        },
+        "permissions": {
+          "description": "Provider permissions the person must grant; no token or secret values.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "title": {
+          "pattern": "\\S",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "title",
+        "description",
+        "instructions"
+      ],
+      "title": "SetupRequirement",
+      "type": "object"
+    },
+    "ToolRequirement": {
+      "additionalProperties": false,
+      "description": "",
+      "properties": {
+        "description": {
+          "pattern": "\\S",
+          "type": "string"
+        },
+        "documentation": {
+          "pattern": "^https?://[^\\s]+$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "instructions": {
+          "description": "Human-readable installation instructions. Never executed by the manifest loader.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "pattern": "\\S",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "description"
+      ],
+      "title": "ToolRequirement",
+      "type": "object"
+    }
+  },
+  "$id": "https://normalform-ai.github.io/clauz3/schema/library/v1",
+  "$schema": "https://json-schema.org/draft/2019-09/schema",
+  "additionalProperties": false,
+  "description": "Optional source-root metadata for requirements shared by every discovered domain. Does not select domains or grant trust.",
+  "metamodel_version": "1.12.0",
+  "properties": {
+    "documentation": {
+      "pattern": "^https?://[^\\s]+$",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "pattern": "^package$",
+      "type": "string"
+    },
+    "name": {
+      "pattern": "^[A-Za-z_][\\w-]*$",
+      "type": "string"
+    },
+    "requirements": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Requirements"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Shared prerequisites. Effect-specific applies_to belongs in domain manifests."
+    },
+    "schema_version": {
+      "maximum": 1,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "title": {
+      "pattern": "\\S",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "name",
+    "title"
+  ],
+  "title": "clauz3_library",
+  "type": "object",
+  "version": null
+}

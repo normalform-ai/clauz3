@@ -1,0 +1,8 @@
+schema_version: 1
+name: email
+title: Mock email
+summary: Practice proofs and approvals with a sender that delivers no email.
+description: |
+  This tutorial library simulates sending email. Proofs, approval decisions,
+  and execution receipts are real; the sender does nothing. There is no outbox.
+  It needs no email account or credentials.

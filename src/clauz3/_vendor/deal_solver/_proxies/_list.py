@@ -5,6 +5,7 @@ import typing
 import z3
 
 from .._exceptions import UnsupportedError
+from .._slices import sequence_slice
 from ._proxy import ProxySort
 from ._registry import types
 from ._type_factory import TypeFactory
@@ -166,6 +167,7 @@ class UntypedListSort(ListSort):
         return self
 
     def get_slice(self, start: ProxySort, stop: ProxySort, ctx: Context) -> ProxySort:
+        sequence_slice(self.expr, start, stop, ctx=ctx)
         return self
 
     @methods.add(name='__contains__')

@@ -1,10 +1,10 @@
 # db
 
-A trusted `clauz3` layer for read-only tabular database access. It is intended
-for agents that need to loop over rows from CSV, Parquet, DuckDB, or a folder of
-CSV/Parquet tables, while proving which source path and table they will read.
+A trusted `clauz3` layer for tabular reads and structured DuckDB writes. Read
+rows from CSV, Parquet, DuckDB, or a folder of CSV/Parquet tables. Create DuckDB
+tables and insert typed rows, with separate read and write guarantees.
 
-Unlike the layers under `examples/`, this effect is **real**, not a mock. The
+Unlike the layers under `examples/`, these effects are **real**, not mocks. The
 prover never runs the body — it records each call as a fact, materializes a
 symbolic `list[RowT]`, and proves the contract. The body runs only under
 `clauz3 run`, after a program is proved and approved.
@@ -15,13 +15,13 @@ symbolic `list[RowT]`, and proves the contract. The body runs only under
 clauz3 install stdlib:db
 ```
 
-The runtime body uses DuckDB. Install `duckdb` in the environment that runs
-proved programs. Proof-only tests do not require DuckDB because effect bodies
+The runtime bodies use DuckDB. Install `clauz3[db]` (or `duckdb>=1.4,<2`) in the
+environment that runs proved programs. Proof-only tests do not require DuckDB because effect bodies
 are skipped by the prover.
 
 ## Effects
 
-Import with `from tools.db.trusted.effects import read_rows`:
+Import effects from `tools.db.trusted.effects`:
 
 - `read_rows(schema, path, table, where) -> list[RowT]` — read up to 100 rows
   from `path` and instantiate each row as `schema`. `schema` must be a
@@ -29,6 +29,20 @@ Import with `from tools.db.trusted.effects import read_rows`:
   Parquet file, or a directory containing `<table>.csv` / `<table>.parquet`.
   For a single CSV or Parquet file, `table` must match the file stem. CSV and
   Parquet inputs are queried through DuckDB in memory.
+
+- `create_table(schema, path, table) -> None` — create a new table with columns
+  from a `clauz3.Row` schema; create the DuckDB file if needed. Fields are
+  `str`/`int`/`bool` (VARCHAR/BIGINT/BOOLEAN), all NOT NULL. Existing tables
+  cause an error and are never replaced.
+- `insert_row(path, table, row) -> None` — append one typed Row value. The file
+  and table must already exist. Each call commits atomically and independently;
+  a later failure does not roll back earlier successful calls.
+
+Writes support `.duckdb`, `.ddb` and `.db` files with existing parent folders.
+There is no arbitrary SQL API: identifiers are quoted and values are bound
+parameters. Write connections disable external access, extension loading and
+temporary spill files. DuckDB may write an adjacent `.wal` journal. Paths are
+lexical, without tilde expansion or physical symlink confinement.
 
 The schema argument is the type-system hook. The function is generic at runtime,
 but the prover uses the concrete `Row` subclass passed at the call site to type
@@ -39,13 +53,24 @@ but the prover uses the concrete `Row` subclass passed at the call site to type
 Import with `from tools.db.trusted import contracts as db`:
 
 - `db.no_guarantees()` — explicit null contract.
-- `db.no_db_reads()` — no database reads occur.
+- `db.no_db_reads()` — no `read_rows` calls; writes are governed separately.
 - `db.reads_at_most(count)` — at most `count` database reads occur.
 - `db.only_read_under(root)` — every database source path starts with `root`.
 - `db.never_read_under(prefix)` — no database source path starts with `prefix`.
 - `db.only_table(table)` — every read targets exactly `table`.
 - `db.only_tables(tables)` — every read targets one of `tables`.
 - `db.only_where(filter_dict)` — every read uses exactly `filter_dict`.
+
+Write contracts:
+
+- `db.no_db_writes()` — no table creation or insertion.
+- `db.only_writes_databases(files: list[FilePath])` — exact destination database
+  file names, including their adjacent journals. Import `FilePath` from
+  `clauz3`. Use the same list for one or many databases.
+- `db.only_writes_tables(tables: list[str])` — creation and insertion target only
+  these table names. Existing `only_table` / `only_tables` govern reads only.
+- `db.writes_at_most(count)` — maximum combined number of create/insert calls.
+- `db.rows_inserted_at_most(count)` — maximum number of inserted rows.
 
 Database reads are governed by this layer's own path policies
 (`only_read_under`, `never_read_under`). They were once covered by
@@ -80,9 +105,23 @@ def main() -> None:
         _ = row.email
 ```
 
-This first stdlib version is read-only. A write surface should be separate and
-explicit about table, path, and schema because the proof system needs concrete
-row shapes to type loop variables safely.
+## Creating a database
+
+Sessions offer the tested `create-duckdb` recipe when the installed `db` library
+matches the bundled version. It defines a Transaction row, creates a table and
+inserts fictional transactions. Use integer cents for amounts and strings for
+ISO dates; Row fields currently support str, int and bool.
+
+Construct a row with all fields as keywords, then pass it to `insert_row`.
+Lists of constructed Row values are not supported by the prover yet. To copy
+query results, iterate `read_rows` and insert each returned row individually.
+Write scope is independent of read scope, and filesystem contracts do not
+cover database writes. There are no update, delete, drop, or SQL execution
+effects in this interface.
+
+After updating clauz3, refresh an unmodified installed library with
+`clauz3 install --force --skills stdlib:db` and restart the running session.
+Preserve local library customizations before using `--force`.
 
 ## Tests
 

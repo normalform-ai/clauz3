@@ -9,8 +9,8 @@ import clauz3
 from tools.filesystem.trusted import contracts as fs
 from tools.filesystem.trusted.effects import read_file, write_file
 
-@clauz3.guarantee(fs.only_write_under("./data/"))
-@clauz3.guarantee(fs.only_read_under("./data/"))
+@clauz3.guarantee(fs.only_writes_files([clauz3.FilePath("./data/result.txt")]))
+@clauz3.guarantee(fs.only_reads_files([clauz3.FilePath("./data/result.txt")]))
 @clauz3.guarantee(fs.writes_at_most(1))
 def main() -> None:
     write_file("./data/result.txt", "hello")

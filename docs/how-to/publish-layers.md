@@ -25,11 +25,13 @@ Use the stdlib shape. It is what `clauz3 install` and `clauz3 test` resolve:
 
 ```text
 clauz3-tools-<umbrella>/
+  clauz3.yaml               # optional kind: package; shared prerequisites
   README.md                 # what the layer is for; install line; API at a glance
   AGENTS.md                 # how an agent should use the layer
   LICENSE
   tools/
     <org>/<domain>/
+      clauz3.yaml            # domain description, dependencies, setup
       trusted/
         effects.py          # @clauz3.trusted effect functions with preconditions
         contracts.py        # @contract helpers over those effects
@@ -45,6 +47,25 @@ One repository may hold several domains side by side (`tools/<org>/lims/`,
 `tools/<org>/madsci/`). `clauz3 install` copies every domain it finds, so split
 domains across repositories when consumers should be able to install them
 independently, and keep them together when they are always used as a set.
+
+The source-only YAML registry stores locations, not descriptions. Put each
+domain's title, summary, description, dependencies, and effect-specific setup
+in its manifest. Optionally use the root package manifest for shared Python
+packages, external tools, account configuration, or other prerequisites.
+See [Library manifests and setup](../reference/library-manifests.md) for the
+LinkML schema, examples, and additive merge rules.
+
+Installation copies each whole domain directory, keeps its manifest unchanged,
+and snapshots shared package metadata into `.clauz3-package.yaml` beside it.
+Do not author that generated file. Tests and root-level guides stay in the
+source tree. Neither manifest changes domain discovery, imports, or trust.
+
+For new releases, ship a valid manifest for every domain. Legacy sources without
+manifests still install with a warning in the CLI and installation review, but
+lack manifest descriptions and setup guidance. Omitting the root package
+manifest is normal and produces no metadata warning. Declaring a package while
+omitting any domain manifest is an error, as is malformed or conflicting
+metadata. Setup instructions are displayed, not executed during installation.
 
 A domain is found by one rule, shared by `install` and by every command that
 discovers trusted roots on its own (`clauz3 run`, `clauz3 tools`,
@@ -156,8 +177,9 @@ consumer who installs your layer is trusting these statements about it:
   satisfies them does not prove.
 - Effects that reach the outside world (mail, orders, actuators) default to a
   dry run, `*, dry_run: bool = True`, with a contract a policy can demand. The
-  rationale is in `docs/todos/clauz3-tools-assistant.md`; the mechanism is
-  locked in by `tests/test_dry_run_kwarg.py`.
+  bundled [email library](../stdlib/google_workspace.md) demonstrates previews versus
+  real mailbox writes; `tests/test_dry_run_kwarg.py` checks the default-argument
+  proof behavior.
 - The tree contains no symlinks, and every directory on the way to `trusted/`
   is a Python identifier.
 - Every contract has at least one `_pass` and one `_fail` case, and
@@ -237,10 +259,11 @@ clauz3 run plan.py
 Commit the installed `.clauz3/tools/` and `.clauz3/skills/` into the consumer
 repository; the install is a copy, not a link, so the consumer's proofs do not
 change when the upstream moves. Upgrade deliberately with `--force` after
-re-running `clauz3 test` against the new sha. Nothing yet records which sha a
-project install came from; until
-[agent-deal issue #47](https://github.com/cmungall/agent-deal/issues/47) lands,
-keep the install line with its sha in the consumer's README or Justfile.
+re-running `clauz3 test` against the new sha. Each installed domain records its
+source and resolved git revision in `.clauz3-origin.json`; local paths have no
+git revision recorded. This is provenance, not a signature or attestation.
+Keep the pinned install line in the consumer's README or Justfile for a
+reproducible upgrade workflow.
 
 ## Publishing checklist
 
@@ -249,7 +272,8 @@ keep the install line with its sha in the consumer's README or Justfile.
 2. Effect function names are prefixed where they are generic.
 3. `clauz3 test .` is green, including `clauz3 lint`.
 4. `clauz3 install . --into "$(mktemp -d)" --skills` copies exactly the domains
-   you intend, prints no "skipping trusted layer" warning, and the generated
+   you intend, prints no missing-manifest or "skipping trusted layer" warning,
+   validates shared package setup if present, and the generated
    `SKILL.md` reads sensibly.
 5. `README.md` states the install line with a sha, the minimum `clauz3`
    version, and (for a private layer) how access is granted.

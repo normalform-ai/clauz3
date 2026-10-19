@@ -9,19 +9,27 @@ That is the stdlib convention:
 
 ```text
 <tool>/
+  clauz3.yaml               # optional package-level shared requirements
   README.md
-  tools/<tool>/trusted/
-    effects.py
-    contracts.py
+  tools/<tool>/
+    clauz3.yaml             # domain description and prerequisites
+    trusted/
+      effects.py
+      contracts.py
   tests/
     Justfile
     cases/
 ```
 
-The installable artifact is the `tools/<tool>/trusted/` layer. The test artifact
-lives beside it. `clauz3 install stdlib:db` copies the trusted layer into a
-project; `clauz3 test stdlib:db` runs the layer's bundled test suite from the
-same source.
+The installable artifact is the whole `tools/<tool>/` directory; only its
+`trusted/` subtree is a trusted Python boundary. `clauz3 install stdlib:db`
+copies the domain code and metadata into a project. An optional package
+manifest's shared requirements are snapshotted beside the installed domain
+manifest. Root-level tests and guides remain in the source distribution;
+`clauz3 test stdlib:db` explicitly runs that source's bundled test suite.
+See [Library manifests and setup](../reference/library-manifests.md), including
+the warning for legacy sources without domain manifests. An absent optional
+package manifest is not a warning.
 
 ## Why this matters
 

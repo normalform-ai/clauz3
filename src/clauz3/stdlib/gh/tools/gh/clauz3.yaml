@@ -1,0 +1,20 @@
+schema_version: 1
+name: gh
+title: GitHub
+summary: >-
+  Use the GitHub CLI with repository and command contracts.
+description: |
+  Use GitHub through the gh CLI with contracts over repositories and commands.
+  Access depends on the GitHub account and repository permissions configured locally.
+requirements:
+  tools:
+    - name: gh
+      description: The GitHub CLI is needed for GitHub operations.
+      instructions: Install gh and make it available on the PATH used by Clauz3.
+  setup:
+    - id: github-auth
+      kind: authentication
+      title: Authorize GitHub access
+      description: The GitHub CLI must be authenticated for the repositories you use.
+      instructions: Run gh auth login in your terminal, then inspect gh auth status.
+      documentation: https://cli.github.com/manual/gh_auth_login

@@ -1,0 +1,14 @@
+schema_version: 1
+name: git
+title: Git
+summary: >-
+  Run Git commands and pushes with repository and branch contracts.
+description: |
+  Work with local Git repositories and approved remote operations. Contracts
+  can restrict repositories, commands, branches, and pushes. Remote operations
+  use the Git authentication already configured on your computer.
+requirements:
+  tools:
+    - name: git
+      description: The git executable is needed for repository operations.
+      instructions: Install git and make it available on the PATH used by Clauz3.

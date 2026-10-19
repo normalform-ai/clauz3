@@ -210,9 +210,13 @@ def test_failed_verification_is_manual_and_unrememberable(
     payload["contract_descriptions"] = {
         "emails.at_most(1)": {"text": "Forged sentence"}
     }
+    payload["contract_identities"] = {
+        "emails.at_most(1)": {"symbol": "Forged identity", "call": "forged()"}
+    }
     assert api.post("/requests", json=payload, headers=AGENT).status_code == 503
     api.get("/ui/login?key=operator")
     assert "Forged sentence" not in api.get("/ui").text
+    assert "Forged identity" not in api.get("/ui").text
     response = api.post(
         f"/api/requests/{payload['request_id']}/decision",
         json={"decision": "approved_once", "remember": True},
@@ -286,6 +290,9 @@ def test_trusted_documentation_survives_restart_and_escapes_html(
         "kind": "mock",
         "declared_mock": ["Forged mock declaration"],
     }
+    payload["contract_identities"] = {
+        "emails.at_most(1)": {"symbol": "Forged identity", "call": "forged()"}
+    }
     decide(api, payload)
     api.get("/ui/login?key=operator")
     live = api.get("/ui").text
@@ -298,6 +305,12 @@ def test_trusted_documentation_survives_restart_and_escapes_html(
     assert "Forged sentence" not in live
     assert "Includes simulated tools" in live
     assert "Forged mock declaration" not in live
+    assert "Forged identity" not in live
+    assert "email.at_most(count=1)" in live
+    assert "tools.email.trusted.contracts.at_most" in live
+    assert "Source and documentation" in live
+    assert "Contract source at verification" in live
+    assert "🧪 Mock" in live
 
     # History uses the approved snapshot, even if the installed docs change.
     contracts.write_text(
@@ -319,11 +332,19 @@ def test_trusted_documentation_survives_restart_and_escapes_html(
     saved = cast(dict[str, object], objects(store.snapshot()["history"])[0]["record"])
     descriptions = cast(dict[str, dict[str, object]], saved["contract_descriptions"])
     assert descriptions["emails.at_most(1)"]["parameters"] == {"count": 1}
+    identities = cast(dict[str, dict[str, object]], saved["contract_identities"])
+    assert identities["emails.at_most(1)"]["call"] == "email.at_most(count=1)"
+    assert "Recipients must be allowed." in str(
+        identities["emails.only(['bob@example.com'])"]["source_code"]
+    )
+    assert "Forged identity" not in history
 
 
 def test_legacy_guarantees_render_without_documentation() -> None:
     assert render_guarantees({"guarantees": ["rules.read_only()"]}) == (
-        "<li><code>rules.read_only()</code></li>"
+        '<li><code class="contract-expression">rules.read_only()</code>'
+        '<p class="contract-identity-unavailable">'
+        "Resolved identity not recorded.</p></li>"
     )
 
 
@@ -336,6 +357,9 @@ def test_manual_service_does_not_trust_submitted_documentation() -> None:
             "guarantees": ["rules.read_only()"],
             "contract_documentation": {"rules.read_only()": "Forged description"},
             "contract_descriptions": {"rules.read_only()": {"text": "Forged sentence"}},
+            "contract_identities": {
+                "rules.read_only()": {"symbol": "Forged identity", "call": "forged()"}
+            },
         },
     )
     assert response.status_code == 503
@@ -343,6 +367,7 @@ def test_manual_service_does_not_trust_submitted_documentation() -> None:
     assert "rules.read_only()" in page
     assert "Forged description" not in page
     assert "Forged sentence" not in page
+    assert "Forged identity" not in page
 
 
 def test_pending_request_cannot_change_verification_context(
@@ -477,3 +502,54 @@ def test_profile_page_uses_the_closed_vocabulary() -> None:
     assert set(re.findall(r"^\s*([a-z_]+):", labels.group(1), re.M)) == set(Decision)
     # Substring matching is what showed "approved" as an approval (issue #62).
     assert '.includes("approved")' not in source
+
+
+def test_row_arguments_get_verified_identity_but_cannot_be_remembered(
+    tmp_path: Path, layer: ApprovedLayer
+) -> None:
+    contracts = layer.trusted_roots[0] / "contracts.py"
+    contracts.write_text(
+        contracts.read_text()
+        + "\nfrom clauz3 import Row\n"
+        + "class Recipient(Row):\n    email: str\n"
+        + "@contract\ndef from_rows(schema: type[Row]) -> ContractSpec:\n"
+        + '    """No email calls are permitted."""\n'
+        + "    return Email.empty()\n"
+    )
+    source = """import clauz3
+from tools.email.trusted import contracts as rules
+from tools.email.trusted.contracts import Recipient
+
+@clauz3.guarantee(rules.from_rows(Recipient))
+def main() -> None:
+    pass
+"""
+    store = ProfileStore(tmp_path / "history.sqlite", project=layer.import_roots[0])
+    api = client(store, layer)
+    payload = request(layer, source)
+    assert api.post("/requests", json=payload, headers=AGENT).status_code == 503
+    api.get("/ui/login?key=operator")
+    page = api.get("/ui").text
+    assert "email.from_rows(schema=tools.email.trusted.contracts.Recipient)" in page
+    assert "tools.email.trusted.contracts.from_rows" in page
+    assert "No email calls are permitted." in page
+    response = api.post(
+        f"/api/requests/{payload['request_id']}/decision",
+        json={"decision": "approved_once", "remember": True},
+        headers=OPERATOR,
+    )
+    assert response.status_code == 400
+    response = api.post(
+        f"/api/requests/{payload['request_id']}/decision",
+        json={"decision": "approved_once"},
+        headers=OPERATOR,
+    )
+    assert response.status_code == 200
+
+
+def test_authorized_manual_service_gets_verified_identity(layer: ApprovedLayer) -> None:
+    api = TestClient(
+        create_approval_app(authorized_layers=(layer,), max_wait_seconds=0.01)
+    )
+    assert api.post("/requests", json=request(layer)).status_code == 503
+    assert "tools.email.trusted.contracts.at_most" in api.get("/ui").text

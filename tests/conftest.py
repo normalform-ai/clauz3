@@ -76,6 +76,14 @@ def dependent_library(
         '    """Guarantee at most ``count`` searches."""\n'
         "    return Search.count() <= count\n"
     )
+    (trusted.parent / "clauz3.yaml").write_text(
+        "schema_version: 1\nname: search\ntitle: Search\n"
+        "summary: Search files for a substring.\n"
+        "description: Search files using the filesystem library.\n"
+        "dependencies: [stdlib:filesystem]\n"
+        "requirements:\n  tools:\n    - name: search\n"
+        "      description: search executable\n"
+    )
     library = Library(
         source=str(root),
         description="Search files for a substring.",

@@ -1,0 +1,36 @@
+schema_version: 1
+name: google_workspace/gmail
+title: Gmail
+summary: Save Gmail drafts, preview or send email through gog, with recipient and message
+  limits.
+description: Prepare unsent messages in Gmail or deliver new emails through your own account.
+  Contracts can restrict recipients, message counts, content, and whether sending is allowed.
+  A preview saves nothing; creating a draft changes your Gmail mailbox. Sending an existing
+  draft by its ID is not supported.
+requirements:
+  setup:
+  - id: gmail-oauth
+    kind: authentication
+    title: Authorize a Google account for Gmail
+    description: gog needs Google OAuth client configuration and your consent to access Gmail.
+      A Google Workspace administrator may need to permit the application.
+    instructions: "Follow the gog quickstart to configure a Google OAuth client and enable\
+      \ Gmail. Import your downloaded client configuration with:\n  gog auth credentials /path/to/client_secret.json\n\
+      Authorize the account in your own terminal and browser:\n  gog auth add you@example.com\
+      \ --services gmail\nKeep the OAuth client file and tokens in gog's credential storage,\
+      \ not in this manifest, a chat message, or a committed project file. Authentication\
+      \ is separate from Clauz3 approval of each program. If access expires or is revoked,\
+      \ reauthorize through gog; reinstalling this library will not fix it."
+    documentation: https://gogcli.sh/quickstart.html
+    permissions:
+    - Gmail authorization capable of creating drafts and sending messages
+    applies_to:
+    - create_draft
+    - send_email
+  - id: email-backend
+    kind: configuration
+    title: Use the gog backend for Gmail drafts
+    description: Draft creation requires gog; the legacy pa backend supports sending only.
+    instructions: Leave CLAUZ3_EMAIL_BACKEND unset to use gog, or set it to gog explicitly.
+      If you intentionally use the legacy pa backend, install and configure pa separately.
+      It does not support create_draft and never substitutes a send.

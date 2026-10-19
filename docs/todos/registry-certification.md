@@ -110,8 +110,9 @@ Policy plugs into the existing approval policy machinery
 
 ## Incremental path
 
-1. Add `sha` and `tree_hash` to `library_catalog.json` entries; `install`
-   verifies the hash when installing a registered name.
+1. Pin source references in `library_registry.yaml` to commit SHAs and keep
+   `tree_hash` in separate certification metadata; `install` verifies that
+   hash when certification is required. The source registry stays minimal.
 2. Add `clauz3 verify <lib>`: run every mechanical check and emit a JSON
    report. This report is exactly what an agent certifier signs.
 3. Define an attestation format. Git/SSH signatures are probably sufficient,

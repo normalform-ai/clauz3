@@ -8,18 +8,22 @@ This page is the inverse of the [Standard library tools](reference/stdlib.md)
 page: stdlib lives inside the `clauz3` wheel and is always available;
 registry entries are externally-hosted and installed on demand.
 
+Gmail drafts and sending through gog now ship as [stdlib:google_workspace](stdlib/google_workspace.md).
+The former assistant repository is no longer a catalogue source.
+
 ## Available libraries
 
-Search the installable entries from the CLI or the agent's read-only library
-tool with `clauz3 libraries email` or `clauz3 libraries lab`. The catalog is
-packaged with ClauZ3 and searched offline; discovery does not clone or execute
-code. Private libraries still require repository access at installation time.
+Search sources with `clauz3 libraries email` or `clauz3 libraries autolabs`.
+The registry contains source locations only. Bundled and installed libraries
+provide their own [manifests](reference/library-manifests.md); external metadata
+is cached during explicit installation or review. Once cached, domain names
+and descriptions are searchable too. Listing never clones or executes code.
+Private repositories require your Git credentials to have access.
 
 | Library | Domain(s) | Visibility | Install |
 |---|---|---|---|
 | [clauz3-demo](https://github.com/normalform-ai/clauz3-demo) | Starter project — clones + bootstraps every bundled stdlib tool with sandbox-scoped contracts and five worked example plans. Best first-contact for a new agent. | **public** | `git clone git@github.com:normalform-ai/clauz3-demo.git && cd clauz3-demo && just bootstrap` |
 | [clauz3-tools-autolabs](https://github.com/normalform-ai/clauz3-tools-autolabs) | `lims` — autonomous-lab effects (pipette, instrument scheduling, oligo ordering, plate movement) with relational + fluent contracts including a `dbtl_campaign` pattern. | **public** | `clauz3 install gh:normalform-ai/clauz3-tools-autolabs --skills` |
-| `clauz3-tools-assistant` | `email` — outbound mail via `gog gmail send` with the load-bearing `dry_run_only()` safety pattern; calendar/tasks planned. | **private**, available on request from the maintainers | `clauz3 install gh:normalform-ai/clauz3-tools-assistant --skills` *(requires access; uses your existing git SSH auth)* |
 
 Pin to a tag, branch, or commit sha for reproducibility:
 
@@ -30,17 +34,23 @@ clauz3 install gh:normalform-ai/clauz3-tools-autolabs@<sha>
 
 ## Adding a library to the registry
 
-Open a PR updating `docs/registry.md` and the machine-readable
-`src/clauz3/library_catalog.json`. Manual curation only — there is
-no auto-discovery. The bar is loose: a trusted-layer repo that's been
-exercised against `clauz3 install` and `clauz3 prove` is enough. New
-entries should follow the table shape above and link to the repo (or
-note "available on request" if private).
+Add the source reference to `src/clauz3/library_registry.yaml`. Keep descriptive
+metadata, domain names, dependencies, and setup requirements in each library's
+`tools/<domain>/clauz3.yaml`, not in the registry. Shared prerequisites may live
+in an optional source-root `clauz3.yaml` with `kind: package`; installation
+snapshots them beside each domain's manifest. Test manifest validation,
+installation, and proofs before publishing. The table above is a human guide;
+it is not consumed by the installer.
+
+Legacy libraries without manifests remain installable, with a non-blocking
+metadata warning in the CLI and installation review. New entries should provide
+domain manifests. The root package manifest is optional, but declaring one
+requires a manifest for every domain; malformed metadata is always an error.
 
 ## Status and future direction
 
-The registry is intentionally simple: a hand-curated table with packaged JSON
-metadata for CLI and agent discovery.
+The registry is intentionally simple: a source-only YAML index with library-owned manifests for
+CLI, UI, and agent discovery.
 There is no versioning, signing, or trust pipeline yet.
 [Issue #47](https://github.com/cmungall/agent-deal/issues/47) tracks
 the path to a signed/attested install model: a consumer's installed

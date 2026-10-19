@@ -163,8 +163,11 @@
 }
 
 .contract-description {
-  margin: 0;
+  margin: 0.3rem 0 0;
+  color: var(--muted);
 }
+.contract-expression { display: block; overflow-wrap: anywhere; }
+.contract-list > li, .profile-guarantees > li { margin-bottom: 1rem; }
 .request-card .contract-details,
 .profile-guarantees .contract-details {
   margin: 0.15rem 0 0.65rem;
@@ -173,3 +176,9 @@
   display: block;
   margin-top: 0.5rem;
 }
+
+.contract-library { font-weight: 650; margin: .8rem 0 .35rem; }
+.contract-mock { color: #63417f; background: #f1eafa; border-radius: 1rem; padding: .15rem .5rem; font-size: .8rem; margin-left: .5rem; }
+.contract-symbol, .contract-identity-unavailable { font-size: .85rem; color: #58665f; }
+.contract-symbol code, .contract-provenance code, .contract-expression { overflow-wrap: anywhere; }
+.contract-source { max-height: 24rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }

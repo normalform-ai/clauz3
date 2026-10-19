@@ -64,11 +64,13 @@ def test_libraries_search_is_read_only(
         raise AssertionError("discovery must not clone repositories")
 
     monkeypatch.setattr("clauz3.libraries.install.resolve_remote_source", no_clone)
-    assert main(["libraries", "EMAIL", "--json"]) == 0
+    assert main(["libraries", "AUTOLABS", "--json"]) == 0
     records = json.loads(capsys.readouterr().out)
     assert len(records) == 1
-    assert records[0]["source"] == "gh:normalform-ai/clauz3-tools-assistant"
-    assert records[0]["visibility"] == "private"
+    assert records[0]["source"] == "gh:normalform-ai/clauz3-tools-autolabs"
+    assert records[0]["visibility"] == "repository"
+    assert records[0]["domains"] == []
+    assert "Review installation" in records[0]["description"]
     assert not records[0]["installed"]
     assert not list(tmp_path.iterdir())
     assert main(["libraries", "nothing-matches-this"]) == 0

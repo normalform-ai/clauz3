@@ -33,6 +33,7 @@ from clauz3.layer_state import selected_layer
 from clauz3.policy import load_trusted_effects
 from clauz3.prover import ProofObservation, prove_text
 from clauz3.row import Row
+from clauz3.runner import discover_trusted_roots
 
 
 @dataclass(frozen=True)
@@ -567,12 +568,9 @@ def corpus_roots(case: Path) -> tuple[list[Path], list[Path]]:
             else []
         )
         imports = [parent, *siblings]
-        trusted = [
-            path
-            for root in imports
-            for path in sorted((root / "tools").glob("*/trusted"))
-        ]
-        return imports, trusted
+        # Nested domains (tools/google_workspace/gmail/trusted) follow the
+        # runner's discovery rule, which matches `clauz3 install`.
+        return imports, discover_trusted_roots(import_roots=imports)
     raise ValueError(f"no tools root for {case}")
 
 

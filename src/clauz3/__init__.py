@@ -7,6 +7,7 @@ from typing import TypeVar
 from clauz3._vendor.deal_solver._funcs._registry import register
 from clauz3.conditions import ensures, requires
 from clauz3.effects import mock, trusted
+from clauz3.paths import DirectoryPath, FilePath
 from clauz3.row import ColumnRef, Row
 from clauz3.spec import ContractSpec, contract, effect
 
@@ -52,6 +53,8 @@ def solver(
 __all__ = [
     "ColumnRef",
     "ContractSpec",
+    "DirectoryPath",
+    "FilePath",
     "Row",
     "__version__",
     "contract",

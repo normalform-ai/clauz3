@@ -1,0 +1,11 @@
+sources:
+  - stdlib:db
+  - stdlib:env
+  - stdlib:filesystem
+  - stdlib:gh
+  - stdlib:git
+  - stdlib:google_workspace
+  - stdlib:rsync
+  - stdlib:web_fetch
+  - stdlib:web_search
+  - gh:normalform-ai/clauz3-tools-autolabs

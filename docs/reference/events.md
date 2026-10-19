@@ -114,6 +114,39 @@ Tool-specific policies can still use `effect(...)` alongside events. In
 `stdlib:filesystem`, `only_pattern` constrains `grep`'s own `pattern` argument,
 which no event carries.
 
+## Sharing the filesystem vocabulary across libraries
+
+A tool outside `stdlib:filesystem` can import its event classes:
+
+```python
+from clauz3.events import performs
+from tools.filesystem.trusted.events import Read, Write
+
+
+@clauz3.trusted
+@performs(lambda src, dest: [Read(src), Write(dest)])
+def convert_alignment(src: str, dest: str) -> None:
+    raise NotImplementedError("Implement and audit all file access")
+```
+
+This is an interface skeleton, not a working conversion. Declare
+`dependencies: [stdlib:filesystem]` in the new domain's manifest and select
+both trusted roots. Its declared writes then participate in
+`fs.only_writes_files([clauz3.FilePath("output.bam")])`,
+`fs.only_writes_files_under(clauz3.DirectoryPath("out"))`, and `fs.read_only()`.
+The legacy `only_write_under` also covers them but compares literal prefixes.
+A new event class merely named `Write` does not share the existing relation.
+
+Audit subprocess inputs, databases, logs, caches, scratch files, and output
+sidecars. Use explicit required path parameters; computed paths cannot appear
+in a `@performs` builder. Directory-wide access can use `RecursiveRead` or
+`RecursiveWrite`, which exact-file contracts reject. One recursive event does
+not count the number of physical files or syscalls. Events are trusted
+summaries, not automatic file tracing: undeclared writes stay invisible, and
+reusing event classes does not inherit filesystem effect preconditions or
+constrain network activity. `Write` also provides no text field for content
+policies; `WriteText` requires the actual text argument.
+
 ## Relation to fluents
 
 `@performs` has the same shape as a fluent's `@effect`: a builder that mirrors

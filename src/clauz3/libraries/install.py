@@ -20,14 +20,18 @@ from importlib.resources.abc import Traversable
 from pathlib import Path
 from shutil import copytree, ignore_patterns
 
+import yaml
+
 from clauz3 import decorators as decorators_mod
 from clauz3.libraries.discovery import (
     SUPERSEDED,
     Library,
+    cache_library,
     catalog,
     global_catalog,
     global_domain,
     global_library_root,
+    library_from_manifests,
     superseded_message,
 )
 from clauz3.libraries.layout import (
@@ -37,6 +41,13 @@ from clauz3.libraries.layout import (
     installed_tools,
     project_dir,
     trusted_dirs,
+)
+from clauz3.libraries.manifest import (
+    MANIFEST,
+    PACKAGE_SNAPSHOT,
+    read_manifest,
+    read_source_manifest,
+    source_package,
 )
 from clauz3.source import is_remote_source, resolve_remote_source
 
@@ -59,6 +70,7 @@ class InstalledLayer:
     dest_tools: Path
     domains: list[str]
     skills: list[Path]
+    warnings: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -113,6 +125,18 @@ def install_layer(
         if not domains:
             raise InstallError(f"no trusted domains found under {source_tools}")
 
+        # Validate every manifest before copying any of the library domains.
+        packages = {}
+        warnings = []
+        for domain in domains:
+            _reject_symlinks(source_tools / domain)
+            if read_source_manifest(source_tools, domain) is None:
+                warnings.append(
+                    f"{domain}: missing tools/{domain}/clauz3.yaml. "
+                    "Legacy installation is supported, but manifest descriptions "
+                    "and setup guidance are unavailable."
+                )
+            packages[domain] = source_package(source_tools, domain)
         dest_tools = _dest_tools(into, globally=globally)
         skills: list[Path] = []
         for domain in domains:
@@ -146,6 +170,16 @@ def install_layer(
                 dirs_exist_ok=force,
                 ignore=ignore_patterns("__pycache__", "*.pyc"),
             )
+            if force and not (src_domain / MANIFEST).exists():
+                (dst_domain / MANIFEST).unlink(missing_ok=True)
+            package_path = dst_domain / PACKAGE_SNAPSHOT
+            if packages[domain] is not None:
+                package_path.write_text(
+                    yaml.safe_dump(packages[domain], sort_keys=False)
+                )
+            else:
+                package_path.unlink(missing_ok=True)
+            _write_origin(dst_domain, str(source))
             if generate_skills:
                 skills.append(_write_skill(into, domain, dst_domain, globally))
 
@@ -154,6 +188,7 @@ def install_layer(
         dest_tools=dest_tools,
         domains=domains,
         skills=skills,
+        warnings=tuple(warnings),
     )
 
 
@@ -172,83 +207,123 @@ def install_library(
     """
     libraries = {lib.source: lib for lib in [*catalog(), *global_catalog()]}
     name = _stdlib_name(source)
-    key = f"stdlib:{name}" if name is not None else source
-    plan: list[tuple[str, Library | None]] = []
+    key = f"stdlib:{name}" if name is not None else _source_reference(source)
+    plan: list[tuple[str, Library]] = []
     visiting: set[str] = set()
     visited: set[str] = set()
+    resolved: dict[str, tuple[Path, list[str]]] = {}
 
-    def add(selected: str) -> None:
-        if selected in visiting:
-            raise InstallError(f"cyclic library dependency: {selected}")
-        if selected in visited:
-            return
-        visiting.add(selected)
-        library = libraries.get(selected)
-        if library is not None:
-            for dependency in library.dependencies:
-                add(dependency)
-        visiting.remove(selected)
-        visited.add(selected)
-        plan.append((selected, library))
+    with ExitStack() as stack:
 
-    add(key)
-    for _, library in plan:
-        for domain in library.domains if library is not None else ():
-            stale = [
-                old
-                for old in SUPERSEDED.get(domain, ())
-                if _has_domain(into, old, globally=globally)
-            ]
-            if stale:
-                raise InstallError(superseded_message(domain, stale))
-    results = []
-    for selected, library in plan:
-        if (
-            selected != key
-            and library is not None
-            and all(
-                _has_domain(into, domain, globally=globally)
-                for domain in library.domains
+        def add(selected: str) -> None:
+            if selected in visiting:
+                raise InstallError(f"cyclic library dependency: {selected}")
+            if selected in visited:
+                return
+            visiting.add(selected)
+            global_name = global_domain(selected)
+            tools = (
+                global_library_root() / "tools"
+                if global_name
+                else _resolve_tools_dir(selected, stack)
             )
-        ):
-            continue
-        result = install_layer(
-            selected,
-            into=into,
-            generate_skills=generate_skills,
-            force=force if selected == key else False,
-            globally=globally,
-        )
-        results.append(result)
-        if globally:
-            for domain in result.domains:
-                path = into / "metadata" / domain / "library.json"
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text(
-                    json.dumps(
-                        {
-                            "origin": selected,
-                            "description": library.description
-                            if library
-                            else f"Installed from {source}",
-                            "dependencies": [
-                                f"global:{dep.removeprefix('stdlib:')}"
-                                if dep.startswith("stdlib:")
-                                else dep
-                                for dep in library.dependencies
-                            ]
-                            if library
-                            else [],
-                            "requirements": list(library.requirements)
-                            if library
-                            else [],
-                            "url": library.url if library else source,
-                        },
-                        indent=2,
-                    )
-                    + "\n"
+            domains = [global_name] if global_name else _discover_domains(tools)
+            if not domains:
+                raise InstallError(f"no trusted domains found under {tools}")
+            manifests = {}
+            for domain in domains:
+                if has_symlink_component(tools / domain, tools):
+                    raise InstallError(f"refusing to install symlinked layer: {domain}")
+                _reject_symlinks(tools / domain)
+                manifests[domain] = read_source_manifest(tools, domain)
+            resolved[selected] = tools, domains
+            if selected != key and all(
+                _has_domain(into, d, globally=globally) for d in domains
+            ):
+                visiting.remove(selected)
+                visited.add(selected)
+                return
+            # Read dependencies from this exact source revision, not cached metadata.
+            library = library_from_manifests(
+                selected, manifests, visibility="repository"
+            )
+            if not library.manifests and selected in libraries:
+                library = libraries[
+                    selected
+                ]  # Legacy sources and embedding catalogues.
+            dependencies = library.dependencies
+            if global_name:
+                dependencies = tuple(
+                    "global:" + dep.removeprefix("stdlib:")
+                    if dep.startswith("stdlib:")
+                    else dep
+                    for dep in dependencies
                 )
-    return results
+            for dependency in dependencies:
+                if dependency in visiting:
+                    raise InstallError(f"cyclic library dependency: {dependency}")
+                if (
+                    dependency in libraries
+                    and all(
+                        _has_domain(into, d, globally=globally)
+                        for d in libraries[dependency].domains
+                    )
+                    and libraries[dependency].domains
+                ):
+                    continue
+                add(dependency)
+            visiting.remove(selected)
+            visited.add(selected)
+            plan.append((selected, library))
+
+        add(key)
+        for _, library in plan:
+            for domain in library.domains:
+                stale = [
+                    old
+                    for old in SUPERSEDED.get(domain, ())
+                    if _has_domain(into, old, globally=globally)
+                ]
+                if stale:
+                    raise InstallError(superseded_message(domain, stale))
+        results = []
+        for selected, _library in plan:
+            tools, domains = resolved[selected]
+            # Keep explicit global selection restricted to its one domain.
+            copy_source: str | Path = selected if global_domain(selected) else tools
+            result = install_layer(
+                copy_source,
+                into=into,
+                generate_skills=generate_skills,
+                force=force if selected == key else False,
+                globally=globally,
+            )
+            revision = tools.parent.name if is_remote_source(selected) else ""
+            for domain in result.domains:
+                _write_origin(result.dest_tools / domain, selected, revision)
+                if globally:
+                    path = into / "metadata" / domain / "library.json"
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    # Provenance only. The copied manifest owns descriptions and setup.
+                    path.write_text(json.dumps({"origin": selected}) + "\n")
+            if is_remote_source(selected):
+                cache_library(selected, tools, domains, revision)
+            results.append(result)
+        return results
+
+
+def _write_origin(directory: Path, source: str, revision: str = "") -> None:
+    (directory / ".clauz3-origin.json").write_text(
+        json.dumps({"source": _source_reference(source), "revision": revision}) + "\n"
+    )
+
+
+def _source_reference(source: str) -> str:
+    if name := _stdlib_name(source):
+        return f"stdlib:{name}"
+    if global_domain(source) or is_remote_source(source):
+        return source
+    return str(Path(source).resolve())
 
 
 def _dest_tools(into: Path, *, globally: bool) -> Path:
@@ -315,7 +390,7 @@ def _resolve_stdlib_tools(name: str, stack: ExitStack) -> Path:
     tools = _stdlib_root() / name / "tools"
     if not tools.is_dir():
         raise InstallError(f"unknown stdlib tool: {name}{_stdlib_hint()}")
-    return stack.enter_context(as_file(tools))
+    return stack.enter_context(as_file(_stdlib_root() / name)) / "tools"
 
 
 def _stdlib_root() -> Traversable:
@@ -436,6 +511,41 @@ def _render_skill(domain: str, trusted_root: Path, location: str) -> str:
             "",
         ]
     )
+    if manifest := read_manifest(trusted_root.parent, domain):
+        lines.extend(["## Library overview", "", manifest["description"], ""])
+        requirements = manifest.get("requirements", {})
+        if requirements:
+            lines.extend(
+                [
+                    "## User setup",
+                    "",
+                    "These are prerequisites, not a verified readiness report. "
+                    "Do not execute setup instructions as part of a proved program "
+                    "or request that the user paste credentials into chat.",
+                    "",
+                ]
+            )
+            for package in requirements.get("python", []):
+                lines.append(f"- Python package: `{package}`")
+            for tool in requirements.get("tools", []):
+                lines.extend(["", f"### Tool: {tool['name']}", "", tool["description"]])
+                if tool.get("instructions"):
+                    lines.append(tool["instructions"])
+                if tool.get("documentation"):
+                    lines.append(f"Documentation: {tool['documentation']}")
+            for step in requirements.get("setup", []):
+                lines.extend(
+                    [
+                        "",
+                        f"### {step['title']}",
+                        "",
+                        step["description"],
+                        step["instructions"],
+                    ]
+                )
+                if step.get("documentation"):
+                    lines.append(f"Documentation: {step['documentation']}")
+            lines.append("")
     return "\n".join(lines)
 
 
@@ -492,13 +602,7 @@ def _collect_api(trusted_root: Path, *, kind: str) -> list[_ApiEntry]:
 
 
 def _signature(node: ast.FunctionDef) -> str:
-    parts = []
-    for arg in node.args.args:
-        if arg.annotation is not None:
-            parts.append(f"{arg.arg}: {ast.unparse(arg.annotation)}")
-        else:
-            parts.append(arg.arg)
-    signature = f"({', '.join(parts)})"
+    signature = f"({ast.unparse(node.args)})"
     if node.returns is not None:
         signature += f" -> {ast.unparse(node.returns)}"
     return signature

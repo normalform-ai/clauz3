@@ -132,6 +132,11 @@ def _build_parser() -> argparse.ArgumentParser:
         default=0,
         help="local service port (default: choose an available port)",
     )
+    ui.add_argument(
+        "--tutorial",
+        action="store_true",
+        help="open the bundled email approvals tutorial",
+    )
     ui.add_argument("--policy", type=Path, help="approval policy file")
     ui.add_argument("--model", help="agent model for new conversations")
     ui.add_argument("--prompt", help="start a new conversation with this prompt")
@@ -556,6 +561,7 @@ def _start(args: argparse.Namespace) -> int:
             setup=args.setup,
             skills_dirs=args.skills_dir,
             browser_ui=getattr(args, "browser_ui", False),
+            tutorial=getattr(args, "tutorial", False),
         )
     except (StartError, OSError, ValueError, ApprovalPolicyError) as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -720,6 +726,8 @@ def _install(args: argparse.Namespace) -> int:
         return 2
 
     for result in results:
+        for warning in result.warnings:
+            print(f"warning: {warning}", file=sys.stderr)
         for domain in result.domains:
             print(f"installed trusted layer: {result.dest_tools / domain}")
             if args.globally:

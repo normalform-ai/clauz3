@@ -27,6 +27,7 @@ from clauz3.row import ColumnRef, Row
 from clauz3.spec import (
     AllSpec,
     ComparisonSpec,
+    ConjunctionSpec,
     ContractSpec,
     DistinctSpec,
     EffectRelation,
@@ -119,6 +120,9 @@ class _Oracle:
     row_sources: Sequence[Row] | None
 
     def check(self, spec: ContractSpec, facts: list[_Fact]) -> bool:
+        if type(spec) is ConjunctionSpec:
+            results = [self.check(part, facts) for part in spec.specs]
+            return all(results)
         if type(spec) is NoGuaranteesSpec:
             return True
         if type(spec) is AllSpec:

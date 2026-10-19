@@ -71,12 +71,14 @@ nav:
     - Effect specs: reference/effect-specs.md
     - Events: reference/events.md
     - Contract descriptions: reference/contract-descriptions.md
+    - Library manifests: reference/library-manifests.md
     - Fluents: reference/fluents.md
     - Coverage policies: reference/coverage-policies.md
     - Standard library tools: reference/stdlib.md
   - Standard library:
     - filesystem: stdlib/filesystem.md
     - db: stdlib/db.md
+    - Google Workspace: stdlib/google_workspace.md
     - web_fetch: stdlib/web_fetch.md
     - web_search: stdlib/web_search.md
     - env: stdlib/env.md

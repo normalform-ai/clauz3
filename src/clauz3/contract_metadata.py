@@ -10,6 +10,8 @@ from collections.abc import Callable, Mapping
 from hashlib import sha256
 from string import Formatter
 
+from clauz3.paths import DirectoryPath, FilePath
+
 RENDERER_VERSION = 1
 DESCRIPTION_ATTRIBUTE = "__clauz3_description__"
 SCALAR_TYPES: dict[str, type] = {
@@ -17,6 +19,8 @@ SCALAR_TYPES: dict[str, type] = {
     "int": int,
     "float": float,
     "bool": bool,
+    "FilePath": FilePath,
+    "DirectoryPath": DirectoryPath,
 }
 
 
@@ -94,7 +98,15 @@ def format_literal(value: object, kind: str) -> str:
         )
     if not valid:
         raise ValueError(f"expected {kind} description parameter")
-    return json.dumps(value, ensure_ascii=True, allow_nan=False)
+    return json.dumps(_json_value(value), ensure_ascii=True, allow_nan=False)
+
+
+def _json_value(value: object) -> object:
+    if isinstance(value, FilePath | DirectoryPath):
+        return value.value
+    if isinstance(value, list):
+        return [_json_value(item) for item in value]
+    return value
 
 
 def element_kind(kind: str) -> str | None:
@@ -141,7 +153,9 @@ def describe_call(
     return {
         "renderer_version": RENDERER_VERSION,
         "symbol": f"{owner.__module__}.{owner.__name__}",
-        "parameters": dict(bound.arguments),
+        "parameters": {
+            name: _json_value(value) for name, value in bound.arguments.items()
+        },
         "template_sha256": sha256(template.encode()).hexdigest(),
         "text": "".join(parts),
     }

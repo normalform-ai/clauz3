@@ -140,7 +140,7 @@ missing, say so — do not manufacture it in the entry file.
 
 ## Default-kwarg discipline
 
-Some trusted layers (notably the `clauz3-tools-assistant` `email`
+Some trusted layers (notably the bundled `stdlib:google_workspace`
 domain) use a `dry_run: bool = True` keyword-only parameter as a
 safety net. The contract `dry_run_only()` queries the recorded
 `e.dry_run` field. Because default kwarg values are *not* reflected
@@ -174,9 +174,28 @@ A library's bundled test suite (proof cases under `tests/cases/`):
 clauz3 test gh:normalform-ai/clauz3-tools-autolabs
 ```
 
-The `--skills` flag generates `agents/skills/<domain>/SKILL.md`
+The `--skills` flag generates `.clauz3/skills/<domain>/SKILL.md`
 describing the installed surface. Read those for the effects + contracts
 available in the project you're in.
+
+Domain manifests (`tools/<domain>/clauz3.yaml`) describe library setup. An
+optional root package manifest shares prerequisites; the installer snapshots
+them beside each domain, and generated skills include the combined guidance.
+Installation does not authorize accounts or install external dependencies.
+Legacy libraries with no manifests install with a warning and still get API
+skills, but missing setup guidance does not mean no setup is needed. Omitting
+only the optional package manifest is normal. A declared package requires a
+manifest for every domain; missing or invalid ones are errors.
+
+## Filesystem path scopes
+
+For filesystem scope, use `only_reads_files([clauz3.FilePath("name")])` or
+`only_writes_files([clauz3.FilePath("name")])` for exact names. Use their
+`*_files_under(clauz3.DirectoryPath("folder"))` counterparts for directories.
+Legacy `only_read_under` and `only_write_under` accept literal prefixes,
+including suffixes such as `name.bak`. Exact-file write scope refuses recursive
+copy/move/remove and explicit directory creation; implicit parent-directory
+creation is allowed. A write-only task also needs `no_reads()`.
 
 ## Approval service
 

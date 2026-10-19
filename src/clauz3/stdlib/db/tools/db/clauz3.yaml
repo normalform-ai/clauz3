@@ -1,0 +1,12 @@
+schema_version: 1
+name: db
+title: Databases
+summary: >-
+  Read typed rows from DuckDB, CSV and Parquet; create DuckDB tables and insert rows.
+description: |
+  Work with local databases and tabular files using typed Python rows.
+  Create DuckDB tables and append records, with contracts restricting database
+  paths, table names, and operation counts. Arbitrary SQL is not exposed.
+requirements:
+  python:
+    - "duckdb>=1.4,<2"

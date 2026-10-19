@@ -335,6 +335,16 @@ class ContractSpec:
 
 
 @dataclass(frozen=True)
+class ConjunctionSpec(ContractSpec):
+    """Require each component contract, including on an empty trace."""
+
+    specs: tuple[ContractSpec, ...]
+
+    def solve(self, *, ctx: Any) -> BoolSort:
+        return and_expr(*(spec.solve(ctx=ctx) for spec in self.specs), ctx=ctx)
+
+
+@dataclass(frozen=True)
 class NoGuaranteesSpec(ContractSpec):
     def solve(self, *, ctx: Any) -> BoolSort:
         return types.bool.val(True, ctx=ctx)

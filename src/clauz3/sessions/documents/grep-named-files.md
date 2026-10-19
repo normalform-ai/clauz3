@@ -10,7 +10,10 @@ import clauz3
 from tools.filesystem.trusted import contracts as fs
 from tools.filesystem.trusted.effects import grep
 
-@clauz3.guarantee(fs.only_read_under("./data/"))
+@clauz3.guarantee(fs.only_reads_files([
+    clauz3.FilePath("./data/input.txt"),
+    clauz3.FilePath("./data/other.txt"),
+]))
 @clauz3.guarantee(fs.only_pattern("hello"))
 @clauz3.guarantee(fs.reads_at_most(2))
 def main() -> None:
