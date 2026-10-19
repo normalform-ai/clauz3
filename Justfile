@@ -44,6 +44,7 @@ check:
     uv run ruff format --check .
     MYPYPATH="src:{{example-roots}}:{{fixture-roots}}" uv run mypy src tests examples
     uv run python -m clauz3.libraries.contract_schema --output docs/reference/contracts.linkml.json --check
+    uv run python -c "from clauz3.libraries.manifest import main; main()"
 
 # Regenerate the LinkML catalog without importing the trusted libraries.
 contract-schema:
@@ -64,3 +65,10 @@ docs:
 
 serve-docs port="8077":
     uv run --group docs mkdocs serve --dev-addr 127.0.0.1:{{port}}
+
+# Manifest runtime validation is generated from the library-owned LinkML schema.
+library-schema:
+    uv run --no-project --with linkml==1.12.0 python docs/scripts/library-schema.py
+
+library-schema-check:
+    uv run --no-project --with linkml==1.12.0 python docs/scripts/library-schema.py --check

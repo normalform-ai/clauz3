@@ -228,6 +228,10 @@ class RowSort(ProxySort):
         self.schema = schema
         self.expr = expr
 
+    @property
+    def factory(self):
+        raise UnsupportedError('containers of Row values are not supported')
+
     @methods.add(name="__getattr__")
     def m_getattr(self, name: str, ctx: Context) -> ProxySort:
         """self.name — delegates to field() for declared schema fields."""
@@ -279,6 +283,25 @@ class RowClassSort(ProxySort):
         from .._strings import string_val
 
         self.expr = string_val(f"<class {schema.__name__}>")
+
+    def construct(self, args, kwargs, *, ctx: Context) -> RowSort:
+        """Construct an immutable row with exact primitive field types."""
+        annotations = self.schema.__annotations__
+        if args or set(kwargs) != set(annotations):
+            raise UnsupportedError(
+                'Row construction requires exactly its declared fields as keywords',
+            )
+        proxies = {str: types.str, int: types.int, bool: types.bool}
+        for name, kind in annotations.items():
+            if not isinstance(kwargs[name], proxies[kind]):
+                raise UnsupportedError(
+                    f'Row field {name!r} requires {kind.__name__}',
+                )
+        datatype = z3_datatype_for_row(self.schema)
+        expression = datatype.constructor(0)(
+            *(kwargs[name].expr for name in annotations)
+        )
+        return RowSort(schema=self.schema, expr=expression)
 
 
 @types.add

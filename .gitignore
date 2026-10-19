@@ -1,4 +1,6 @@
 .claude/worktrees
+/.clauz3/
+/tmp/
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/

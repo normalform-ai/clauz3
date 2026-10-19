@@ -10,7 +10,7 @@ import clauz3
 from tools.filesystem.trusted import contracts as fs
 from tools.filesystem.trusted.effects import find
 
-@clauz3.guarantee(fs.only_read_under("./data/"))
+@clauz3.guarantee(fs.only_reads_files_under(clauz3.DirectoryPath("./data")))
 @clauz3.guarantee(fs.lists_at_most(1))
 def main() -> None:
     print(find("./data/", ["-type", "f"]))

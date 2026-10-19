@@ -109,6 +109,15 @@ def test_authentication_and_origin(client: TestClient) -> None:
     assert "Message agent" in client.get("/ui").text
     assert client.get("/ui/assets/workspace.js").status_code == 200
     assert client.get("/ui/assets/markdown.js").status_code == 200
+    assert client.get("/ui/assets/tool-cards.js").status_code == 200
+    assert client.get("/ui/assets/run-status.js").status_code == 200
+    assert "/ui/assets/run-status.js" in client.get("/ui").text
+    assert "/ui/assets/tool-cards.js" in client.get("/ui").text
+    assert client.get("/ui/assets/copy.js").status_code == 200
+    assert "/ui/assets/copy.js" in client.get("/ui").text
+    for name in ("menus.js", "history.js"):
+        assert client.get(f"/ui/assets/{name}").status_code == 200
+        assert f"/ui/assets/{name}" in client.get("/ui").text
     assert client.get("/ui/assets/chat.py").status_code == 404
 
 
@@ -727,7 +736,12 @@ def test_second_tab_has_retryable_close_code(client: TestClient) -> None:
         assert reloaded.receive_json()["params"]["sessionId"] == "fixture"
 
 
-def test_new_reuses_an_unused_conversation(client: TestClient) -> None:
+@pytest.mark.parametrize("startup_updates", [False, True])
+def test_new_reuses_an_unused_conversation(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, startup_updates: bool
+) -> None:
+    if startup_updates:
+        monkeypatch.setenv("CLAUZ3_FIXTURE_EMPTY_SESSION", "1")
     login(client)
     with client.websocket_connect(
         "ws://127.0.0.1/api/chat/acp", headers={"Origin": "http://127.0.0.1"}
@@ -806,3 +820,140 @@ def test_missing_adapter_session_preserves_history_and_allows_new(
             restored = until(ws, lambda m: m["method"] == "clauz3/restore")
             assert restored["params"]["history"] == original["history"]
             until(ws, lambda m: m["method"] == "clauz3/state" and m["params"]["ended"])
+
+
+def test_handoff_requires_browser_authentication_and_origin(client: TestClient) -> None:
+    payload = {"conversationId": "unavailable"}
+    assert client.post("/api/chat/handoff", json=payload).status_code == 401
+    assert (
+        client.post(
+            "/api/chat/handoff",
+            json=payload,
+            headers={"Authorization": "Bearer submit", "Origin": "http://127.0.0.1"},
+        ).status_code
+        == 401
+    )
+    login(client)
+    for headers in (
+        {},
+        {"Origin": "http://evil.example"},
+        {"Origin": "http://127.0.0.1", "Sec-Fetch-Site": "cross-site"},
+    ):
+        assert (
+            client.post("/api/chat/handoff", json=payload, headers=headers).status_code
+            == 401
+        )
+
+
+def test_handoff_saves_an_immutable_readable_conversation_snapshot(
+    client: TestClient,
+) -> None:
+    login(client)
+    headers = {"Origin": "http://127.0.0.1"}
+    with client.websocket_connect("ws://127.0.0.1/api/chat/acp", headers=headers) as ws:
+        ready(ws)
+        ws.send_json(
+            {"method": "session/prompt", "params": {"prompt": "Inspect this error"}}
+        )
+        until(ws, lambda m: m["method"] == "clauz3/turn_end")
+        conversation = cast(FastAPI, client.app).state.conversation
+        identifier = conversation.identifier
+        conversation.error = "Fixture diagnostic"
+        conversation.resume_error = "Fixture resume detail"
+        conversation.publish(
+            {
+                "method": "session/update",
+                "params": {
+                    "update": {
+                        "sessionUpdate": "tool_call",
+                        "toolCallId": "failed-run",
+                        "title": "mcp__clauz3__run",
+                        "status": "failed",
+                        "rawInput": {"source": "def main():\n    pass"},
+                        "rawOutput": "Fixture proof failure",
+                    }
+                },
+            }
+        )
+        conversation.last_runs = [
+            {
+                "run_id": "failed-run",
+                "phase": "refused",
+                "reason": "Fixture proof failure",
+            }
+        ]
+        response = client.post(
+            "/api/chat/handoff", json={"conversationId": identifier}, headers=headers
+        )
+        assert response.status_code == 200
+        assert response.headers["cache-control"] == "no-store"
+        result = response.json()
+        path = Path(result["path"])
+        assert path.is_absolute()
+        assert identifier in path.name
+        assert str(path) in result["text"]
+        assert identifier in result["text"]
+        assert path.stat().st_mode & 0o077 == 0
+        assert path.parent.stat().st_mode & 0o077 == 0
+        original = path.read_text()
+        saved = json.loads(original)
+        assert saved["schemaVersion"] == 1
+        assert saved["capturedAt"]
+        assert saved["conversationId"] == identifier
+        assert saved["title"] == "Inspect this error"
+        assert saved["cwd"] == conversation.config.cwd
+        assert saved["history"] == conversation.history
+        assert saved["error"] == "Fixture diagnostic"
+        assert saved["resumeError"] == "Fixture resume detail"
+        assert saved["libraries"] == ["email"]
+        assert saved["runs"][0]["reason"] == "Fixture proof failure"
+        assert (
+            saved["history"][-1]["params"]["update"]["rawInput"]["source"]
+            == "def main():\n    pass"
+        )
+        assert saved["agent"] == "claude"
+        assert not {"command", "bridge", "runner_env"}.intersection(saved)
+        assert "must-not-reach-agent" not in original
+
+        ws.send_json({"method": "session/prompt", "params": {"prompt": "Another turn"}})
+        until(ws, lambda m: m["method"] == "clauz3/turn_end")
+        ws.send_json({"method": "clauz3/new"})
+        until(ws, lambda m: m["method"] == "clauz3/restore")
+        ready(ws)
+        assert cast(FastAPI, client.app).state.conversation.identifier != identifier
+        # A request pinned before switching still copies the intended chat.
+        later = client.post(
+            "/api/chat/handoff", json={"conversationId": identifier}, headers=headers
+        ).json()
+        assert later["conversationId"] == identifier
+        assert later["path"] != str(path)
+        assert "Another turn" in Path(later["path"]).read_text()
+        assert path.read_text() == original
+    # The handoff is a standalone local file; no browser cookie is needed to read it.
+    assert json.loads(path.read_text())["history"] == saved["history"]
+
+
+def test_handoff_cannot_export_another_project_or_choose_an_output_path(
+    client: TestClient,
+    config: ChatConfig,
+) -> None:
+    from clauz3.sessions.history import ConversationStore
+
+    store = ConversationStore(
+        Path(config.status_file).with_name("conversations.sqlite"),
+        str(Path(config.cwd).parent / "other-project"),
+    )
+    foreign = store.create()
+    login(client)
+    headers = {"Origin": "http://127.0.0.1"}
+    for identifier in (foreign, "../outside", "unknown"):
+        response = client.post(
+            "/api/chat/handoff", json={"conversationId": identifier}, headers=headers
+        )
+        assert response.status_code == 404
+    for payload in ({}, {"conversationId": 42}):
+        assert (
+            client.post("/api/chat/handoff", json=payload, headers=headers).status_code
+            == 400
+        )
+    assert not (store.path.parent / "handoffs").exists()

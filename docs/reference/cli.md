@@ -24,6 +24,26 @@ clauz3 ui claude
 # `clauz3 ui` also defaults to Claude.
 ```
 
+Start the bundled email approvals tutorial without cloning the repository:
+
+```bash
+uvx clauz3 ui --tutorial
+```
+
+The top-left workspace picker lists recent folders and **Tutorials → Email
+approvals**. **Open folder** accepts an existing absolute path. By default the
+UI starts in the launch directory, even when another workspace was used last.
+The tutorial has its own persistent workspace and optional reset; it needs no
+email credentials. Your agent still needs its usual runtime and authentication.
+Tutorials require restricted mode. See the [walkthrough](../quickstarts/mock-email.md).
+
+Switching stops the previous agent; active work requires **Stop and switch**.
+History, file browsing, libraries, and approval profiles follow the selected
+workspace. Explicit `--policy` files and `--skills-dir` documents belong to the
+launch workspace: both are restored when returning there and do not follow you into other
+workspaces. Other workspaces use their
+own remembered approval profiles. Only one workspace runs in each UI process.
+
 Other coding tools are available in both frontends:
 
 ```bash
@@ -81,8 +101,10 @@ provider: sign in through Pi's `/login`, then use, for example,
 `clauz3 ui pi --model openai-codex/gpt-5.4`. This uses Pi as the agent harness
 and Pi's own saved OAuth credentials, rather than the Codex CLI session.
 
-The browser's **Agent for new conversations** selector changes the provider
-when you press **New conversation**. Saved chats retain their own provider and
+The agent selector beside **Send** chooses the provider before the first
+message; changing it replaces the empty conversation with one for that provider,
+and it is fixed once the conversation has messages. **New conversation** starts
+with the current provider. Saved chats retain their own provider and
 model. The UI identifies unrestricted mode throughout the session. A restricted
 server cannot resume an unrestricted chat; its transcript remains readable.
 Use `--model` at launch to override the selected provider's model. A provider
@@ -238,7 +260,8 @@ Before submitting its first program, the agent is instructed to read the built-i
 arguments, supported control flow, loop limits, and proof/approval status. Tested
 recipes appear in `list_skills()` when all required project library Python files
 match the bundled versions. Edited or older copies do not get recipes advertised
-as compatible. The recipes cover reading, writing then reading back, grepping
+as compatible. The recipes cover reading, writing one exact file without a
+read, writing then reading back, grepping
 named files, listing file names, and searching a directory of UTF-8 files using
 symbolic string-list iteration. The directory recipe reports skipped paths;
 binary or unreadable files can still abort it. A fixed-length loop is not a
@@ -635,6 +658,18 @@ clauz3 install [--into PATH | -g/--global] [--skills] [--force] SOURCE
 The CLI also installs the dependencies a library declares. It preserves dependencies already present in the destination,
 even with `--force`; that flag applies to the requested library. Runtime packages
 and executables (for example DuckDB or `gh`) must be provisioned separately.
+
+Descriptions and setup come from `tools/<domain>/clauz3.yaml`. An optional
+source-root `clauz3.yaml` (`kind: package`) supplies shared requirements, copied
+into an installed `.clauz3-package.yaml` snapshot beside each domain manifest.
+Tests and root-level documentation stay in the source tree.
+
+Sources without either manifest install successfully (exit 0) with a warning
+on stderr for each missing domain manifest. `--skills` still generates their
+effect/contract API guides. Omitting only the optional package manifest produces
+no metadata warning. A declared package with a missing domain manifest, invalid
+metadata, or conflicting requirements fails (exit 2) before copying domains.
+See [Library manifests and setup](library-manifests.md).
 
 Global installation is a reusable user-wide store:
 

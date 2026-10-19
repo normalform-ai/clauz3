@@ -58,6 +58,12 @@ class ProfileStore:
             with db:
                 yield db
 
+    def clear(self) -> None:
+        """Forget this project's history and rules for an explicit tutorial reset."""
+        with self._connection() as db:
+            db.execute("DELETE FROM rules WHERE project=?", (self.project,))
+            db.execute("DELETE FROM history WHERE project=?", (self.project,))
+
     def record(self, record: dict[str, object], basis: dict[str, object] | None) -> str:
         event = uuid4().hex
         # Explicit allowlist: no client extras, auth material, or receipts.
@@ -71,6 +77,7 @@ class ProfileStore:
                 "guarantees",
                 "contract_documentation",
                 "contract_descriptions",
+                "contract_identities",
                 "coverage",
                 "trusted_roots",
                 "import_roots",

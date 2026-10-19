@@ -1,0 +1,14 @@
+schema_version: 1
+name: filesystem
+title: Files and folders
+summary: >-
+  Read, search, list, write, copy, move, delete and chmod files, with contracts over what each tool does to the filesystem.
+description: |
+  Work with local files and folders: read text, search contents, list entries,
+  and make approved changes. Contracts distinguish exact file names from folder
+  boundaries and can restrict reads, writes, and operation counts.
+requirements:
+  tools:
+    - name: find
+      description: The find executable is needed for filesystem.find calls.
+      instructions: Install find and make it available on the PATH used by Clauz3.

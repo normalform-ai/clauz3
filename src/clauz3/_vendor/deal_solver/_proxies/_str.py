@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import sys
 import typing
 
 import z3
 
 from .._exceptions import UnsupportedError
+from .._slices import sequence_index, sequence_slice
 from .._strings import is_string_expr, string_sort, string_val, string_value
 from ._proxy import ProxySort
 from ._registry import types
@@ -85,13 +87,16 @@ class StrSort(ProxySort):
 
     @methods.add(name='__getitem__')
     def m_getitem(self, index: ProxySort, ctx: Context) -> ProxySort:
-        # TODO: emit IndexError
+        offset = sequence_index(self.expr, index, ctx=ctx, type_name='string')
         expr = z3.SubSeq(
             s=self.expr,
-            offset=index.expr,
+            offset=offset,
             length=z3.IntVal(1, ctx=ctx.z3_ctx),
         )
         return types.str(expr=expr)
+
+    def get_slice(self, start: ProxySort, stop: ProxySort, ctx: Context) -> StrSort:
+        return types.str(sequence_slice(self.expr, start, stop, ctx=ctx))
 
     @methods.add(name='__contains__')
     def m_contains(self, item: ProxySort, ctx: Context) -> BoolSort:
@@ -216,6 +221,95 @@ class StrSort(ProxySort):
         )))
         return types.int(expr=count)
 
+    @methods.add(name='split')
+    def r_split(self, *args, ctx: Context, **kwargs):
+        from .._domains import add_value_domain
+        from ._none import NoneSort
+
+        if len(args) > 2 or set(kwargs) - {'sep', 'maxsplit'}:
+            raise UnsupportedError('unsupported str.split argument binding')
+        bound = dict(zip(('sep', 'maxsplit'), args))
+        if bound.keys() & kwargs.keys():
+            raise UnsupportedError('duplicate str.split argument')
+        bound.update(kwargs)
+        separator = bound.get('sep', NoneSort())
+        maximum = bound.get('maxsplit', types.int.val(-1, ctx=ctx))
+        if not isinstance(separator, (types.str, NoneSort)):
+            raise UnsupportedError('str.split separator must be str or None')
+        if not isinstance(maximum, (types.int, types.bool)):
+            raise UnsupportedError('str.split maxsplit must be an integer')
+        limit = maximum.m_int(ctx=ctx).expr
+        valid_limit = z3.And(limit >= -sys.maxsize - 1, limit <= sys.maxsize)
+        ctx.add_exception(
+            OverflowError, 'Python int too large to convert to C ssize_t',
+            cond=types.bool(z3.Not(valid_limit)),
+        )
+        whitespace = isinstance(separator, NoneSort)
+        valid_separator = (
+            z3.BoolVal(True, ctx=ctx.z3_ctx) if whitespace
+            else z3.Length(separator.expr) > 0
+        )
+        if not whitespace:
+            ctx.add_exception(
+                ValueError, 'empty separator',
+                cond=types.bool(z3.Not(valid_separator)),
+            )
+        try:
+            text = string_value(self.expr)
+            sep = None if whitespace else string_value(separator.expr)
+            concrete_limit = z3.simplify(limit)
+            if not z3.is_int_value(concrete_limit):
+                raise UnsupportedError('symbolic maxsplit')
+            pieces = text.split(sep, concrete_limit.as_long())
+        except UnsupportedError:
+            pass
+        except (ValueError, OverflowError):
+            # The exception above must still be proved unreachable. Do not
+            # constrain an impossible successful result on that path.
+            return types.list.val([types.str.val('', ctx=ctx)], ctx=ctx)
+        else:
+            if not pieces:
+                return types.list(
+                    expr=z3.Empty(z3.SeqSort(self.expr.sort())),
+                    subtypes=(self.factory,),
+                )
+            return types.list.val([types.str.val(item, ctx=ctx) for item in pieces], ctx=ctx)
+
+        # A deterministic overapproximation, not a recursive split definition.
+        # Actual Python split results always satisfy these constraints. Unknown
+        # contents stay unknown, so content-dependent safety cannot be invented
+        # merely to make a program that prints a prefix easy to prove.
+        result_sort = z3.SeqSort(self.expr.sort())
+        if whitespace:
+            result_expr = z3.Function(
+                '$clauz3_str_split_whitespace', self.expr.sort(), limit.sort(), result_sort,
+            )(self.expr, limit)
+        else:
+            result_expr = z3.Function(
+                '$clauz3_str_split', self.expr.sort(), separator.expr.sort(),
+                limit.sort(), result_sort,
+            )(self.expr, separator.expr, limit)
+        result = types.list(expr=result_expr, subtypes=(self.factory,))
+        size = z3.Length(self.expr)
+        count = z3.Length(result_expr)
+        constraints = [z3.Implies(limit >= 0, count <= limit + 1)]
+        if whitespace:
+            constraints.append(count <= size)
+        else:
+            constraints.extend([
+                count >= 1,
+                (count - 1) * z3.Length(separator.expr) <= size,
+                z3.Implies(
+                    z3.Or(limit == 0, z3.Not(z3.Contains(self.expr, separator.expr))),
+                    result_expr == z3.Unit(self.expr),
+                ),
+            ])
+        ctx.given.add(types.bool(z3.Implies(
+            z3.And(valid_limit, valid_separator), z3.And(*constraints),
+        )))
+        add_value_domain(result, ctx=ctx)
+        return result
+
     @methods.add(name='__add__')
     def m_add(self, other: ProxySort, ctx: Context) -> ProxySort:
         if not isinstance(other, types.str):
@@ -329,7 +423,6 @@ class StrSort(ProxySort):
     @methods.add(name='rpartition')
     @methods.add(name='rsplit')
     @methods.add(name='rstrip')
-    @methods.add(name='split')
     @methods.add(name='splitlines')
     @methods.add(name='strip')
     @methods.add(name='swapcase')

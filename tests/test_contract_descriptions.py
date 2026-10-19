@@ -51,6 +51,8 @@ def test_bind_defaults_keywords_and_quote_literals_without_calling_helper() -> N
     assert "&lt;script&gt;" in page
     assert "<script>" not in page
     assert "{count}" in page  # Braces in a literal never trigger a second substitution.
+    assert page.index("helper(...)") < page.index("contract-description")
+    assert "<details" not in page  # No empty disclosure without documentation.
 
 
 @pytest.mark.parametrize(
@@ -173,8 +175,18 @@ def test_bundled_schema_covers_all_filesystem_contracts() -> None:
     classes = cast(dict[str, dict[str, object]], bundled_schema()["classes"])
     contracts = [value for value in classes.values() if value.get("is_a") == "Contract"]
     effects = [value for value in classes.values() if value.get("is_a") == "EffectCall"]
-    assert len(contracts) == 22
+    assert len(contracts) == 26
     assert len(effects) == 13
+    file_slots = cast(
+        dict[str, dict[str, object]], classes["FilesystemOnlyReadsFiles"]["attributes"]
+    )
+    directory_slots = cast(
+        dict[str, dict[str, object]],
+        classes["FilesystemOnlyReadsFilesUnder"]["attributes"],
+    )
+    assert file_slots["files"]["range"] == "FilePath"
+    assert file_slots["files"]["multivalued"] is True
+    assert directory_slots["directory"]["range"] == "DirectoryPath"
     assert all(
         "cnl_template" in cast(dict[str, object], c["annotations"]) for c in contracts
     )

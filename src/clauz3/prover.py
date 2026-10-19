@@ -412,6 +412,11 @@ def _concrete_contracts(
 
 
 def _concrete_contract_argument(node: ast.expr, module: astroid.Module) -> object:
+    if isinstance(node, ast.Call):
+        from clauz3.contract_literals import path_literal
+        from clauz3.decorators import import_aliases
+
+        return path_literal(node, import_aliases(module))
     if isinstance(node, ast.Name):
         # Resolve through this entry's own bindings, never a process-global
         # short-name scan: two trusted modules may define different UserRows.

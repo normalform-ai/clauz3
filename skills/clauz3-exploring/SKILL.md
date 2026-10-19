@@ -34,7 +34,7 @@ Pick a target user repo. In order of richness:
    [`docs/how-to/integration-testing.md`](../docs/how-to/integration-testing.md).
 2. The freshly-bootstrapped `clauz3-demo` (six stdlib tools, sandbox
    convention) — much richer; good for stacking guarantees across tools.
-3. A specific bud-off repo (`clauz3-tools-autolabs`, `clauz3-tools-assistant`)
+3. A specific bud-off repo (for example, `clauz3-tools-autolabs`)
    — for testing domain-specific safety patterns like `dry_run_only()`.
 
 Always run against a **temp copy** so the agent can't disturb the source.

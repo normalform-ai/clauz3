@@ -25,7 +25,12 @@ from clauz3._vendor.deal_solver import Conclusion
 from clauz3.imports_policy import build_policy
 from clauz3.interp import UnsupportedNode, execute
 from clauz3.prover import prove_path
-from clauz3.runner import RunConfigError, _preflight_nodes, _preflight_structure
+from clauz3.runner import (
+    RunConfigError,
+    _preflight_nodes,
+    _preflight_structure,
+    discover_trusted_roots,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 STDLIB = ROOT / "src/clauz3/stdlib"
@@ -66,10 +71,10 @@ def _roots_for(case: Path) -> tuple[list[Path], list[Path]]:
                 for path in sorted(parent.parent.iterdir())
                 if (path / "tools").is_dir() and path != parent
             ]
-        trusted = sorted(tools.glob("*/trusted"))
-        for sibling in siblings:
-            trusted += sorted((sibling / "tools").glob("*/trusted"))
-        return [parent, *siblings], trusted
+        roots = [parent, *siblings]
+        # Nested domains (tools/google_workspace/gmail/trusted) follow the
+        # same discovery rule as the runner and `clauz3 install`.
+        return roots, discover_trusted_roots(import_roots=roots)
     return [], []
 
 

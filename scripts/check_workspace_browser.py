@@ -195,14 +195,29 @@ def check() -> None:
                 expect(
                     page.locator(".request-card .mock-declarations")
                 ).to_contain_text("Includes simulated tools")
+                expect(page.locator(".request-card .contract-expression")).to_have_text(
+                    "email.only(addresses=['bob@example.com'])"
+                )
+                expect(page.locator(".request-card .contract-symbol")).to_contain_text(
+                    "tools.email.trusted.contracts.only"
+                )
+                expect(
+                    page.locator(".request-card .contract-description")
+                ).to_be_visible()
+                expect(page.locator(".request-card .contract-mock")).to_have_text(
+                    "🧪 Mock"
+                )
+                page.locator(".contract-details summary").click()
+                expect(page.locator(".contract-source")).to_contain_text("def only(")
+                page.locator(".contract-details summary").click()
                 page.set_viewport_size({"width": 1380, "height": 1800})
                 page.locator(".request-card").screenshot(
                     path="/tmp/clauz3-mock-declarations.png"
                 )
                 page.set_viewport_size({"width": 1380, "height": 1000})
                 page.locator(".request-card textarea").fill("A review note")
-                page.locator(".request-card summary").filter(
-                    has_text="Show source"
+                page.locator(
+                    '.request-card details[data-panel="source"] summary'
                 ).click()
                 page.screenshot(
                     path="/tmp/clauz3-workspace-approval.png", full_page=True
@@ -220,6 +235,9 @@ def check() -> None:
                 page.get_by_role("tab", name="Decision history").click()
                 expect(page.locator(".profile-card")).to_have_count(1)
                 expect(page.locator(".profile-card h3")).to_have_text("Approved")
+                expect(page.locator(".profile-card .contract-symbol")).to_contain_text(
+                    "tools.email.trusted.contracts.only"
+                )
                 page.get_by_role("button", name="Include in profile").click()
                 expect(page.locator("#rules-count")).to_have_text("1")
                 page.get_by_role("tab", name="Remembered rules").click()
@@ -279,7 +297,7 @@ def check() -> None:
                 answer = page.locator(".assistant-message").last
                 expect(answer.locator("strong")).to_have_text("both forms:")
                 expect(answer.locator("li > p > code")).to_have_text("a")
-                expect(answer.locator("li > pre")).to_have_text("x <b>y</b>")
+                expect(answer.locator("li pre")).to_have_text("x <b>y</b>")
                 assert answer.locator("b").count() == 0
                 expect(page.locator("#send")).to_be_enabled()
                 page.screenshot(path="/tmp/clauz3-workspace-markdown.png")
@@ -368,10 +386,10 @@ def check() -> None:
                 expect(page.locator("#library-list")).not_to_contain_text(
                     "No mock declaration"
                 )
-                expect(page.locator("#library-list")).to_contain_text("Simulated")
+                expect(page.locator("#library-list")).to_contain_text("Mock")
                 # The toggle sets the default for new conversations only.
                 page.get_by_role(
-                    "switch", name="Use filesystem in new conversations"
+                    "switch", name="Use Files and folders in new conversations"
                 ).check()
                 expect(page.locator("#libraries-status")).to_contain_text(
                     "email, filesystem"
@@ -393,7 +411,7 @@ def check() -> None:
 
                 # Adding a library to a started conversation asks first.
                 page.get_by_role("link", name="◉ Conversation").click()
-                expect(page.locator("#libraries")).to_have_text("email")
+                expect(page.locator("#libraries")).to_contain_text("email")
                 page.locator("#library-menu-toggle").click()
                 page.locator("#library-menu-list label").filter(
                     has_text="filesystem"
@@ -468,11 +486,13 @@ def check() -> None:
                 page.locator("#stop").click()
                 expect(page.locator("#status")).to_contain_text("Conversation stopped")
                 page.get_by_role("link", name="▦ Libraries", exact=True).click()
-                page.get_by_role("button", name="Remove find", exact=True).click()
+                page.get_by_role("button", name="Remove filesystem", exact=True).click()
                 expect(page.locator("#library-review-apply")).to_be_enabled()
                 page.get_by_role("button", name="Remove library", exact=True).click()
                 expect(
-                    page.get_by_role("switch", name="Use find in new conversations")
+                    page.get_by_role(
+                        "switch", name="Use Files and folders in new conversations"
+                    )
                 ).to_have_count(0)
                 page.set_viewport_size({"width": 390, "height": 844})
                 page.locator("#library-search").fill("")
@@ -482,6 +502,69 @@ def check() -> None:
                 assert page.evaluate(
                     "document.documentElement.scrollWidth <= innerWidth"
                 )
+                # The removed library belonged to the stopped conversation;
+                # start with the updated default before leaving the workspace.
+                page.get_by_role("link", name="◉ Conversation", exact=True).click()
+                page.locator("#new").click()
+                expect(page.locator("#send")).to_be_enabled(timeout=20000)
+                # Packaged tutorial: distinct workspace, editable prompt, reset,
+                # and explicit stop-and-switch while an agent is busy.
+                page.set_viewport_size({"width": 1380, "height": 1000})
+                page.locator("#workspace-picker").click()
+                with page.expect_navigation():
+                    page.locator("#workspace-email").click()
+                expect(page.locator("#tutorial-help")).to_be_visible()
+                expect(page.locator("#send")).to_be_enabled(timeout=20000)
+                expect(page.locator("#libraries .mock-badge")).to_have_text("🧪 Mock")
+                page.locator('#tutorial-prompts [data-prompt="send"]').click()
+                assert "bob@example.com" in page.locator("#prompt").input_value()
+                page.locator("#library-menu-toggle").click()
+                expect(page.locator("#library-menu .mock-badge")).to_have_text(
+                    "🧪 Mock"
+                )
+                page.screenshot(
+                    path="/tmp/clauz3-workspace-tutorial.png", full_page=True
+                )
+                page.locator("#library-menu-cancel").click()
+                page.set_viewport_size({"width": 390, "height": 844})
+                assert page.evaluate(
+                    "document.documentElement.scrollWidth <= innerWidth"
+                )
+                page.screenshot(
+                    path="/tmp/clauz3-workspace-tutorial-mobile.png", full_page=True
+                )
+                page.set_viewport_size({"width": 1380, "height": 1000})
+                tutorial_id = page.request.get(url + "/api/chat/transcript").json()[
+                    "conversationId"
+                ]
+                page.locator("#tutorial-reset").click()
+                expect(page.locator("#workspace-confirm-text")).to_contain_text(
+                    "remembered approvals"
+                )
+                with page.expect_navigation():
+                    page.locator("#workspace-confirm-yes").click()
+                expect(page.locator("#send")).to_be_enabled(timeout=20000)
+                assert (
+                    page.request.get(url + "/api/chat/transcript").json()[
+                        "conversationId"
+                    ]
+                    != tutorial_id
+                )
+                page.locator("#prompt").fill("wait")
+                page.locator("#send").click()
+                expect(page.locator("#status")).to_contain_text(
+                    "working", timeout=20000
+                )
+                page.locator("#workspace-picker").click()
+                page.locator("#workspace-recents button").first.click()
+                expect(page.locator("#workspace-confirm-yes")).to_have_text(
+                    "Stop and switch"
+                )
+                page.screenshot(path="/tmp/clauz3-workspace-picker.png")
+                with page.expect_navigation():
+                    page.locator("#workspace-confirm-yes").click()
+                expect(page.locator("#tutorial-help")).not_to_be_visible()
+                expect(page.locator("#send")).to_be_enabled(timeout=20000)
                 # Reproduce an adapter that has lost a saved session after restart.
                 page.locator("#new").click()
                 expect(page.locator("#send")).to_be_enabled(timeout=20000)

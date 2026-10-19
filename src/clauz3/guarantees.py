@@ -12,10 +12,11 @@ report ``proved!``.
 The grammar accepted here is therefore deliberately small::
 
     guarantee  := <registered @contract> "(" [ argument {"," argument} ] ")"
-    argument   := literal | row_class
+    argument   := literal | row_class | typed_path
     literal    := str | bytes | int | float | bool | None | -number
                 | list/tuple/set of literal
                 | dict of literal -> literal
+    typed_path := clauz3.FilePath(str) | clauz3.DirectoryPath(str)
     row_class  := a name bound to a clauz3.Row subclass
 
 "Registered" means decorated with :func:`clauz3.spec.contract`, which only
@@ -36,9 +37,16 @@ from __future__ import annotations
 import ast
 import inspect
 from collections.abc import Callable, Iterator
+from pathlib import Path
 from textwrap import dedent
 
 from clauz3 import decorators as decorators_mod
+from clauz3.contract_literals import (
+    PATH_CONSTRUCTORS,
+    fixed_literal_value,
+    path_literal,
+    validate_path_bindings,
+)
 from clauz3.row import row_class_by_name
 from clauz3.spec import REGISTERED_CONTRACTS
 
@@ -75,13 +83,27 @@ def guarantee_expressions(
         node for node in module.body if isinstance(node, ast.FunctionDef)
     }
     selected = []
+    path_locations: set[tuple[int, int]] = set()
     for func in _function_defs(module):
         for expression in _guarantee_arguments(
             func, aliases=aliases, source_name=source_name
         ):
             _check_expression(expression, aliases=aliases, source_name=source_name)
+            path_locations.update(
+                (node.lineno, node.col_offset)
+                for node in ast.walk(expression)
+                if isinstance(node, ast.Call)
+                and decorators_mod.canonical_target(
+                    decorators_mod.dotted_name(node.func), aliases
+                )
+                in PATH_CONSTRUCTORS
+            )
             if target is None or (func in entry_functions and func.name == target):
                 selected.append(expression)
+    try:
+        validate_path_bindings(dedent(source), path_locations)
+    except ValueError as exc:
+        raise GuaranteeError(f"{source_name}: {exc}") from exc
     return selected
 
 
@@ -128,12 +150,13 @@ def contract_descriptions(*, source: str, target: str) -> dict[str, dict[str, ob
     """Generate descriptions from selected trusted metadata and literal values."""
     from clauz3.contract_metadata import describe_call
 
+    aliases = decorators_mod.import_aliases(ast.parse(dedent(source)))
     descriptions = {}
     for expression, owner in _contract_calls(source=source, target=target):
         try:
-            args = [ast.literal_eval(arg) for arg in expression.args]
+            args = [fixed_literal_value(arg, aliases) for arg in expression.args]
             kwargs = {
-                kw.arg: ast.literal_eval(kw.value)
+                kw.arg: fixed_literal_value(kw.value, aliases)
                 for kw in expression.keywords
                 if kw.arg is not None
             }
@@ -143,6 +166,21 @@ def contract_descriptions(*, source: str, target: str) -> dict[str, dict[str, ob
         if description is not None:
             descriptions[ast.unparse(expression)] = description
     return descriptions
+
+
+def contract_identities(
+    *, source: str, target: str, roots: list[Path], sources: dict[str, str]
+) -> dict[str, dict[str, object]]:
+    """Snapshot resolved identities inside the selected, verified layer context."""
+    from clauz3.contract_identity import identify_call
+
+    aliases = decorators_mod.import_aliases(ast.parse(dedent(source)))
+    return {
+        ast.unparse(expression): identify_call(
+            owner, expression, aliases=aliases, roots=roots, sources=sources
+        )
+        for expression, owner in _contract_calls(source=source, target=target)
+    }
 
 
 def _contract_calls(
@@ -231,15 +269,16 @@ def _check_expression(
             f"{source_name}: guarantee {text} unpacks its arguments; {_HINT}",
         )
     for argument in arguments:
-        if not _is_fixed_value(argument):
+        if not _is_fixed_value(argument, aliases):
             raise GuaranteeError(
                 f"{source_name}: guarantee {text} has non-literal argument "
                 f"{ast.unparse(argument)}; contract arguments must be literals, "
-                "literal containers, or clauz3.Row classes",
+                "literal containers, typed FilePath/DirectoryPath literals, "
+                "or clauz3.Row classes",
             )
 
 
-def _is_fixed_value(node: ast.expr) -> bool:
+def _is_fixed_value(node: ast.expr, aliases: dict[str, str]) -> bool:
     """Whether *node* denotes a value a reader of the source can see in full."""
 
     if isinstance(node, ast.Constant):
@@ -247,11 +286,17 @@ def _is_fixed_value(node: ast.expr) -> bool:
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub | ast.UAdd):
         return isinstance(node.operand, ast.Constant)
     if isinstance(node, ast.List | ast.Tuple | ast.Set):
-        return all(_is_fixed_value(element) for element in node.elts)
+        return all(_is_fixed_value(element, aliases) for element in node.elts)
     if isinstance(node, ast.Dict):
-        return all(key is not None and _is_fixed_value(key) for key in node.keys) and (
-            all(_is_fixed_value(value) for value in node.values)
-        )
+        return all(
+            key is not None and _is_fixed_value(key, aliases) for key in node.keys
+        ) and (all(_is_fixed_value(value, aliases) for value in node.values))
+    if isinstance(node, ast.Call):
+        try:
+            path_literal(node, aliases)
+        except (TypeError, ValueError):
+            return False
+        return True
     if isinstance(node, ast.Starred):
         return False
     if isinstance(node, ast.Name):

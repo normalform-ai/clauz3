@@ -1,0 +1,19 @@
+schema_version: 1
+name: web_search
+title: Web search
+summary: >-
+  Search the web with query and request-count contracts.
+description: |
+  Find web results using a search backend you configure. Contracts can limit
+  query content and request counts. This library does not choose a search vendor.
+requirements:
+  setup:
+    - id: search-backend
+      kind: service
+      title: Configure a web-search backend
+      description: Search requests need a reachable JSON search endpoint.
+      instructions: |
+        Set CLAUZ3_SEARCH_URL before launching Clauz3. The backend must accept
+        a JSON object containing a query and return a JSON array of URL strings.
+        If your backend needs a key, supply CLAUZ3_SEARCH_API_KEY through your
+        local environment or secret manager; do not put its value in this file.

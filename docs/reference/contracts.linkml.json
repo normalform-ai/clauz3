@@ -11,7 +11,7 @@
     "FilesystemAppendFile": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.append_file",
-        "source_sha256": "db26937090ab22992451b2ef5f8af1a4f80fd97a4ac34a11d2228e8b02c7b069"
+        "source_sha256": "c638b09f8ca5aafcd918d41e471d0af0ee43bf5a5eea0e1e14e90cc5d3451d36"
       },
       "attributes": {
         "path": {
@@ -40,7 +40,7 @@
     "FilesystemChmod": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.chmod",
-        "source_sha256": "db26937090ab22992451b2ef5f8af1a4f80fd97a4ac34a11d2228e8b02c7b069"
+        "source_sha256": "c638b09f8ca5aafcd918d41e471d0af0ee43bf5a5eea0e1e14e90cc5d3451d36"
       },
       "attributes": {
         "mode": {
@@ -69,7 +69,7 @@
     "FilesystemCopy": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.copy",
-        "source_sha256": "db26937090ab22992451b2ef5f8af1a4f80fd97a4ac34a11d2228e8b02c7b069"
+        "source_sha256": "c638b09f8ca5aafcd918d41e471d0af0ee43bf5a5eea0e1e14e90cc5d3451d36"
       },
       "attributes": {
         "dest": {
@@ -100,7 +100,7 @@
         "cnl_template": "Filesystem tools create at most {count} directories or empty files.",
         "python_symbol": "tools.filesystem.trusted.contracts.creates_at_most",
         "renderer_version": 1,
-        "source_sha256": "93287785eec50fce2ca090e33a0f8936b6b28f68197dc071567f69af143519aa"
+        "source_sha256": "e223fa2c48c656f9b7262093a72aec96ca08eea3a356f1b4f876de156bfce91c"
       },
       "attributes": {
         "count": {
@@ -122,7 +122,7 @@
         "cnl_template": "Filesystem tools delete or move away at most {count} paths.",
         "python_symbol": "tools.filesystem.trusted.contracts.deletes_at_most",
         "renderer_version": 1,
-        "source_sha256": "93287785eec50fce2ca090e33a0f8936b6b28f68197dc071567f69af143519aa"
+        "source_sha256": "e223fa2c48c656f9b7262093a72aec96ca08eea3a356f1b4f876de156bfce91c"
       },
       "attributes": {
         "count": {
@@ -142,7 +142,7 @@
     "FilesystemFind": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.find",
-        "source_sha256": "db26937090ab22992451b2ef5f8af1a4f80fd97a4ac34a11d2228e8b02c7b069"
+        "source_sha256": "c638b09f8ca5aafcd918d41e471d0af0ee43bf5a5eea0e1e14e90cc5d3451d36"
       },
       "attributes": {
         "args": {
@@ -172,7 +172,7 @@
     "FilesystemGrep": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.grep",
-        "source_sha256": "db26937090ab22992451b2ef5f8af1a4f80fd97a4ac34a11d2228e8b02c7b069"
+        "source_sha256": "c638b09f8ca5aafcd918d41e471d0af0ee43bf5a5eea0e1e14e90cc5d3451d36"
       },
       "attributes": {
         "path": {
@@ -203,7 +203,7 @@
         "cnl_template": "Filesystem tools list directories at most {count} times.",
         "python_symbol": "tools.filesystem.trusted.contracts.lists_at_most",
         "renderer_version": 1,
-        "source_sha256": "93287785eec50fce2ca090e33a0f8936b6b28f68197dc071567f69af143519aa"
+        "source_sha256": "e223fa2c48c656f9b7262093a72aec96ca08eea3a356f1b4f876de156bfce91c"
       },
       "attributes": {
         "count": {
@@ -223,7 +223,7 @@
     "FilesystemMakeDir": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.make_dir",
-        "source_sha256": "db26937090ab22992451b2ef5f8af1a4f80fd97a4ac34a11d2228e8b02c7b069"
+        "source_sha256": "c638b09f8ca5aafcd918d41e471d0af0ee43bf5a5eea0e1e14e90cc5d3451d36"
       },
       "attributes": {
         "path": {
@@ -243,7 +243,7 @@
     "FilesystemMove": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.move",
-        "source_sha256": "db26937090ab22992451b2ef5f8af1a4f80fd97a4ac34a11d2228e8b02c7b069"
+        "source_sha256": "c638b09f8ca5aafcd918d41e471d0af0ee43bf5a5eea0e1e14e90cc5d3451d36"
       },
       "attributes": {
         "dest": {
@@ -274,7 +274,7 @@
         "cnl_template": "No text a filesystem tool writes to a file contains {substring}.",
         "python_symbol": "tools.filesystem.trusted.contracts.must_not_write",
         "renderer_version": 1,
-        "source_sha256": "93287785eec50fce2ca090e33a0f8936b6b28f68197dc071567f69af143519aa"
+        "source_sha256": "e223fa2c48c656f9b7262093a72aec96ca08eea3a356f1b4f876de156bfce91c"
       },
       "attributes": {
         "substring": {
@@ -296,7 +296,7 @@
         "cnl_template": "No filesystem tool deletes or moves a path starting with {prefix}, or a directory containing it (paths compared as written).",
         "python_symbol": "tools.filesystem.trusted.contracts.never_delete_under",
         "renderer_version": 1,
-        "source_sha256": "93287785eec50fce2ca090e33a0f8936b6b28f68197dc071567f69af143519aa"
+        "source_sha256": "e223fa2c48c656f9b7262093a72aec96ca08eea3a356f1b4f876de156bfce91c"
       },
       "attributes": {
         "prefix": {
@@ -318,7 +318,7 @@
         "cnl_template": "No filesystem tool lists a directory starting with {prefix}, or one containing it (paths compared as written).",
         "python_symbol": "tools.filesystem.trusted.contracts.never_list_under",
         "renderer_version": 1,
-        "source_sha256": "93287785eec50fce2ca090e33a0f8936b6b28f68197dc071567f69af143519aa"
+        "source_sha256": "e223fa2c48c656f9b7262093a72aec96ca08eea3a356f1b4f876de156bfce91c"
       },
       "attributes": {
         "prefix": {
@@ -340,7 +340,7 @@
         "cnl_template": "No filesystem tool reads, copies or moves a path starting with {prefix}, or a directory containing it (paths compared as written).",
         "python_symbol": "tools.filesystem.trusted.contracts.never_read_under",
         "renderer_version": 1,
-        "source_sha256": "93287785eec50fce2ca090e33a0f8936b6b28f68197dc071567f69af143519aa"
+        "source_sha256": "e223fa2c48c656f9b7262093a72aec96ca08eea3a356f1b4f876de156bfce91c"
       },
       "attributes": {
         "prefix": {
@@ -362,7 +362,7 @@
         "cnl_template": "No filesystem tool modifies a path starting with {prefix}, or a directory containing it (paths compared as written).",
         "python_symbol": "tools.filesystem.trusted.contracts.never_write_under",
         "renderer_version": 1,
-        "source_sha256": "93287785eec50fce2ca090e33a0f8936b6b28f68197dc071567f69af143519aa"
+        "source_sha256": "e223fa2c48c656f9b7262093a72aec96ca08eea3a356f1b4f876de156bfce91c"
       },
       "attributes": {
         "prefix": {
@@ -384,7 +384,7 @@
         "cnl_template": "No filesystem tool changes permission bits.",
         "python_symbol": "tools.filesystem.trusted.contracts.no_chmods",
         "renderer_version": 1,
-        "source_sha256": "93287785eec50fce2ca090e33a0f8936b6b28f68197dc071567f69af143519aa"
+        "source_sha256": "e223fa2c48c656f9b7262093a72aec96ca08eea3a356f1b4f876de156bfce91c"
       },
       "attributes": {},
       "class_uri": "cz:tools.filesystem.trusted.contracts.no_chmods",
@@ -396,7 +396,7 @@
         "cnl_template": "No filesystem tool creates a directory or empty file.",
         "python_symbol": "tools.filesystem.trusted.contracts.no_creates",
         "renderer_version": 1,
-        "source_sha256": "93287785eec50fce2ca090e33a0f8936b6b28f68197dc071567f69af143519aa"
+        "source_sha256": "e223fa2c48c656f9b7262093a72aec96ca08eea3a356f1b4f876de156bfce91c"
       },
       "attributes": {},
       "class_uri": "cz:tools.filesystem.trusted.contracts.no_creates",
@@ -408,7 +408,7 @@
         "cnl_template": "No filesystem tool deletes or moves anything away.",
         "python_symbol": "tools.filesystem.trusted.contracts.no_deletes",
         "renderer_version": 1,
-        "source_sha256": "93287785eec50fce2ca090e33a0f8936b6b28f68197dc071567f69af143519aa"
+        "source_sha256": "e223fa2c48c656f9b7262093a72aec96ca08eea3a356f1b4f876de156bfce91c"
       },
       "attributes": {},
       "class_uri": "cz:tools.filesystem.trusted.contracts.no_deletes",
@@ -420,7 +420,7 @@
         "cnl_template": "No restrictions are imposed on filesystem effects.",
         "python_symbol": "tools.filesystem.trusted.contracts.no_guarantees",
         "renderer_version": 1,
-        "source_sha256": "93287785eec50fce2ca090e33a0f8936b6b28f68197dc071567f69af143519aa"
+        "source_sha256": "e223fa2c48c656f9b7262093a72aec96ca08eea3a356f1b4f876de156bfce91c"
       },
       "attributes": {},
       "class_uri": "cz:tools.filesystem.trusted.contracts.no_guarantees",
@@ -432,7 +432,7 @@
         "cnl_template": "No filesystem tool reads a file or lists a directory.",
         "python_symbol": "tools.filesystem.trusted.contracts.no_reads",
         "renderer_version": 1,
-        "source_sha256": "93287785eec50fce2ca090e33a0f8936b6b28f68197dc071567f69af143519aa"
+        "source_sha256": "e223fa2c48c656f9b7262093a72aec96ca08eea3a356f1b4f876de156bfce91c"
       },
       "attributes": {},
       "class_uri": "cz:tools.filesystem.trusted.contracts.no_reads",
@@ -444,7 +444,7 @@
         "cnl_template": "Everything a filesystem tool deletes or moves away starts with {root}.",
         "python_symbol": "tools.filesystem.trusted.contracts.only_delete_under",
         "renderer_version": 1,
-        "source_sha256": "93287785eec50fce2ca090e33a0f8936b6b28f68197dc071567f69af143519aa"
+        "source_sha256": "e223fa2c48c656f9b7262093a72aec96ca08eea3a356f1b4f876de156bfce91c"
       },
       "attributes": {
         "root": {
@@ -466,7 +466,7 @@
         "cnl_template": "Every filesystem chmod sets a mode in {allowlist}, written in decimal.",
         "python_symbol": "tools.filesystem.trusted.contracts.only_modes",
         "renderer_version": 1,
-        "source_sha256": "93287785eec50fce2ca090e33a0f8936b6b28f68197dc071567f69af143519aa"
+        "source_sha256": "e223fa2c48c656f9b7262093a72aec96ca08eea3a356f1b4f876de156bfce91c"
       },
       "attributes": {
         "allowlist": {
@@ -489,7 +489,7 @@
         "cnl_template": "Every grep search uses exactly the pattern {pattern}.",
         "python_symbol": "tools.filesystem.trusted.contracts.only_pattern",
         "renderer_version": 1,
-        "source_sha256": "93287785eec50fce2ca090e33a0f8936b6b28f68197dc071567f69af143519aa"
+        "source_sha256": "e223fa2c48c656f9b7262093a72aec96ca08eea3a356f1b4f876de156bfce91c"
       },
       "attributes": {
         "pattern": {
@@ -511,7 +511,7 @@
         "cnl_template": "Every file a filesystem tool reads or lists starts with {root}.",
         "python_symbol": "tools.filesystem.trusted.contracts.only_read_under",
         "renderer_version": 1,
-        "source_sha256": "93287785eec50fce2ca090e33a0f8936b6b28f68197dc071567f69af143519aa"
+        "source_sha256": "e223fa2c48c656f9b7262093a72aec96ca08eea3a356f1b4f876de156bfce91c"
       },
       "attributes": {
         "root": {
@@ -525,7 +525,52 @@
         }
       },
       "class_uri": "cz:tools.filesystem.trusted.contracts.only_read_under",
-      "description": "Guarantee every read, search, listing, and copy or move source is under\n``root``.",
+      "description": "Legacy literal-prefix policy, including suffixes such as README.md.bak.\n\nPrefer only_reads_files for exact names or only_reads_files_under for a\ndirectory boundary. This helper retains its original prefix semantics.",
+      "is_a": "Contract"
+    },
+    "FilesystemOnlyReadsFiles": {
+      "annotations": {
+        "cnl_template": "Filesystem tools read only the exact files {files}; directory listings and copy or move sources are forbidden.",
+        "python_symbol": "tools.filesystem.trusted.contracts.only_reads_files",
+        "renderer_version": 1,
+        "source_sha256": "e223fa2c48c656f9b7262093a72aec96ca08eea3a356f1b4f876de156bfce91c"
+      },
+      "attributes": {
+        "files": {
+          "annotations": {
+            "python_parameter_kind": "POSITIONAL_OR_KEYWORD"
+          },
+          "description": "The files argument to tools.filesystem.trusted.contracts.only_reads_files.",
+          "multivalued": true,
+          "range": "FilePath",
+          "required": true,
+          "slot_uri": "cz:tools.filesystem.trusted.contracts.only_reads_files.files"
+        }
+      },
+      "class_uri": "cz:tools.filesystem.trusted.contracts.only_reads_files",
+      "description": "Allow reads of these exact files (one or many), never a name prefix.\n\nBare and leading ./ spellings are equivalent. An empty list permits no\nreads or listings. Copy and move may recursively read directories, so this\ncontract refuses them even when their source looks like a file name.\nPaths are lexical: no existence, symlink or hard-link checks are implied.",
+      "is_a": "Contract"
+    },
+    "FilesystemOnlyReadsFilesUnder": {
+      "annotations": {
+        "cnl_template": "Filesystem tools read or list only paths in the directory {directory} or its subdirectories (paths compared lexically).",
+        "python_symbol": "tools.filesystem.trusted.contracts.only_reads_files_under",
+        "renderer_version": 1,
+        "source_sha256": "e223fa2c48c656f9b7262093a72aec96ca08eea3a356f1b4f876de156bfce91c"
+      },
+      "attributes": {
+        "directory": {
+          "annotations": {
+            "python_parameter_kind": "POSITIONAL_OR_KEYWORD"
+          },
+          "description": "The directory argument to tools.filesystem.trusted.contracts.only_reads_files_under.",
+          "range": "DirectoryPath",
+          "required": true,
+          "slot_uri": "cz:tools.filesystem.trusted.contracts.only_reads_files_under.directory"
+        }
+      },
+      "class_uri": "cz:tools.filesystem.trusted.contracts.only_reads_files_under",
+      "description": "Confine reads, listings, and copy/move sources to a directory boundary.\n\nDirectoryPath(\"data\") permits data and data/a.txt, but not database/a.txt.\nA trailing slash is optional; ./data and data are equivalent. DirectoryPath\n(\".\") permits relative paths only; DirectoryPath(\"/\") permits absolute\npaths only. Paths are lexical, without existence or symlink checks.",
       "is_a": "Contract"
     },
     "FilesystemOnlyWriteUnder": {
@@ -533,7 +578,7 @@
         "cnl_template": "Every modification by a filesystem tool is to a path starting with {root}.",
         "python_symbol": "tools.filesystem.trusted.contracts.only_write_under",
         "renderer_version": 1,
-        "source_sha256": "93287785eec50fce2ca090e33a0f8936b6b28f68197dc071567f69af143519aa"
+        "source_sha256": "e223fa2c48c656f9b7262093a72aec96ca08eea3a356f1b4f876de156bfce91c"
       },
       "attributes": {
         "root": {
@@ -547,13 +592,58 @@
         }
       },
       "class_uri": "cz:tools.filesystem.trusted.contracts.only_write_under",
-      "description": "Guarantee every modification, of any kind, has a path under ``root``.\n\nA move deletes its source, so moving a file out of ``root`` is refused too.",
+      "description": "Legacy literal-prefix policy, including suffixes such as test.md.bak.\n\nPrefer only_writes_files for exact files or only_writes_files_under for\na directory boundary. This helper retains its original prefix semantics.\nA move deletes its source, so moving a file out of ``root`` is refused too.",
+      "is_a": "Contract"
+    },
+    "FilesystemOnlyWritesFiles": {
+      "annotations": {
+        "cnl_template": "Filesystem tools modify only the exact paths {files}; copy, move, remove and explicit directory creation are forbidden. Parent directories may be created when writing or touching a file.",
+        "python_symbol": "tools.filesystem.trusted.contracts.only_writes_files",
+        "renderer_version": 1,
+        "source_sha256": "e223fa2c48c656f9b7262093a72aec96ca08eea3a356f1b4f876de156bfce91c"
+      },
+      "attributes": {
+        "files": {
+          "annotations": {
+            "python_parameter_kind": "POSITIONAL_OR_KEYWORD"
+          },
+          "description": "The files argument to tools.filesystem.trusted.contracts.only_writes_files.",
+          "multivalued": true,
+          "range": "FilePath",
+          "required": true,
+          "slot_uri": "cz:tools.filesystem.trusted.contracts.only_writes_files.files"
+        }
+      },
+      "class_uri": "cz:tools.filesystem.trusted.contracts.only_writes_files",
+      "description": "Confine modifications to exact file names (one or many), never prefixes.\n\nAllows write_file, append_file, touch and chmod at the listed paths.\nCopy, move and remove may modify whole directories, so they are refused;\nmake_dir is refused too. An empty list permits no modifications. Parent\ndirectories implicitly created by write_file, append_file or touch are\nallowed and are not separate write events. Bare and leading ./ spellings\nare equivalent. Paths are lexical: existence, file type and symlink or\nhard-link targets are not checked. Reads are not restricted by this contract.",
+      "is_a": "Contract"
+    },
+    "FilesystemOnlyWritesFilesUnder": {
+      "annotations": {
+        "cnl_template": "Filesystem tools modify only paths in the directory {directory} or its subdirectories (paths compared lexically). Implicit creation of parent directories is allowed.",
+        "python_symbol": "tools.filesystem.trusted.contracts.only_writes_files_under",
+        "renderer_version": 1,
+        "source_sha256": "e223fa2c48c656f9b7262093a72aec96ca08eea3a356f1b4f876de156bfce91c"
+      },
+      "attributes": {
+        "directory": {
+          "annotations": {
+            "python_parameter_kind": "POSITIONAL_OR_KEYWORD"
+          },
+          "description": "The directory argument to tools.filesystem.trusted.contracts.only_writes_files_under.",
+          "range": "DirectoryPath",
+          "required": true,
+          "slot_uri": "cz:tools.filesystem.trusted.contracts.only_writes_files_under.directory"
+        }
+      },
+      "class_uri": "cz:tools.filesystem.trusted.contracts.only_writes_files_under",
+      "description": "Confine all modification paths to a directory boundary, including deletes.\n\nCovers write, append, touch, make_dir, chmod, copy destinations, and both\nthe source and destination of moves. Reads are unrestricted. DirectoryPath\n(\"data\") permits data/a but not database/a. Bare and ./ paths are equivalent;\na trailing slash is optional. Dot permits relative paths, slash absolute\npaths. Implicit parent-directory creation may reach above the boundary.\nPaths are lexical, without existence, symlink or hard-link checks.",
       "is_a": "Contract"
     },
     "FilesystemReadFile": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.read_file",
-        "source_sha256": "db26937090ab22992451b2ef5f8af1a4f80fd97a4ac34a11d2228e8b02c7b069"
+        "source_sha256": "c638b09f8ca5aafcd918d41e471d0af0ee43bf5a5eea0e1e14e90cc5d3451d36"
       },
       "attributes": {
         "path": {
@@ -573,7 +663,7 @@
     "FilesystemReadLine": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.read_line",
-        "source_sha256": "db26937090ab22992451b2ef5f8af1a4f80fd97a4ac34a11d2228e8b02c7b069"
+        "source_sha256": "c638b09f8ca5aafcd918d41e471d0af0ee43bf5a5eea0e1e14e90cc5d3451d36"
       },
       "attributes": {
         "line_number": {
@@ -602,7 +692,7 @@
     "FilesystemReadLines": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.read_lines",
-        "source_sha256": "db26937090ab22992451b2ef5f8af1a4f80fd97a4ac34a11d2228e8b02c7b069"
+        "source_sha256": "c638b09f8ca5aafcd918d41e471d0af0ee43bf5a5eea0e1e14e90cc5d3451d36"
       },
       "attributes": {
         "path": {
@@ -624,7 +714,7 @@
         "cnl_template": "No filesystem tool modifies anything. Effects of other libraries, such as git or rsync, are not covered.",
         "python_symbol": "tools.filesystem.trusted.contracts.read_only",
         "renderer_version": 1,
-        "source_sha256": "93287785eec50fce2ca090e33a0f8936b6b28f68197dc071567f69af143519aa"
+        "source_sha256": "e223fa2c48c656f9b7262093a72aec96ca08eea3a356f1b4f876de156bfce91c"
       },
       "attributes": {},
       "class_uri": "cz:tools.filesystem.trusted.contracts.read_only",
@@ -636,7 +726,7 @@
         "cnl_template": "Filesystem tools read files at most {count} times.",
         "python_symbol": "tools.filesystem.trusted.contracts.reads_at_most",
         "renderer_version": 1,
-        "source_sha256": "93287785eec50fce2ca090e33a0f8936b6b28f68197dc071567f69af143519aa"
+        "source_sha256": "e223fa2c48c656f9b7262093a72aec96ca08eea3a356f1b4f876de156bfce91c"
       },
       "attributes": {
         "count": {
@@ -656,7 +746,7 @@
     "FilesystemRemove": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.remove",
-        "source_sha256": "db26937090ab22992451b2ef5f8af1a4f80fd97a4ac34a11d2228e8b02c7b069"
+        "source_sha256": "c638b09f8ca5aafcd918d41e471d0af0ee43bf5a5eea0e1e14e90cc5d3451d36"
       },
       "attributes": {
         "path": {
@@ -676,7 +766,7 @@
     "FilesystemTouch": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.touch",
-        "source_sha256": "db26937090ab22992451b2ef5f8af1a4f80fd97a4ac34a11d2228e8b02c7b069"
+        "source_sha256": "c638b09f8ca5aafcd918d41e471d0af0ee43bf5a5eea0e1e14e90cc5d3451d36"
       },
       "attributes": {
         "path": {
@@ -696,7 +786,7 @@
     "FilesystemWriteFile": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.write_file",
-        "source_sha256": "db26937090ab22992451b2ef5f8af1a4f80fd97a4ac34a11d2228e8b02c7b069"
+        "source_sha256": "c638b09f8ca5aafcd918d41e471d0af0ee43bf5a5eea0e1e14e90cc5d3451d36"
       },
       "attributes": {
         "content": {
@@ -727,7 +817,7 @@
         "cnl_template": "Text a filesystem tool writes to a file is at most {max_chars} characters.",
         "python_symbol": "tools.filesystem.trusted.contracts.write_length_at_most",
         "renderer_version": 1,
-        "source_sha256": "93287785eec50fce2ca090e33a0f8936b6b28f68197dc071567f69af143519aa"
+        "source_sha256": "e223fa2c48c656f9b7262093a72aec96ca08eea3a356f1b4f876de156bfce91c"
       },
       "attributes": {
         "max_chars": {
@@ -749,7 +839,7 @@
         "cnl_template": "Filesystem tools make at most {count} modifications.",
         "python_symbol": "tools.filesystem.trusted.contracts.writes_at_most",
         "renderer_version": 1,
-        "source_sha256": "93287785eec50fce2ca090e33a0f8936b6b28f68197dc071567f69af143519aa"
+        "source_sha256": "e223fa2c48c656f9b7262093a72aec96ca08eea3a356f1b4f876de156bfce91c"
       },
       "attributes": {
         "count": {
@@ -780,5 +870,15 @@
     "linkml": "https://w3id.org/linkml/"
   },
   "title": "clauz3 filesystem contract catalog",
+  "types": {
+    "DirectoryPath": {
+      "description": "A lexical directory boundary.",
+      "typeof": "string"
+    },
+    "FilePath": {
+      "description": "An exact lexical file path.",
+      "typeof": "string"
+    }
+  },
   "version": "1"
 }

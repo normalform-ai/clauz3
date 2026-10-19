@@ -403,7 +403,12 @@ def test_service_without_match_still_waits_for_user() -> None:
 
 
 def _wait_for_record(client: TestClient, request_id: str) -> None:
-    for _ in range(50):
+    # Authorized layers now independently verify display identity before a
+    # request becomes reviewable, including services without profile rules.
+    from clauz3.approvals.profiles.verification import VERIFICATION_TIMEOUT
+
+    deadline = time.monotonic() + VERIFICATION_TIMEOUT + 5
+    while time.monotonic() < deadline:
         if client.get(f"/requests/{request_id}").status_code == 200:
             return
         time.sleep(0.02)

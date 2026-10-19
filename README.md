@@ -77,6 +77,17 @@ opens automatically: review an installation, select tools, and start a new
 conversation. Claude must already be authenticated. See the
 [UI reference](docs/reference/cli.md#clauz3-ui) for setup and session lifetime.
 
+Try the bundled mock email tutorial without cloning this repository:
+
+```bash
+uvx clauz3 ui --tutorial
+```
+
+The tutorial uses a separate persistent workspace and sends no email. Your
+agent still needs its normal setup and authentication. The top-left workspace
+picker switches between recent folders and tutorials; **Reset tutorial** starts
+the exercise over. See the [mock email quickstart](docs/quickstarts/mock-email.md).
+
 For an agent session, run:
 
 ```bash
@@ -196,12 +207,22 @@ Browse bundled and curated external libraries with `clauz3 libraries`, or search
 with `clauz3 libraries email`. Results show dependencies and install commands;
 listing never downloads or executes library code.
 
+Library descriptions and setup guidance live in `tools/<domain>/clauz3.yaml`.
+An optional root `clauz3.yaml` (`kind: package`) shares prerequisites across
+domains; installation snapshots that metadata beside each installed domain.
+Legacy libraries with no manifests still install with a warning. A root package
+manifest is optional, but declaring one requires valid domain manifests.
+See [Library manifests and setup](docs/reference/library-manifests.md).
+
 To start a new project from an existing one, copy its trusted `tools/` layer
 with `clauz3 install`. It accepts a local path, a `gh:org/repo` shorthand, or
 a full git URL, and copies each `tools/<domain>/` into the current project's
 `.clauz3/tools/`, keeping the project's top level clear:
 
 ```bash
+# Bundled Gmail drafts and sending through gog
+clauz3 install stdlib:google_workspace --skills
+
 # Local path
 clauz3 install /path/to/repo/examples/email
 
@@ -212,7 +233,7 @@ clauz3 install gh:normalform-ai/clauz3-tools-autolabs
 clauz3 install gh:normalform-ai/clauz3-tools-autolabs@v0.3.1
 
 # Full URL (HTTPS or SSH)
-clauz3 install git@github.com:normalform-ai/clauz3-tools-assistant.git
+clauz3 install git@github.com:normalform-ai/clauz3-tools-autolabs.git
 ```
 
 Pass `--into <dir>` to target a different destination, `--force` to overwrite an
@@ -265,7 +286,7 @@ filesystem` also works as a shorthand.)
 
 | Tool | Effects | Headline contracts |
 | --- | --- | --- |
-| [`filesystem`](src/clauz3/stdlib/filesystem) | `read_file`, `grep`, `find`, `write_file`, `copy`, `move`, `remove`, `chmod`, ... | `read_only`, `only_read_under`, `never_read_under`, `only_write_under`, `no_deletes` |
+| [`filesystem`](src/clauz3/stdlib/filesystem) | `read_file`, `grep`, `find`, `write_file`, `copy`, `move`, `remove`, `chmod`, ... | `read_only`, `only_reads_files`, `only_reads_files_under`, `only_writes_files`, `only_writes_files_under`, `no_deletes` |
 
 `filesystem` states its contracts over the events each tool performs, so one
 policy covers every tool: `never_read_under` refuses `read_file`, `grep`, and a

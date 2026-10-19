@@ -880,11 +880,39 @@ exact implementation. Optional start/end arguments and keywords are refused.
 `str.splitlines()` remains unsupported; use filesystem `read_lines` plus `len`
 for logical line counts, including blank and final unterminated lines.
 
-Differential replay currently samples the abstract count without requiring it
-to equal Python's count of the sampled text. A count-dependent branch can
+`str.split(sep=None, maxsplit=-1)` supports positional or keyword arguments,
+explicit string separators, and Python's whitespace splitting when the
+separator is omitted or `None`. Literal inputs use Python's exact behavior,
+including repeated separators, empty fields, Unicode whitespace, and negative
+`maxsplit`. An empty separator raises `ValueError`; out-of-range `maxsplit`
+values raise `OverflowError`, and these errors must be proved unreachable.
+Literal `None` is accepted here as the separator, not as a general new value
+in the subset.
+
+For symbolic text or arguments, split results have conservative deterministic
+bounds: explicit separators produce at least one field, the number of
+separators consumed fits in the input, and a nonnegative `maxsplit` caps the
+result at `maxsplit + 1` fields. Whitespace splitting can return an empty list
+and never produces more fields than input characters. An explicit separator
+with `maxsplit=0`, or an absent separator substring, produces `[text]`.
+Other field contents remain unknown during proof; runtime uses Python's exact
+split. This permits `print(text.split("\n")[:5])` without assuming the fetched
+text is safe to use as a recipient, path, or URL. Split returns a fresh list;
+the usual shared-collection mutation restrictions apply. Iterating symbolic
+split results is not yet supported; indexing, slicing, and printing are.
+
+Strings, lists, and tuples support ordinary slices (`value[start:stop]`),
+including negative bounds, omitted bounds, explicit `None`, and bounds beyond
+either end. Bounds are clipped as in Python; reversed bounds yield an empty
+value. An explicit literal step of `1` or `None` is also supported. Other
+steps, including reverse slicing, remain unsupported. Integer indexing handles
+negative offsets and raises `IndexError` outside the sequence bounds.
+
+Differential replay currently samples abstract count and split results without
+requiring them to equal Python's result for the sampled text. A dependent branch can
 therefore produce a spurious `effect_mismatch` during replay. Treat such a
 finding as requiring concrete validation; the conservative proof remains sound.
-Replay needs to validate those counts or report an explicit abstraction
+Replay needs to validate those results or report an explicit abstraction
 limitation before its effect comparison can be treated as an exact witness.
 
 Regular-expression models preserve Unicode literals and character ranges
@@ -1177,10 +1205,11 @@ an arbitrary expression from the subset above; it is restricted to:
 
 ```
 guarantee := <registered @contract> "(" [ argument {"," argument} ] ")"
-argument  := literal | row_class
+argument  := literal | row_class | typed_path
 literal   := str | bytes | int | float | bool | None | -number
            | list/tuple/set of literal
            | dict of literal -> literal
+typed_path := clauz3.FilePath(str) | clauz3.DirectoryPath(str)
 row_class := a name bound to a clauz3.Row subclass
 ```
 
@@ -1191,7 +1220,11 @@ one positional argument.
 The registered helper runs as ordinary trusted Python. Its arguments retain
 the Python values and types written in the guarantee, including `False`, zero,
 negative zero, bytes, `None`, and nested literal containers. Containers are
-constructed afresh for each call. Row class arguments retain their schema
+constructed afresh for each call. Typed paths take exactly one literal string
+(no computed arguments or keywords); aliases imported from `clauz3` are supported.
+These two constructors are decoded without executing submitted calls. They
+express file versus directory intent, without checking existence or resolving
+symlinks. Other constructor calls remain unsupported. Row class arguments retain their schema
 identity. The bridge refuses computed or symbolic arguments instead of letting
 a solver proxy's Python truthiness select a different contract. Relation
 lambdas returned by the helper are still compiled symbolically and remain
@@ -1353,13 +1386,27 @@ The current CLI exits non-zero when any proof obligation fails. Some unsupported
 program constructs may appear as partial/skipped proof results; those should be
 handled as rejection by any runner.
 
+## Runtime timing and external quotas
+
+The proof models reachable calls, arguments, returned values, and declared
+state transitions; it does not model elapsed time or provider-global request
+history. A contract can cap effect calls per run, but cannot prove requests per
+second. Trusted adapters must enforce temporal rate limits themselves and
+coordinate across processes when the quota is shared. Internal pagination,
+retries, and redirects may issue multiple physical requests per effect call.
+Receipt verification before execution does not establish compliance with those
+runtime limits.
+
 ## Known Gaps
 
 - Contract helper builder bodies are executed rather than fully AST-validated.
-- Trusted functions with meaningful return values are not modeled.
+- Trusted effect bodies remain opaque. Supported return annotations produce
+  symbolic values constrained by declared postconditions, as described under
+  [trusted function declarations](#declarations-on-a-trusted-function).
+  Arbitrary SDK object types and quantified per-element result postconditions
+  remain unsupported.
 - Chained comparisons in relation lambdas raise `UnsupportedError` rather
   than being lowered (the program-subset evaluator handles them correctly).
-- Runtime receipt enforcement has not been implemented.
 - Marker-level effect schemas are not validated up front.
 - There is no formal grammar file for the subset yet; the relation-lambda
   subset has a conformance suite (`tests/test_relation_lambda_subset.py`)
@@ -1375,3 +1422,13 @@ The subset should move toward:
 - fully static validation of `@contract` helper bodies
 - deterministic explanations for approval dialogs
 - optional renderings into relational logic and description logic
+
+### Constructing row values
+
+A declared `clauz3.Row` schema can be instantiated with all fields supplied as
+keywords, for example `Transaction(id=1, merchant="Fictional Coffee")`. The
+prover requires exact `str`, `int` and `bool` field types; bool is not accepted
+for an int field. Constructed rows are immutable and can be passed individually
+to trusted effects such as `db.insert_row`. Lists of constructed rows remain
+unsupported. These rows do not acquire the provenance of query results merely
+by sharing their schema.

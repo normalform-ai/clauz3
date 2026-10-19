@@ -249,6 +249,7 @@
         code.textContent = block.text;
         if (block.lang) code.dataset.lang = block.lang;
         element.append(code);
+        element = clauz3Copy.block(element, "Copy code");
       } else if (block.type === "rule") {
         element = document.createElement("hr");
       } else if (block.type === "quote") {

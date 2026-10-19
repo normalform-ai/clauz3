@@ -18,6 +18,8 @@ def test_install_copies_trusted_layer(tmp_path: Path) -> None:
     assert copied.is_file()
     assert "send_email" in copied.read_text()
     assert result.skills == []
+    assert len(result.warnings) == 1
+    assert "missing tools/email/clauz3.yaml" in result.warnings[0]
 
 
 def test_install_accepts_tools_dir_directly(tmp_path: Path) -> None:
@@ -39,6 +41,26 @@ def test_install_generates_skill(tmp_path: Path) -> None:
     assert "send_email(addr: str, msg: str) -> None" in text
     assert "only(addresses: list[str])" in text
     assert "trusted email sender." in text
+
+
+def test_generated_skill_preserves_keyword_only_safety_default(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    trusted = source / "tools/email/trusted"
+    trusted.mkdir(parents=True)
+    (trusted / "effects.py").write_text(
+        "import clauz3\n"
+        "@clauz3.trusted\n"
+        "def send_email(to: str, subject: str, body: str, *, "
+        "dry_run: bool = True) -> None:\n"
+        '    """Preview by default; send only with dry_run=False."""\n'
+    )
+    install_layer(source, into=tmp_path / "dest", generate_skills=True)
+
+    text = (tmp_path / "dest/.clauz3/skills/email/SKILL.md").read_text()
+    assert (
+        "send_email(to: str, subject: str, body: str, *, dry_run: bool=True) -> None"
+        in text
+    )
 
 
 def test_install_copies_nested_trusted_layer_and_generates_skill(
@@ -160,11 +182,19 @@ def test_install_cli(tmp_path: Path, capsys: CaptureFixture[str]) -> None:
     )
 
     assert result == 0
-    out = capsys.readouterr().out
-    assert "installed trusted layer:" in out
-    assert "generated skill:" in out
+    captured = capsys.readouterr()
+    assert "installed trusted layer:" in captured.out
+    assert "generated skill:" in captured.out
+    assert "warning: email: missing tools/email/clauz3.yaml" in captured.err
     assert (tmp_path / ".clauz3/tools/email/trusted/effects.py").is_file()
     assert (tmp_path / ".clauz3/skills/email/SKILL.md").is_file()
+
+
+def test_install_without_optional_package_has_no_metadata_warning(
+    tmp_path: Path, capsys: CaptureFixture[str]
+) -> None:
+    assert main(["install", "stdlib:env", "--into", str(tmp_path)]) == 0
+    assert not capsys.readouterr().err
 
 
 def test_generated_skill_lists_an_aliased_effect(tmp_path: Path) -> None:

@@ -10,7 +10,9 @@ Every contract covers this library's tools only. Effects of other libraries
 that touch files (git, rsync, db) are not events here, and the approval text
 says so by naming "filesystem tools".
 
-Prefix checks are literal string prefixes, not resolved directory containment:
+Use ``only_reads_files`` / ``only_writes_files`` for exact files and their
+``*_files_under`` counterparts for a directory boundary.
+The legacy prefix helpers use literal string prefixes:
 ``only_read_under("test.md")`` also admits ``test.md.bak``. The ``never_*``
 contracts also refuse an event whose path is a prefix of the forbidden one,
 since that path may be a directory containing it. The effects refuse ``..``,
@@ -35,16 +37,20 @@ from tools.filesystem.trusted.events import (
     Chmod,
     Create,
     Delete,
+    DirectoryCreate,
     FsEvent,
     List,
     Observe,
     Read,
+    RecursiveRead,
+    RecursiveWrite,
     Write,
     WriteText,
 )
 
 from clauz3._path_safety import is_plain_path
-from clauz3.spec import ContractSpec, contract, effect
+from clauz3.paths import DirectoryPath, FilePath
+from clauz3.spec import ConjunctionSpec, ContractSpec, contract, effect
 from clauz3.spec import no_guarantees as core_no_guarantees
 
 Grep = effect(grep)
@@ -179,10 +185,102 @@ def no_reads() -> ContractSpec:
     return Observe.empty()
 
 
+@contract(
+    description=(
+        "Filesystem tools read only the exact files {files}; "
+        "directory listings and copy or move sources are forbidden."
+    )
+)
+def only_reads_files(files: list[FilePath]) -> ContractSpec:
+    """Allow reads of these exact files (one or many), never a name prefix.
+
+    Bare and leading ./ spellings are equivalent. An empty list permits no
+    reads or listings. Copy and move may recursively read directories, so this
+    contract refuses them even when their source looks like a file name.
+    Paths are lexical: no existence, symlink or hard-link checks are implied.
+    """
+    if type(files) is not list or any(type(path) is not FilePath for path in files):
+        raise TypeError("files must be a list of FilePath literals")
+    names = [name for path in files for name in _spellings(path.value)]
+    return ConjunctionSpec(
+        (
+            Observe.all(lambda e: e.path in names),
+            List.empty(),
+            RecursiveRead.empty(),
+        )
+    )
+
+
+@contract(
+    description=(
+        "Filesystem tools read or list only paths in the directory {directory} "
+        "or its subdirectories (paths compared lexically)."
+    )
+)
+def only_reads_files_under(directory: DirectoryPath) -> ContractSpec:
+    """Confine reads, listings, and copy/move sources to a directory boundary.
+
+    DirectoryPath("data") permits data and data/a.txt, but not database/a.txt.
+    A trailing slash is optional; ./data and data are equivalent. DirectoryPath
+    (".") permits relative paths only; DirectoryPath("/") permits absolute
+    paths only. Paths are lexical, without existence or symlink checks.
+    """
+    return _in_directory(Observe, directory)
+
+
+def _in_directory(event: type[FsEvent], directory: DirectoryPath) -> ContractSpec:
+    """Compare an event path with a validated lexical directory boundary."""
+    if type(directory) is not DirectoryPath:
+        raise TypeError("directory must be a DirectoryPath literal")
+    root = directory.value.rstrip("/") or "/"
+    bare, dotted = _spellings(root)
+    roots = [bare, dotted]
+    bare_prefix, dotted_prefix = bare + "/", dotted + "/"
+    cwd = root in (".", "./")
+    absolute_root = root == "/"
+    return event.all(
+        lambda e: (
+            len(e.path) > 0
+            and "//" not in e.path
+            and "\\" not in e.path
+            and (
+                "/." not in e.path
+                or ("/./" not in e.path and not e.path.endswith("/."))
+            )
+            and (
+                ".." not in e.path
+                or (
+                    "/../" not in e.path
+                    and not e.path.startswith("../")
+                    and not e.path.endswith("/..")
+                    and e.path != ".."
+                    and ":.." not in e.path
+                )
+            )
+            and (
+                (cwd and not e.path.startswith("/"))
+                or (absolute_root and e.path.startswith("/"))
+                or (
+                    not cwd
+                    and not absolute_root
+                    and (
+                        e.path in roots
+                        or e.path.startswith(bare_prefix)
+                        or e.path.startswith(dotted_prefix)
+                    )
+                )
+            )
+        )
+    )
+
+
 @contract(description="Every file a filesystem tool reads or lists starts with {root}.")
 def only_read_under(root: str) -> ContractSpec:
-    """Guarantee every read, search, listing, and copy or move source is under
-    ``root``."""
+    """Legacy literal-prefix policy, including suffixes such as README.md.bak.
+
+    Prefer only_reads_files for exact names or only_reads_files_under for a
+    directory boundary. This helper retains its original prefix semantics.
+    """
     return _under(Observe, root)
 
 
@@ -251,12 +349,64 @@ def read_only() -> ContractSpec:
 
 @contract(
     description=(
+        "Filesystem tools modify only the exact paths {files}; "
+        "copy, move, remove and explicit directory creation are forbidden. "
+        "Parent directories may be created when writing or touching a file."
+    )
+)
+def only_writes_files(files: list[FilePath]) -> ContractSpec:
+    """Confine modifications to exact file names (one or many), never prefixes.
+
+    Allows write_file, append_file, touch and chmod at the listed paths.
+    Copy, move and remove may modify whole directories, so they are refused;
+    make_dir is refused too. An empty list permits no modifications. Parent
+    directories implicitly created by write_file, append_file or touch are
+    allowed and are not separate write events. Bare and leading ./ spellings
+    are equivalent. Paths are lexical: existence, file type and symlink or
+    hard-link targets are not checked. Reads are not restricted by this contract.
+    """
+    if type(files) is not list or any(type(path) is not FilePath for path in files):
+        raise TypeError("files must be a list of FilePath literals")
+    names = [name for path in files for name in _spellings(path.value)]
+    return ConjunctionSpec(
+        (
+            Write.all(lambda e: e.path in names),
+            RecursiveWrite.empty(),
+            DirectoryCreate.empty(),
+        )
+    )
+
+
+@contract(
+    description=(
+        "Filesystem tools modify only paths in the directory {directory} "
+        "or its subdirectories (paths compared lexically). "
+        "Implicit creation of parent directories is allowed."
+    )
+)
+def only_writes_files_under(directory: DirectoryPath) -> ContractSpec:
+    """Confine all modification paths to a directory boundary, including deletes.
+
+    Covers write, append, touch, make_dir, chmod, copy destinations, and both
+    the source and destination of moves. Reads are unrestricted. DirectoryPath
+    ("data") permits data/a but not database/a. Bare and ./ paths are equivalent;
+    a trailing slash is optional. Dot permits relative paths, slash absolute
+    paths. Implicit parent-directory creation may reach above the boundary.
+    Paths are lexical, without existence, symlink or hard-link checks.
+    """
+    return _in_directory(Write, directory)
+
+
+@contract(
+    description=(
         "Every modification by a filesystem tool is to a path starting with {root}."
     )
 )
 def only_write_under(root: str) -> ContractSpec:
-    """Guarantee every modification, of any kind, has a path under ``root``.
+    """Legacy literal-prefix policy, including suffixes such as test.md.bak.
 
+    Prefer only_writes_files for exact files or only_writes_files_under for
+    a directory boundary. This helper retains its original prefix semantics.
     A move deletes its source, so moving a file out of ``root`` is refused too.
     """
     return _under(Write, root)

@@ -1,0 +1,8 @@
+schema_version: 1
+name: web_fetch
+title: Web requests
+summary: >-
+  Fetch URLs and send HTTP requests with URL and payload contracts.
+description: |
+  Fetch web pages or make HTTP requests with contracts restricting URLs
+  and request payloads. Uses Python networking; no extra CLI is required.

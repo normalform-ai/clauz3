@@ -1,4 +1,4 @@
-"""Trusted database read effects.
+"""Trusted database reads and structured DuckDB writes.
 
 The prover records calls to ``read_rows`` and materializes the result as a
 symbolic ``list[RowT]``. The body runs only under ``clauz3 run`` and uses
@@ -14,7 +14,11 @@ from typing import TypeVar
 import deal
 
 import clauz3
-from clauz3._path_safety import has_no_parent_segments, is_single_path_component
+from clauz3._path_safety import (
+    has_no_parent_segments,
+    is_plain_path,
+    is_single_path_component,
+)
 
 RowT = TypeVar("RowT", bound=clauz3.Row)
 
@@ -71,6 +75,119 @@ def read_rows(
         connection.close()
 
     return [_row_from_tuple(schema, columns, row) for row in rows]
+
+
+@clauz3.requires(
+    lambda schema, path, table: is_plain_path(path),
+    message="database path must have plain path segments",
+)
+@clauz3.requires(
+    lambda schema, path, table: is_single_path_component(table),
+    message="table must be a single path component",
+)
+@clauz3.requires(
+    lambda schema, path, table: len(path) > 0 and len(table) > 0,
+    message="path and table must be non-empty",
+)
+@deal.has("read", "write")
+@clauz3.trusted
+def create_table(schema: type[RowT], path: str, table: str) -> None:
+    """Create a new table from a Row schema, creating the DuckDB file if needed.
+
+    Supports str, int and bool columns, all NOT NULL. An existing table is an
+    error, never replaced. The parent directory must already exist. Writes
+    accept .duckdb, .ddb and .db files only, with no tilde expansion. DuckDB
+    may also write its adjacent .wal journal. No arbitrary SQL is accepted.
+    """
+    columns = _write_columns(schema)
+    sql_types = {str: "VARCHAR", int: "BIGINT", bool: "BOOLEAN"}
+    definitions = ", ".join(
+        f"{_quote_identifier(name)} {sql_types[kind]} NOT NULL"
+        for name, kind in columns.items()
+    )
+    _validate_write_target(path, table)
+    connection = _write_connection(path)
+    try:
+        connection.execute(f"CREATE TABLE {_quote_identifier(table)} ({definitions})")
+    finally:
+        connection.close()
+
+
+@clauz3.requires(
+    lambda path, table, row: is_plain_path(path),
+    message="database path must have plain path segments",
+)
+@clauz3.requires(
+    lambda path, table, row: is_single_path_component(table),
+    message="table must be a single path component",
+)
+@clauz3.requires(
+    lambda path, table, row: len(path) > 0 and len(table) > 0,
+    message="path and table must be non-empty",
+)
+@deal.has("read", "write")
+@clauz3.trusted
+def insert_row(path: str, table: str, row: RowT) -> None:
+    """Append one typed Row to an existing DuckDB table atomically.
+
+    Supports str, int and bool fields. Values are bound parameters, never SQL
+    fragments. Existing rows are preserved. The file and table must already
+    exist; writes may include the adjacent .wal journal. Each call commits
+    independently, so a later failure does not undo earlier successful calls.
+    """
+    _validate_write_target(path, table)
+    columns = _write_columns(type(row))
+    values = []
+    for name, kind in columns.items():
+        value = getattr(row, name)
+        if type(value) is not kind:
+            raise TypeError(f"column {name!r} must contain {kind.__name__}")
+        values.append(value)
+    if not Path(path).is_file():
+        raise FileNotFoundError(f"database does not exist: {path}")
+    names = _select_list(tuple(columns))
+    placeholders = ", ".join("?" for _ in columns)
+    connection = _write_connection(path)
+    try:
+        connection.execute(
+            f"INSERT INTO {_quote_identifier(table)} ({names}) VALUES ({placeholders})",
+            values,
+        )
+    finally:
+        connection.close()
+
+
+def _write_columns(schema: type[clauz3.Row]) -> dict[str, type]:
+    if not isinstance(schema, type) or not issubclass(schema, clauz3.Row):
+        raise TypeError("schema must be a clauz3.Row subclass")
+    columns = dict(schema.__annotations__)
+    if not columns or any(
+        kind not in _SUPPORTED_VALUE_TYPES for kind in columns.values()
+    ):
+        raise TypeError("a write schema needs str, int or bool columns")
+    return columns
+
+
+def _validate_write_target(path: str, table: str) -> None:
+    clauz3.FilePath(path)
+    if Path(path).suffix.lower() not in _DUCKDB_SUFFIXES:
+        raise ValueError("writes require a .duckdb, .ddb or .db file")
+    if not table or not is_single_path_component(table):
+        raise ValueError("table must be a nonempty single path component")
+
+
+def _write_connection(path: str):
+    # No spill files, extension downloads, replacement scans or external
+    # file/network access through expressions stored in an existing database.
+    return _duckdb().connect(
+        path,
+        config={
+            "enable_external_access": "false",
+            "autoload_known_extensions": "false",
+            "autoinstall_known_extensions": "false",
+            "temp_directory": "",
+        },
+    )
 
 
 def _duckdb():

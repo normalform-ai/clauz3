@@ -17,11 +17,12 @@ import subprocess
 import sys
 import tempfile
 from collections.abc import AsyncIterator, Callable
-from contextlib import asynccontextmanager, suppress
+from contextlib import ExitStack, asynccontextmanager, suppress
 from functools import partial
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
+from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, Response
@@ -33,6 +34,7 @@ from clauz3.sessions import providers
 from clauz3.sessions.files import browse
 from clauz3.sessions.history import ConversationStore
 from clauz3.sessions.runs import STATUS_FILE_ENV
+from clauz3.sessions.workspaces import Workspaces
 from clauz3.source import SourceError
 
 ADAPTER_VERSION = "0.89.1"
@@ -54,6 +56,7 @@ LIBRARIES_CHANGED = (
 
 
 class ChatConfig(BaseModel):
+    tutorial: bool = False
     agent: str = "claude"
     unrestricted: bool = False
     select_provider: bool = False
@@ -196,9 +199,7 @@ class Conversation:
         )
         self.store = store
         self.identifier = saved["id"] if saved else store.create() if store else ""
-        self.resume_id = (
-            saved["state"].get("sessionId") if saved and saved["history"] else None
-        )
+        self.resume_id: str | None = None
         self.loading = False
         # The conversation's own mode, not the server's: a saved chat keeps its
         # mode until a fresh agent session starts under this server's flag.
@@ -249,6 +250,10 @@ class Conversation:
                     if m["method"] == "clauz3/user"
                 ]
             )
+            # Startup notifications (e.g. available commands) are history too,
+            # but adapters may not persist a session until its first prompt.
+            if self.turn:
+                self.resume_id = saved["state"].get("sessionId")
             self.last_runs = saved["state"].get("runs", [])
             self.archived_runs = self.last_runs.copy()
             for run in self.last_runs:
@@ -814,6 +819,7 @@ def install_chat(
     config: ChatConfig,
     is_approver: Callable[[str | None], bool],
     activate_libraries: Callable[[list[Path], bool], None] | None = None,
+    activate_workspace: Callable[[Path, bool], dict[str, str]] | None = None,
 ) -> None:
     from clauz3.approvals.service import APPROVER_SESSION_COOKIE
 
@@ -824,6 +830,10 @@ def install_chat(
         else Path(config.status_file).with_name("conversations.sqlite"),
         config.cwd,
     )
+    launch_project, launch_bridge = config.cwd, config.bridge.copy()
+    workspaces = Workspaces(store.path.parent)
+    leases = ExitStack()
+    switching = False
     manager = (
         WorkspaceLibraries(
             Path(config.cwd),
@@ -1008,6 +1018,18 @@ def install_chat(
             and (not origin or origin == "http://" + host)
         )
 
+    @app.get("/api/workspaces")
+    def workspace_list(request: Request) -> Response:
+        if not authorized(request):
+            raise HTTPException(401)
+        return JSONResponse(
+            {
+                **workspaces.snapshot(config.cwd),
+                "enabled": manager is not None and activate_workspace is not None,
+            },
+            headers={"Cache-Control": "no-store"},
+        )
+
     @app.get("/api/workspace/libraries")
     def libraries(request: Request) -> Response:
         if not authorized(request):
@@ -1039,8 +1061,10 @@ def install_chat(
             raise HTTPException(
                 404, "Library management is unavailable for this service"
             )
-        if manager.busy:
-            raise HTTPException(409, "A library operation is already in progress")
+        if manager.busy or switching:
+            raise HTTPException(
+                409, "A workspace or library operation is already in progress"
+            )
         manager.busy = True
         try:
             if action == "inspect":
@@ -1107,14 +1131,33 @@ def install_chat(
             },
         )
 
-    workspace_root = Path(config.cwd).resolve()
+    @app.post("/api/chat/handoff")
+    async def handoff(request: Request, payload: dict[str, Any]) -> Response:
+        if not authorized(request, mutation=True):
+            raise HTTPException(401)
+        identifier = payload.get("conversationId")
+        if not isinstance(identifier, str) or not identifier:
+            raise HTTPException(400, "Choose a conversation to copy")
+        # Pin the requested ID: switching chats during a click must not export
+        # a different conversation. No awaits until the snapshot is complete.
+        try:
+            if identifier == conversation.identifier:
+                conversation.persist()
+            result = store.handoff(identifier)
+        except ValueError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        except OSError as exc:
+            raise HTTPException(
+                500, "Could not save the conversation snapshot"
+            ) from exc
+        return JSONResponse(result, headers={"Cache-Control": "no-store"})
 
     @app.get("/api/workspace/files")
     def files(request: Request, path: str = "", hidden: bool = False) -> Response:
         if not authorized(request):
             raise HTTPException(401)
         return JSONResponse(
-            browse(workspace_root, path, hidden=hidden),
+            browse(Path(config.cwd), path, hidden=hidden),
             headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
         )
 
@@ -1122,9 +1165,43 @@ def install_chat(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[Any]:
-        nonlocal conversation
+        nonlocal conversation, config, store, manager
         async with previous_lifespan(app) as state:
-            with store.lease():
+            try:
+                workspaces.remember(Path(config.cwd))
+                if config.tutorial:
+                    if config.unrestricted:
+                        raise ValueError("Start the tutorial without --unrestricted")
+                    target = workspaces.target({"tutorial": "email"})
+                    store = ConversationStore(store.path, str(target))
+                    leases.enter_context(store.lease())
+                    workspaces.prepare_email()
+                    config = config.model_copy(
+                        update={
+                            "cwd": str(target),
+                            "prompt": None,
+                            "show_libraries": False,
+                            "bridge": [],
+                        }
+                    )
+                    manager = WorkspaceLibraries(
+                        target,
+                        store.path.parent
+                        / "workspaces"
+                        / hashlib.sha256(config.cwd.encode()).hexdigest(),
+                        ["email"],
+                    )
+                    if activate_workspace:
+                        config = config.model_copy(
+                            update={
+                                "runner_env": {
+                                    **config.runner_env,
+                                    **activate_workspace(target, False),
+                                }
+                            }
+                        )
+                else:
+                    leases.enter_context(store.lease())
                 existing = store.list()
                 saved = (
                     store.load(existing[0]["id"])
@@ -1134,18 +1211,18 @@ def install_chat(
                 Path(config.status_file).unlink(missing_ok=True)
                 conversation = Conversation(selected_config(saved), store, saved)
                 app.state.conversation = conversation
-                try:
-                    yield state
-                finally:
-                    await conversation.close()
-                    if manager and not manager.busy:
-                        manager.discard()
+                yield state
+            finally:
+                await conversation.close()
+                if manager and not manager.busy:
+                    manager.discard()
+                leases.close()
 
     app.router.lifespan_context = lifespan
 
     @app.websocket("/api/chat/acp")
     async def socket(websocket: WebSocket) -> None:
-        nonlocal conversation
+        nonlocal conversation, config, store, manager, leases, switching
         if not authorized(websocket, mutation=True):
             # Accept only to deliver the close code; never send workspace data.
             await websocket.accept()
@@ -1250,6 +1327,130 @@ def install_chat(
                         conversation.submit(prompt)
                     elif method == "session/cancel":
                         await conversation.close()
+                    elif method == "clauz3/workspace":
+                        if manager is None or activate_workspace is None:
+                            raise ValueError("Workspace switching is unavailable")
+                        if manager.busy or switching:
+                            raise ValueError("Wait for the library operation to finish")
+                        params = message.get("params", {})
+                        destination = workspaces.target(params)
+                        tutorial = workspaces.is_tutorial(destination)
+                        reset = params.get("reset") is True
+                        if reset and (
+                            not tutorial or params.get("confirmReset") is not True
+                        ):
+                            raise ValueError("Confirm resetting the email tutorial")
+                        if tutorial and config.unrestricted:
+                            raise ValueError(
+                                "Start the tutorial without --unrestricted"
+                            )
+                        if str(destination) == config.cwd and not reset:
+                            await websocket.send_json(
+                                {
+                                    "method": "clauz3/workspace_changed",
+                                    "params": workspaces.snapshot(config.cwd),
+                                }
+                            )
+                            continue
+                        active = (
+                            not startup.done()
+                            or conversation.busy
+                            or any(
+                                r.get("phase") not in TERMINAL_PHASES
+                                for r in conversation.runs()
+                            )
+                        )
+                        if active and params.get("stop") is not True:
+                            await websocket.send_json(
+                                {"method": "clauz3/confirm_workspace", "params": params}
+                            )
+                            continue
+                        next_store = ConversationStore(store.path, str(destination))
+                        next_leases = ExitStack()
+                        if str(destination) != config.cwd:
+                            next_leases.enter_context(next_store.lease())
+                        switching = True
+                        try:
+                            # Acquire the destination before stopping the source.
+                            # An already-open destination leaves the source running.
+                            if not startup.done():
+                                startup.cancel()
+                                await asyncio.gather(startup, return_exceptions=True)
+                            await conversation.close()
+                            manager.discard()
+                            if tutorial:
+                                workspaces.prepare_email(reset=reset)
+                            storage = (
+                                store.path.parent
+                                / "workspaces"
+                                / hashlib.sha256(str(destination).encode()).hexdigest()
+                            )
+                            if reset:
+                                next_store.clear()
+                                (storage / "libraries.json").unlink(missing_ok=True)
+                            next_manager = WorkspaceLibraries(
+                                destination, storage, ["email"] if tutorial else []
+                            )
+                            if not tutorial and not next_manager.preferences.exists():
+                                next_manager.select(next_manager.installed())
+                            runner_env = {
+                                **config.runner_env,
+                                **activate_workspace(destination, reset),
+                            }
+                            # Custom skills and startup prompts belong to the
+                            # launching workspace.
+                            config = config.model_copy(
+                                update={
+                                    "cwd": str(destination),
+                                    "runner_env": runner_env,
+                                    "status_file": str(
+                                        Path(config.status_file).with_name(
+                                            f"runs-{uuid4().hex}.json"
+                                        )
+                                    ),
+                                    "bridge": launch_bridge
+                                    if str(destination) == launch_project
+                                    else [],
+                                    "libraries": next_manager.selected,
+                                    "prompt": None,
+                                    "startup_error": "",
+                                    "show_libraries": False,
+                                }
+                            )
+                            if str(destination) != store.project:
+                                leases.close()
+                                leases = next_leases.pop_all()
+                            store, manager = next_store, next_manager
+                            workspaces.remember(destination)
+                            existing = store.list()
+                            saved = store.load(existing[0]["id"]) if existing else None
+                            Path(config.status_file).unlink(missing_ok=True)
+                            while not queue.empty():
+                                queue.get_nowait()
+                            conversation = Conversation(
+                                selected_config(saved), store, saved
+                            )
+                            app.state.conversation = conversation
+                            conversation.subscriber = queue
+                            await websocket.send_json(
+                                {
+                                    "method": "clauz3/workspace_changed",
+                                    "params": workspaces.snapshot(config.cwd),
+                                }
+                            )
+                            await websocket.send_json(
+                                {
+                                    "method": "clauz3/restore",
+                                    "params": {
+                                        "history": conversation.history,
+                                        **conversation.state(),
+                                    },
+                                }
+                            )
+                            startup = start()
+                        finally:
+                            switching = False
+                            next_leases.close()
                     elif method == "clauz3/rename":
                         params = message.get("params", {})
                         store.rename(
@@ -1299,7 +1500,7 @@ def install_chat(
                         )
                         if (
                             requested_agent == conversation.config.agent
-                            and not conversation.history
+                            and not conversation.turn
                             and not conversation.ended
                             # A chat that cannot start (e.g. a mode refusal)
                             # is never reused, so New always recovers.
@@ -1352,7 +1553,7 @@ def install_chat(
                         removed = sorted(set(current) - set(domains))
                         if not added and not removed and files_unchanged:
                             continue
-                        started = bool(conversation.history)
+                        started = conversation.turn > 0
                         widening = bool(added) or not files_unchanged
                         if started and widening and params.get("confirm") is not True:
                             await websocket.send_json(
@@ -1403,7 +1604,7 @@ def install_chat(
                             )
                     else:
                         raise ValueError("Unsupported workspace operation")
-                except (ValueError, AttributeError, TypeError) as exc:
+                except (OSError, ValueError, AttributeError, TypeError) as exc:
                     await websocket.send_json(
                         {"method": "clauz3/notice", "params": {"text": str(exc)}}
                     )

@@ -185,8 +185,9 @@ with MCPClient(command=bridge["command"], args=bridge["args"],
     assert {t["name"] for t in definitions} == {
         "run", "tools", "libraries", "status", "list_skills", "read_skill"
     }
-    available = client.call("libraries", query="email")
-    assert "gh:normalform-ai/clauz3-tools-assistant" in available
+    available = client.call("libraries", query="autolabs")
+    assert "gh:normalform-ai/clauz3-tools-autolabs" in available
+    assert "gh:normalform-ai/clauz3-tools-assistant" not in available
     assert "clauz3 install" in available
     assert not Path(".clauz3/tools/filesystem").exists()
     run_schema = next(t for t in definitions if t["name"] == "run")["input_schema"]

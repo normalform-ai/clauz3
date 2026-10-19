@@ -40,7 +40,7 @@ from typing import Any
 #: bool sort models no methods, and ``bool`` must be checked before ``int``
 #: because it is a subclass.
 MODELLED_METHODS: dict[type, frozenset[str]] = {
-    str: frozenset({"count", "endswith", "find", "index", "startswith"}),
+    str: frozenset({"count", "endswith", "find", "index", "split", "startswith"}),
     list: frozenset({"append", "clear", "copy", "count", "extend", "index"}),
     tuple: frozenset({"count", "index"}),
     set: frozenset(

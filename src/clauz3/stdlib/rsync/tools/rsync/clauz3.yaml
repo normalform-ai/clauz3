@@ -1,0 +1,14 @@
+schema_version: 1
+name: rsync
+title: File synchronization
+summary: >-
+  Synchronize files with destination and deletion contracts.
+description: |
+  Synchronize files using your local rsync executable. Contracts constrain
+  destinations and deletion behavior; remote transfers use your existing
+  transport configuration and authentication.
+requirements:
+  tools:
+    - name: rsync
+      description: The rsync executable is needed for file synchronization.
+      instructions: Install rsync and make it available on the PATH used by Clauz3.

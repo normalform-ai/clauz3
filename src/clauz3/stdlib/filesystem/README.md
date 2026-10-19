@@ -14,11 +14,11 @@ approved.
 clauz3 install stdlib:filesystem
 ```
 
-This copies `tools/filesystem/` into your project. Then prove a program against
+This copies the library into `.clauz3/tools/filesystem/`. Then prove a program against
 it:
 
 ```bash
-clauz3 prove --trusted-root tools/filesystem/trusted plan.py
+clauz3 prove --trusted-root .clauz3/tools/filesystem/trusted plan.py
 ```
 
 ## Migrating from coreutils, editor, find, grep and text
@@ -58,10 +58,11 @@ filesystem (`events.py`):
 | `grep(pattern, path)` | `Read(path)` |
 | `find(path, args)` | `List(path)` |
 | `write_file(path, content)`, `append_file(path, text)` | `WriteText(path, text)` |
-| `make_dir(path)`, `touch(path)` | `Create(path)` |
+| `make_dir(path)` | `DirectoryCreate(path)` (a `Create`) |
+| `touch(path)` | `Create(path)` |
 | `remove(path)` | `Delete(path)` |
-| `copy(src, dest)` | `Read(src)`, `Write(dest)` |
-| `move(src, dest)` | `Read(src)`, `Delete(src)`, `Write(dest)` |
+| `copy(src, dest)` | `RecursiveRead(src)`, `RecursiveWrite(dest)` |
+| `move(src, dest)` | `RecursiveRead(src)`, `Delete(src)`, `RecursiveWrite(dest)` |
 | `chmod(path, mode)` | `Chmod(path, mode)` |
 
 The contracts are stated over events, so one guarantee covers every effect that
@@ -70,9 +71,55 @@ performs the event. `never_read_under("/repo/PRECIOUS.md")` refuses `read_file`,
 Moving the file and reading it under a new name is refused at the move.
 
 Events form a hierarchy, and a contract over an event covers its subclasses.
-`Read` and `List` are kinds of `Observe`, and `WriteText`, `Create`, `Delete`
-and `Chmod` are kinds of `Write`. So `read_only()` forbids deletes and chmods
-as well as writes.
+`RecursiveRead` is a kind of `Read`. `Read` and `List` are kinds of `Observe`.
+`WriteText`, `Create`, `RecursiveWrite`, and `Chmod` are kinds of `Write`;
+`Delete` is a `RecursiveWrite`, and `DirectoryCreate` is a `Create`. So
+`read_only()` forbids deletes and chmods as well as writes. Each event still
+counts once in its ancestor relation: a move counts as two modifications.
+
+## Exact files or a directory
+
+Use the same exact-file contract for one file or several:
+
+```python
+fs.only_reads_files([clauz3.FilePath("README.md")])
+fs.only_reads_files([clauz3.FilePath("README.md"), clauz3.FilePath("LICENSE")])
+fs.only_reads_files_under(clauz3.DirectoryPath("data"))
+fs.only_writes_files([clauz3.FilePath("test.md")])
+fs.only_writes_files_under(clauz3.DirectoryPath("data"))
+```
+
+Import `FilePath` and `DirectoryPath` from `clauz3`, or use the qualified names
+above. Plain strings and the wrong path type are refused by these contracts.
+`README.md` means that exact name, never `README.md.bak`. An empty file list
+permits no corresponding reads or modifications. Directory `data` permits `data/a.txt` and subdirectories,
+never `database/a.txt`; a trailing slash is optional. Both contracts accept
+bare and leading `./` spellings of relative paths. `DirectoryPath(".")`
+permits only relative paths; `DirectoryPath("/")` permits only absolute paths.
+
+Exact-file read access forbids directory listings and all copy/move sources:
+those tools can recursively read a directory, and a name alone cannot prove
+it is a file. The directory contract allows these operations inside its
+boundary. Read contracts do not restrict writes; combine with `read_only()` or
+an appropriate write policy. Path types express lexical intent, without
+checking existence or resolving symlinks or hard links. These contracts cover
+filesystem-library events, not file access by unrelated libraries.
+
+Exact-file write scope allows `write_file`, `append_file`, `touch`, and `chmod`
+at the listed names. It refuses `copy`, `move`, and `remove` because their
+arguments may be directories, and refuses explicit `make_dir`. Implicit parent
+directories created by writing, appending, or touching a file are allowed;
+these are not separate modification events. `only_writes_files_under` covers
+all modification paths, including deletes and both ends of moves, within a
+directory boundary. Its implicit parent-directory creation can extend above
+that boundary. Write scopes do not restrict reads; add `no_reads()` when needed.
+
+For a request such as “write hello to test.md”, use
+`only_writes_files([FilePath("test.md")])`. The legacy
+`only_write_under("test.md")` is a literal prefix and also allows
+`test.md.bak`; it remains for compatibility. `write_file` can overwrite an
+existing file. Neither typed scope asserts that a file is new or checks its
+physical type, symlinks, or hard links.
 
 ## Effects
 
@@ -107,17 +154,22 @@ Import with `from tools.filesystem.trusted import contracts as fs`:
 | Contract | Over |
 | --- | --- |
 | `fs.no_guarantees()` | nothing |
-| `fs.no_reads()`, `fs.only_read_under(root)` | `Observe` (reads and listings) |
+| `fs.only_reads_files(files: list[FilePath])` | exact file reads; no listings or copy/move |
+| `fs.only_reads_files_under(directory: DirectoryPath)` | `Observe` within a directory boundary |
+| `fs.only_writes_files(files: list[FilePath])` | exact modification paths; no recursive operations or explicit directory creation |
+| `fs.only_writes_files_under(directory: DirectoryPath)` | `Write` within a directory boundary |
+| `fs.no_reads()`, legacy `fs.only_read_under(root)` | `Observe` (reads and listings) |
 | `fs.never_read_under(prefix)`, `fs.reads_at_most(count)` | `Read` |
 | `fs.never_list_under(prefix)`, `fs.lists_at_most(count)` | `List` |
-| `fs.read_only()`, `fs.only_write_under(root)`, `fs.never_write_under(prefix)`, `fs.writes_at_most(count)` | `Write` (every modification) |
+| `fs.read_only()`, legacy `fs.only_write_under(root)`, `fs.never_write_under(prefix)`, `fs.writes_at_most(count)` | `Write` (every modification) |
 | `fs.must_not_write(substring)`, `fs.write_length_at_most(max_chars)` | `WriteText` |
 | `fs.no_deletes()`, `fs.only_delete_under(root)`, `fs.never_delete_under(prefix)`, `fs.deletes_at_most(count)` | `Delete` |
 | `fs.no_creates()`, `fs.creates_at_most(count)` | `Create` |
 | `fs.no_chmods()`, `fs.only_modes(allowlist)` | `Chmod` |
 | `fs.only_pattern(pattern)` | `grep` calls |
 
-`only_*` and `never_*` are literal path-prefix policies over the symbolic call
+The older `only_read_under`, `only_write_under`, `only_delete_under`, and
+`never_*` helpers are literal path-prefix policies over the symbolic call
 argument: `only_read_under("test.md")` also admits `test.md.bak`. The effects
 refuse `..`, `/./` and `//` first, so a path cannot satisfy a prefix and then
 traverse outside it at runtime, or be respelled around a `never_*` prefix.
@@ -163,7 +215,7 @@ from tools.filesystem.trusted import contracts as fs
 from tools.filesystem.trusted.effects import copy, grep, read_file, write_file
 
 
-@clauz3.guarantee(fs.only_read_under("/repo"))
+@clauz3.guarantee(fs.only_reads_files_under(clauz3.DirectoryPath("/repo")))
 @clauz3.guarantee(fs.only_write_under("/repo/build"))
 @clauz3.guarantee(fs.never_read_under("/repo/.env"))
 def main() -> None:
@@ -183,7 +235,7 @@ import clauz3
 from tools.filesystem.trusted import contracts as fs
 from tools.filesystem.trusted.effects import read_lines
 
-@clauz3.guarantee(fs.only_read_under("./data/"))
+@clauz3.guarantee(fs.only_reads_files([clauz3.FilePath("./data/input.txt")]))
 @clauz3.guarantee(fs.read_only())
 def main() -> None:
     print(len(read_lines("./data/input.txt")))

@@ -33,18 +33,6 @@
     (state.runs || []).some(
       (r) => !["completed", "failed", "refused", "cancelled"].includes(r.phase),
     );
-  const guidance = {
-    "Python package duckdb":
-      "Make duckdb available in the workspace’s Python environment. With uv run, add --with duckdb and restart the workspace.",
-    "Authenticated gh CLI":
-      "Install the GitHub CLI and run gh auth login in your terminal before using these tools.",
-    "Authenticated gog CLI":
-      "Configure gog authentication in your terminal before using email tools.",
-    "CLAUZ3_SEARCH_URL backend endpoint":
-      "Set CLAUZ3_SEARCH_URL to your search backend endpoint before launching the workspace.",
-    "Repository access from maintainers":
-      "Your Git credentials must have access to this repository before installation.",
-  };
   async function post(action, payload) {
     const response = await fetch(`/api/workspace/libraries/${action}`, {
       method: "POST",
@@ -74,28 +62,45 @@
     $("libraries-continue").hidden = !state.librariesChanged;
     $("libraries-continue").disabled = busy || running();
   }
-  function requirements(container, values) {
-    if (!values.length) return;
+  function requirements(container, values, manifests = []) {
+    const structured = manifests.filter(m => m.requirements);
+    if (!values.length && !structured.length) return;
     const detail = text("details", "", "library-requirements");
     detail.append(text("summary", "Setup requirements"));
-    for (const requirement of values)
-      detail.append(
-        text(
-          "p",
-          guidance[requirement] ||
-            `Required: ${requirement}. Configure this in your terminal before using the library.`,
-        ),
-      );
+    detail.append(text("p", "These are setup instructions, not a verification that this environment is ready."));
+    const step = (title, description, instructions, url, permissions = [], appliesTo = []) => {
+      const section = text("section", "", "library-setup-step");
+      section.append(text("h4", title), text("p", description));
+      if (instructions) section.append(text("p", instructions, "library-setup-instructions"));
+      if (appliesTo.length) section.append(text("p", `Used by: ${appliesTo.join(", ")}`));
+      if (permissions.length) section.append(text("p", `Permissions: ${permissions.join("; ")}`));
+      if (url && /^https?:\/\//.test(url)) {
+        const link = text("a", "Setup documentation ↗");
+        link.href = url;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        section.append(link);
+      }
+      detail.append(section);
+    };
+    for (const manifest of structured) {
+      const req = manifest.requirements;
+      if (req.python?.length) step("Python packages", req.python.join(", "),
+        "Install these in the Python environment that runs Clauz3. Library installation does not install Python packages.");
+      for (const tool of req.tools || []) step(`External tool: ${tool.name}`, tool.description, tool.instructions, tool.documentation);
+      for (const setup of req.setup || []) step(`${setup.kind[0].toUpperCase() + setup.kind.slice(1)}: ${setup.title}`, setup.description, setup.instructions, setup.documentation, setup.permissions, setup.applies_to);
+    }
+    if (!structured.length) for (const requirement of values) detail.append(text("p", requirement));
     container.append(detail);
   }
   function mockLabel(metadata) {
     if (!metadata?.declared_mock?.length) return "";
-    return metadata.kind === "mock" ? "Simulated" : "Includes simulated tools";
+    return metadata.kind === "mock" ? "🧪 Mock" : "🧪 Mixed";
   }
   function mockBadge(metadata) {
     const label = mockLabel(metadata);
     if (!label) return null;
-    const badge = text("span", label, "profile-badge");
+    const badge = text("span", label, "profile-badge mock-badge");
     badge.title =
       "The author marks these tools as simulations. This label does not enforce isolation; review the implementation for details.";
     return badge;
@@ -121,7 +126,23 @@
   }
   // Domains are what chips and the message-box menu show; the source is
   // listed under the name.
-  const libraryName = (library) => library.domains.join(", ");
+  const libraryName = (library) => library.title || library.domains.join(", ") || library.source;
+  function defaultToggle(domain, name) {
+    const toggle = document.createElement("input");
+    toggle.type = "checkbox";
+    toggle.setAttribute("role", "switch");
+    toggle.checked = selected.includes(domain);
+    toggle.setAttribute("aria-label", `Use ${name} in new conversations`);
+    toggle.title = "Use in new conversations";
+    toggle.addEventListener("change", () =>
+      saveDefault(
+        toggle.checked
+          ? [...new Set([...selected, domain])]
+          : selected.filter((d) => d !== domain),
+      ),
+    );
+    return toggle;
+  }
   function libraryCard(library) {
     const isInstalled = library.installed;
     const card = text(
@@ -132,23 +153,8 @@
     const heading = text("div", "", "library-card-heading");
     heading.append(text("h2", libraryName(library)));
     if (isInstalled) {
-      const toggle = document.createElement("input");
-      toggle.type = "checkbox";
-      toggle.setAttribute("role", "switch");
-      toggle.checked = library.domains.every((d) => selected.includes(d));
-      toggle.setAttribute(
-        "aria-label",
-        `Use ${libraryName(library)} in new conversations`,
-      );
-      toggle.title = "Use in new conversations";
-      toggle.addEventListener("change", () =>
-        saveDefault(
-          toggle.checked
-            ? [...new Set([...selected, ...library.domains])]
-            : selected.filter((d) => !library.domains.includes(d)),
-        ),
-      );
-      heading.append(toggle);
+      if (library.domains.length === 1)
+        heading.append(defaultToggle(library.domains[0], libraryName(library)));
     } else {
       const install = text("button", "Install", "primary");
       install.setAttribute("aria-label", `Review install ${library.source}`);
@@ -158,12 +164,21 @@
       heading.append(install);
     }
     card.append(heading);
+    if (isInstalled && library.domains.length > 1) {
+      card.append(text("p", "Services for new conversations", "library-meta"));
+      for (const domain of library.domains) {
+        const name = library.manifests?.find((m) => m.name === domain)?.title || domain;
+        const row = text("label", "", "library-card-heading");
+        row.append(text("span", name), defaultToggle(domain, name));
+        card.append(row);
+      }
+    }
     const origin =
       library.visibility === "bundled"
         ? "Bundled"
         : library.visibility === "global"
           ? "User-wide"
-          : "Repository";
+          : library.visibility === "project" ? "Project copy" : "Repository";
     card.append(
       text(
         "p",
@@ -186,7 +201,12 @@
       if (badge) tags.append(badge);
     }
     if (tags.children.length) card.append(tags);
-    requirements(card, library.requirements);
+    for (const manifest of library.manifests || []) {
+      const overview = text("details", "", "library-overview");
+      overview.append(text("summary", library.domains.length > 1 ? `About ${manifest.title}` : "About this library"), text("p", manifest.description, "library-overview-description"));
+      card.append(overview);
+    }
+    requirements(card, library.requirements, library.manifests);
     const actions = text("div", "", "library-actions");
     if (isInstalled) {
       const inspect = text("button", "Details");
@@ -197,7 +217,8 @@
       update.addEventListener("click", () =>
         prepare("update", library.source, ""),
       );
-      actions.append(inspect, update);
+      actions.append(inspect);
+      if (!library.source.startsWith("project:")) actions.append(update);
       for (const domain of library.domains) {
         const remove = text(
           "button",
@@ -231,7 +252,7 @@
     ]
       .filter((lib) => filter === "all" || lib.installed)
       .filter((lib) =>
-        [lib.source, lib.description, ...lib.domains]
+        [lib.source, lib.title, lib.description, ...lib.domains]
           .join(" ")
           .toLowerCase()
           .includes(query),
@@ -263,7 +284,15 @@
   }
   function renderChips() {
     $("libraries").replaceChildren(
-      ...(state.libraries || []).map((name) => text("li", name)),
+      ...(state.libraries || []).map((name) => {
+        const chip = text("li", name);
+        const badge = mockBadge(mockDeclarations[name]);
+        if (badge) {
+          chip.className = "mock-library";
+          chip.append(badge);
+        }
+        return chip;
+      }),
     );
     if (!(state.libraries || []).length)
       $("libraries").append(text("li", "No libraries", "empty"));
@@ -290,7 +319,10 @@
         controls();
       });
       const was = current.includes(domain);
-      label.append(text("span", domain));
+      const name = text("span", domain);
+      const badge = mockBadge(mockDeclarations[domain]);
+      if (badge) name.append(badge);
+      label.append(name);
       if (!installed.includes(domain))
         label.append(text("span", "not installed", "library-meta"));
       else if (check.checked !== was)
@@ -332,9 +364,11 @@
         throw new Error(result.detail || "Could not load libraries.");
       catalog = result.catalog;
       installed = result.installed;
+      $("library-count").textContent = installed.length ? String(installed.length) : "";
       active = result.active;
       mockDeclarations = result.mockDeclarations || {};
       selected = result.selected;
+      renderChips();
       render();
     } catch (error) {
       $("libraries-status").textContent = error.message;
@@ -418,7 +452,10 @@
         item.append(files);
         content.append(item);
       }
-      requirements(content, result.requirements);
+      for (const warning of result.warnings || []) {
+        content.append(text("p", warning, "view-intro"));
+      }
+      requirements(content, result.requirements, result.manifests);
       if (action !== "remove") {
         showApi(result.api);
         const code = text("details", "");
@@ -562,5 +599,5 @@
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && pending !== null) closeMenu();
   });
-  if (!$("libraries-view").hidden) load();
+  load();
 })();

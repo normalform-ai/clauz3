@@ -8,6 +8,7 @@ wheel):
 
 ```bash
 clauz3 install stdlib:filesystem
+clauz3 install stdlib:google_workspace --skills
 clauz3 install stdlib:git
 ```
 
@@ -15,7 +16,10 @@ Each tool directory is self-contained:
 
 ```
 <name>/
-  tools/<name>/trusted/   # the installable trusted layer (effects + contracts)
+  clauz3.yaml              # optional package manifest for shared prerequisites
+  tools/<domain>/
+    clauz3.yaml            # domain description and setup requirements
+    trusted/              # effects + contracts
   tests/
     cases/                # *_pass.py must prove, *_fail.py must not
     Justfile              # proves the cases (the tool's guarantees)
@@ -26,12 +30,24 @@ There is intentionally less at the top level than an example: no top-level
 `cases/` or `Justfile`. The proof cases live under `tests/` and are run by the
 repo's `just stdlib` target.
 
+Installation copies each `tools/<domain>/` and, when present, snapshots shared package
+requirements beside the domain manifest. Root-level tests and guides remain in
+the distribution. Every bundled domain ships a manifest. External legacy
+libraries may omit it and install with a warning; the root package manifest is
+always optional. See [Library manifests and setup](../../../docs/reference/library-manifests.md).
+
+A bundle name can differ from its domain names: `google_workspace/` contains
+`tools/google_workspace/gmail/`, with future services beside Gmail. The root
+manifest names the bundle and owns shared setup; each service owns its manifest,
+trusted root, and contracts. Workspace selections enable services independently.
+
 ## Tools
 
 | Tool | What it does | Headline policies |
 | --- | --- | --- |
 | [`filesystem`](filesystem) | read, search, list, write, copy, move, delete and chmod files | `never_read_under`, `only_write_under`, `read_only`, `no_deletes` |
-| [`db`](db) | read typed rows from DuckDB/CSV/Parquet | `only_read_under`, `only_table`, `reads_at_most` |
+| [`google_workspace`](google_workspace) | save Gmail drafts, preview and send through gog | `drafts_only`, `only_recipients`, `emails_at_most`, `dry_run_only` |
+| [`db`](db) | read DuckDB/CSV/Parquet; create DuckDB tables and insert typed rows | `only_read_under`, `only_writes_databases`, `only_writes_tables`, `rows_inserted_at_most` |
 | [`git`](git) | run local `git` subcommands and pushes | `read_only`, `never_subcommands`, `only_push_to_branch` |
 | [`gh`](gh) | run the GitHub CLI (`gh`) | `read_only`, `only_commands`, `only_repo` |
 | [`rsync`](rsync) | synchronize files with `rsync` | `only_dest_under`, `no_delete`, `syncs_at_most` |

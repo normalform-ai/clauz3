@@ -12,12 +12,13 @@ After `pip install clauz3`, install one into the current repo with the
 
 ```bash
 clauz3 install stdlib:filesystem
+clauz3 install stdlib:google_workspace --skills
 clauz3 install stdlib:web_fetch
 ```
 
 `install stdlib:<name>` locates the bundled tool with `importlib.resources`
 (so it works identically from a source checkout or an installed wheel) and
-copies its `tools/<name>/` layer into the current project, exactly like
+copies its service domains from `tools/` into the current project, exactly like
 installing from a local path. A bare `clauz3 install <name>` works as a
 shorthand.
 
@@ -28,8 +29,10 @@ A stdlib tool is deliberately leaner than an example. There is no top-level
 
 ```
 <name>/
+  clauz3.yaml                   # optional shared package prerequisites
   README.md                     # user-facing prose; also rendered on the per-tool doc page
-  tools/<name>/trusted/         # the installable trusted layer (effects + contracts)
+  tools/<domain>/clauz3.yaml       # domain description and setup
+  tools/<domain>/trusted/          # trusted code within the installed domain directory
   tests/
     cases/                      # *_pass.py must prove, *_fail.py must not
     Justfile                    # proves the cases — the tool's own guarantees
@@ -43,6 +46,7 @@ and `clauz3 test stdlib:<name>` does the same for a single tool.
 | Tool | One-line | Doc |
 |---|---|---|
 | `filesystem` | Read, search, list, write, copy, move, delete and chmod files, with policies over the events each tool performs. | [filesystem](../stdlib/filesystem.md) |
+| `google_workspace` | Save Gmail drafts, preview and send through gog, with recipient, content and count limits. | [Google Workspace](../stdlib/google_workspace.md) |
 | `db` | Read typed rows from DuckDB, CSV, Parquet, or folders via DuckDB. | [db](../stdlib/db.md) |
 | `web_fetch` | HTTP GET/POST via `urllib`, with URL-prefix, no-POST, and exfil-style URL-content guards. | [web_fetch](../stdlib/web_fetch.md) |
 | `web_search` | Search via a configurable JSON backend, with query-content guards. | [web_search](../stdlib/web_search.md) |
@@ -56,6 +60,18 @@ trusted layer's source, so the doc tracks the code without a hand-maintained
 API table. Adding a new stdlib tool requires one README in the tool
 directory plus two thin stub pages (`docs/stdlib/<tool>.md` and
 `docs/stdlib/<tool>-all-cases.md`) and three nav lines.
+
+## Bundles and service selection
+
+`stdlib:google_workspace` is one installable bundle, currently providing the
+`google_workspace/gmail` domain. Its card is titled **Google Workspace**, with
+service documentation and Gmail-specific authorization in the domain manifest.
+Future services can join the bundle without a new registry entry. Shared setup
+lives in the package manifest; each service keeps its own trusted root,
+contracts, and generated skill. The Libraries UI selects services independently
+for conversations. Installing or updating a bundle does not enable additional
+services in existing selections. See [Google Workspace](../stdlib/google_workspace.md)
+for migration from the old `email` domain and the new import paths.
 
 ## Composition
 

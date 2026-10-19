@@ -87,10 +87,28 @@ active. The UI joins these records to escaped, server-rendered approval cards
 by exact request ID. It does not infer approval from a slow tool call or infer
 execution from approval alone. Approval actions use the existing decision API.
 
+Action reviews separate run status from individual proof diagnostics. The main
+card shows the execution phase and any failure reason; the last checked
+expression, proof conclusion, and exit code remain under **Run diagnostics**.
+The **Verified limits** list shows the library title and declared Mock/Mixed badge,
+the library-qualified call with named arguments, its trusted description (or
+first docstring paragraph), and the full resolved Python symbol.
+**Source and documentation** expands the original agent expression, captured
+source, file/line, source and layer fingerprints, recorded origin/revision, and
+full docstring. Live cards and saved history use the same ordering. Identity is
+independently verified against the selected registration, separately from
+description templates and eligibility for remembered approvals. Installing newer
+libraries does not rewrite history. Records without a captured identity say
+**Resolved identity not recorded**. See [contract descriptions](../reference/contract-descriptions.md).
+
 Conversation events and run snapshots are stored in an operator-owned SQLite
 file, `conversations.sqlite`, under the user-wide Clauz3 data directory. Records
 are isolated by canonical project path. New conversation keeps the previous
-transcript; the sidebar supports selecting, searching, and renaming chats.
+transcript. The sidebar follows the chat-app pattern: workspace switcher, New
+conversation, Libraries and Approvals (with installed and waiting counts), then
+date-grouped history with search (⌘K) and a per-row menu for Rename and Copy
+handoff. The conversation header's ⋯ menu adds Export transcript. Menus are
+native popovers anchored by `menus.js`; grouping lives in `history.js`.
 Drafts are kept per conversation in browser session storage. Each conversation
 retains an 8 MB transcript limit, and the live subscriber queue remains bounded.
 Reaching the storage limit stops retaining new events and disables further
@@ -110,6 +128,62 @@ creating a conversation or resetting run state; the launcher reports a specific
 already-open error. Server restarts reopen the most
 recently updated conversation. CLI `clauz3 resume` continues to use its separate
 managed-session metadata.
+
+## Workspace selection and tutorials
+
+`sessions/workspaces.py` keeps recently opened canonical paths in
+`recent-workspaces.sqlite` beside the conversation database. Startup selects the
+launch directory, unless `--tutorial` selects the bundled email tutorial.
+An authenticated, same-origin `clauz3/workspace` WebSocket command selects an
+existing folder or the hardcoded `email` tutorial; agents cannot invoke it.
+The switcher opens a dropdown menu of recent workspaces, **Open folder…**, and
+tutorials; stop and reset confirmations use a modal dialog. It stays available
+during proof and approval work. The server requires
+explicit stop confirmation when work is active, and refuses switches while a
+library operation is mutating or preparing the workspace.
+
+The destination's project lease is acquired before stopping the source agent.
+Switching rebinds conversation storage, libraries, file browsing, and the
+approval profile, then releases the previous lease. Submission credentials
+rotate, pending approval requests are cancelled, and requests that finish
+verification after the switch are rejected by a generation check. Each switch
+uses a fresh run-status file to exclude late updates from old workers. The
+browser reloads the chat view to discard old previews and approval polls.
+There is one active workspace per process; no background workspace execution.
+
+An explicit launch policy applies only to the launch project. Other projects
+use their own remembered profiles; returning restores the explicit policy.
+Custom skill snapshots apply only to the launch workspace and are restored
+when returning there. Startup prompts are not replayed when switching. Agent runtime configuration remains owned by this UI process.
+
+`src/clauz3/tutorials/email/` is a deliberately small, independently tested copy
+of the developer example, shipped in the wheel. `examples/email/` retains the
+fuller proof collection; the walkthrough stays in `docs/quickstarts/mock-email.md`.
+The UI creates a writable copy under the user data directory's `tutorials/email/`,
+never in an OS temporary folder or the launch project. Existing copies survive
+updates. Confirmed reset replaces only that managed directory and clears its
+conversation rows, library preferences, and approval profile. Reset acquires the
+same project lease and rejects symlink destinations. It uses the current bundled
+template. Reset does not erase separately exported handoff snapshots.
+
+The bundled sender is a no-op. Its `@clauz3.mock` declaration drives the purple
+**Mock** chip and menu badge; libraries with mixed declarations show **Mixed**.
+The label itself is descriptive, not a sandbox. The tutorial has no outbox.
+The inline introduction and starter prompts complement the documentation rather
+than embedding a second walkthrough.
+
+**Copy handoff** saves a mode-0600 JSON snapshot in `handoffs/` beside the
+conversation database. The clipboard reference includes the conversation's
+stable UUID, project, capture time, and absolute snapshot path. A developer
+assistant on the same machine can read it after the UI stops, without a login
+cookie. Each click creates a new snapshot; later turns do not change an earlier
+handoff. The snapshot includes saved messages, raw tool calls and results,
+run diagnostics, and conversation settings, but not the process configuration.
+Requests are authenticated, origin-checked, and scoped to the current project.
+
+Messages and responses have copy buttons; responses copy their original
+Markdown, including streamed text received so far. Code blocks, tool results,
+and raw tool data can also be copied independently.
 
 The Approvals view shares a reusable component in `approvals/web/` with the
 standalone `/ui/profile` page. It reads the existing profile API and keeps the
@@ -149,8 +223,8 @@ inert text preview; **Add path to message** inserts the workspace-relative path
 into your unsent draft. This does not send the file contents to the agent.
 
 The `/api/workspace/files` endpoint shares the transcript endpoint's operator
-session and same-origin checks. The server chooses the workspace root at
-launch. Each path component is opened relative to an existing directory file
+session and same-origin checks. The server supplies the active workspace root
+on each request. Each path component is opened relative to an existing directory file
 descriptor with `O_NOFOLLOW`, so links and parent traversal cannot escape the
 root, including when a path is swapped during a request. Symbolic links and
 special files are unavailable. Listings are limited to 2,000 entries and text
@@ -159,6 +233,13 @@ is returned as uncached JSON and inserted with `textContent`, never rendered
 as HTML. Files cannot be edited or deleted through this browser.
 
 ## Library management
+
+Library descriptions and setup are read from domain manifests plus installed
+package snapshots; see [Library manifests and setup](../reference/library-manifests.md).
+An installation review includes a `warnings` array. The UI displays missing
+domain-manifest notices without disabling installation of legacy libraries.
+An absent optional package manifest does not produce a notice. Invalid metadata
+or a declared package with a missing domain manifest fails preparation instead.
 
 ![Workspace library management](../assets/workspace-libraries.png)
 
@@ -199,7 +280,7 @@ keys, or internal workspace configuration.
 ## Verification
 
 ```bash
-uv run pytest tests/test_workspace_libraries.py tests/test_workspace_files.py tests/test_workspace.py tests/test_start.py tests/test_session_runs.py
+uv run pytest tests/test_workspace_switching.py tests/test_workspace_libraries.py tests/test_workspace_files.py tests/test_workspace.py tests/test_start.py tests/test_session_runs.py
 just check
 # Optional browser smoke check; install Chromium first if needed:
 uv run --with playwright playwright install chromium
@@ -212,7 +293,7 @@ the mock email example. The browser check covers streaming, inert HTML,
 reload and draft recovery, pending approval across reload, execution after
 approval, export, Stop, switching/resuming/renaming conversations, service
 restart recovery, approval profile curation, file browsing, library installation,
-selection and removal, approved execution with newly selected roots, and mobile overflow. It sends no
+selection and removal, tutorial entry/reset, active workspace switching, approved execution with newly selected roots, and mobile overflow. It sends no
 model requests. Screenshots are written under `/tmp/clauz3-workspace-*.png`.
 
 An additional local check initialized `claude-agent-acp` 0.89.1 and created a

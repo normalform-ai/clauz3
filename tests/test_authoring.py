@@ -99,6 +99,9 @@ def test_complete_recipe_proves_and_executes(
         assert output == "hello world\nother line\n\n"
     elif name == "count-lines":
         assert output == "2\n"
+    elif name == "write-file":
+        assert (data / "result.txt").read_text() == "hello"
+        assert output == "Wrote the requested content.\n"
     elif name == "write-and-read":
         assert (data / "result.txt").read_text() == "hello"
         assert output == "hello\n"
@@ -109,6 +112,14 @@ def test_complete_recipe_proves_and_executes(
             assert "Search incomplete; skipped unsupported path:" in output
             assert "report..txt" in output
             assert "hello from a skipped file" not in output
+    elif name == "create-duckdb":
+        import duckdb
+
+        with duckdb.connect(str(data / "transactions.duckdb"), read_only=True) as con:
+            assert con.execute(
+                "SELECT id, amount_cents, fictional FROM transactions ORDER BY id"
+            ).fetchall() == [(1, 450, True), (2, 1800, True)]
+        assert "two fictional transactions" in output
     elif name == "list-files":
         paths = ast.literal_eval(output.strip())
         assert len(paths) == 2
@@ -143,6 +154,7 @@ def test_recipe_selection_requires_unchanged_selected_libraries(tmp_path: Path) 
         "clauz3-authoring",
         "read-file",
         "count-lines",
+        "write-file",
         "write-and-read",
         "grep-named-files",
         "list-files",

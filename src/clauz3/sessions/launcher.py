@@ -300,6 +300,7 @@ def start_session(
     setup: bool = False,
     skills_dirs: list[Path] | None = None,
     browser_ui: bool = False,
+    tutorial: bool = False,
     _resume: SessionRecord | None = None,
 ) -> int:
     """Start in the current directory, returning the agent's exit status."""
@@ -345,7 +346,13 @@ def start_session(
         policy = policy.resolve()
         load_approval_policy(policy)
     cwd = Path.cwd().resolve()
-    roots = discover_trusted_roots(import_roots=expand_import_roots([cwd]))
+    if tutorial and (not browser_ui or unrestricted):
+        raise StartError("The tutorial requires a restricted browser UI session")
+    roots = (
+        []
+        if tutorial
+        else discover_trusted_roots(import_roots=expand_import_roots([cwd]))
+    )
     if _resume is None and not browser_ui and (setup or not roots):
         if not sys.stdin.isatty():
             raise StartError(
@@ -465,6 +472,7 @@ def start_session(
                 config_path.write_text(
                     json.dumps(
                         {
+                            "tutorial": tutorial,
                             "agent": agent,
                             "unrestricted": unrestricted,
                             "select_provider": browser_ui,

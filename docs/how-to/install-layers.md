@@ -24,8 +24,10 @@ layer.
 
 For a new agent session, `clauz3 start claude` offers a default file-work
 selection. To browse libraries yourself, use `clauz3 libraries`, or search
-with a query such as `clauz3 libraries email`. Discovery reads a bundled
-catalogue and your global store; it does not download or execute libraries.
+with a query such as `clauz3 libraries email`. Discovery reads bundled and
+installed manifests, your global store, and cached external metadata; it does
+not download or execute libraries. Before an external library's metadata has
+been fetched, search by its repository name.
 
 From an empty project directory, install the `email` example's trusted layer:
 
@@ -41,6 +43,31 @@ immediately prove a program against it:
 clauz3 prove --trusted-root .clauz3/tools/email/trusted plan.py
 ```
 
+The legacy email example has no manifest, so installation prints a non-blocking
+warning about unavailable descriptions and setup guidance. Its effects and
+contracts remain usable.
+
+## Library metadata and prerequisites
+
+Each new library should provide `tools/<domain>/clauz3.yaml` with its human
+description and setup requirements. An optional source-root `clauz3.yaml` with
+`kind: package` holds shared prerequisites. Installation preserves the domain
+manifest and writes the shared metadata into `.clauz3-package.yaml` beside it.
+The Libraries UI and generated skills combine both. Repository-root tests,
+examples, and guides remain in the source repository at the recorded revision.
+
+With neither manifest, legacy installation succeeds with a CLI warning and a
+Libraries review notice. With domain manifests alone, installation is normal:
+there is no warning for omitting the optional package manifest. If a package is
+declared, all its domains need manifests. Missing domain manifests in a declared
+package, invalid manifests, and conflicting shared requirements are errors
+before copying. See [the manifest reference](../reference/library-manifests.md)
+for the schema and merge rules.
+
+Installing a library does not install its Python dependencies or external tools,
+authorize an account, or run setup instructions. Missing metadata is not evidence
+that these prerequisites are unnecessary; consult the source documentation.
+
 ## Project layout
 
 Installed libraries live under `.clauz3/`, alongside other clauz3-owned files
@@ -51,7 +78,11 @@ generic top-level name in your repository:
 my-project/
   .clauz3/
     .gitignore              # generated: caches, staging, backups
-    tools/<domain>/trusted/ # installed libraries (commit these)
+    tools/<domain>/
+      clauz3.yaml           # domain metadata, when provided
+      .clauz3-package.yaml  # generated shared setup, when a package is declared
+      .clauz3-origin.json   # source and resolved git revision, when applicable
+      trusted/             # installed trusted code (commit the domain directory)
     skills/<domain>/SKILL.md  # with --skills
   tools/<domain>/trusted/   # optional: trusted layers you author yourself
   plan.py
@@ -119,7 +150,7 @@ clauz3 install gh:normalform-ai/clauz3-tools-autolabs@abc1234
 
 # Full URL (also accepts @<ref>)
 clauz3 install https://github.com/normalform-ai/clauz3-tools-autolabs.git
-clauz3 install git@github.com:normalform-ai/clauz3-tools-assistant.git
+clauz3 install git@github.com:normalform-ai/clauz3-tools-autolabs.git
 ```
 
 The cache is keyed by the resolved commit sha, not the source string, so
@@ -182,7 +213,9 @@ an agent to use the layer.
 
 The [integration testing guide](integration-testing.md) builds a temporary user
 repo by hand-copying `tools/email/trusted`. `clauz3 install` performs the same
-copy in one command:
+code installation while also copying the rest of `tools/email/` and recording
+its provenance. With manifests present, it also preserves domain metadata and
+snapshots shared setup:
 
 ```bash
 clauz3 install examples/email --into "$TMP_REPO"

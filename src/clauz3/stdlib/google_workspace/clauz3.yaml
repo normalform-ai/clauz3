@@ -1,0 +1,22 @@
+schema_version: 1
+kind: package
+name: google_workspace
+title: Google Workspace
+requirements:
+  tools:
+  - name: gog
+    description: The gog CLI is required for operations that access Google services.
+    instructions: Install gog following its quickstart and make the executable available on
+      the PATH used to launch Clauz3. Installing this library does not install gog.
+    documentation: https://gogcli.sh/quickstart.html
+  setup:
+  - id: google-account
+    kind: configuration
+    title: Select the Google account used by Clauz3
+    description: The gog process must use the intended account and be able to access its credentials.
+    instructions: Inspect authorized accounts with gog auth list. Configure gog's default
+      account, or set GOG_ACCOUNT before launching Clauz3. Confirm that the same user and
+      environment can access gog's credential store. Clauz3 does not inspect or copy tokens.
+      Library installation does not verify authentication. Operations that do not invoke gog
+      do not need this setup. Each domain documents its required service permissions.
+    documentation: https://gogcli.sh/auth-clients.html

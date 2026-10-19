@@ -357,13 +357,22 @@ def eval_getitem(node: astroid.Subscript, ctx: Context) -> ProxySort:
             raise UnsupportedError('unsupported operation on None', 'index')
         return value_ref.m_getitem(item_ref, ctx=ctx)
 
-    if node.slice.step:
-        raise UnsupportedError("slice step is not supported")
-    if node.slice.lower:
+    if node.slice.step is not None and not (
+        isinstance(node.slice.step, astroid.Const)
+        and (node.slice.step.value is None or (
+            type(node.slice.step.value) in (int, bool) and node.slice.step.value == 1
+        ))
+    ):
+        raise UnsupportedError('only literal slice steps 1 and None are supported')
+    if isinstance(node.slice.lower, astroid.Const) and node.slice.lower.value is None:
+        lower_ref = NoneSort()
+    elif node.slice.lower:
         lower_ref = eval_expr(node=node.slice.lower, ctx=ctx)
     else:
         lower_ref = types.int(z3.IntVal(0, ctx=ctx.z3_ctx))
-    if node.slice.upper:
+    if isinstance(node.slice.upper, astroid.Const) and node.slice.upper.value is None:
+        upper_ref = NoneSort()
+    elif node.slice.upper:
         upper_ref = eval_expr(node=node.slice.upper, ctx=ctx)
     else:
         upper_ref = value_ref.m_len(ctx=ctx)
@@ -844,6 +853,17 @@ def eval_call(node: astroid.Call, ctx: Context) -> ProxySort:
     # builders need their exact source values, before Z3 encoding can lose
     # signed zero, string escapes, container shape, or Python truthiness.
     value = eval_expr(node=node.func, ctx=ctx)
+    method = value
+    while isinstance(method, Method) and method.name == '__call__' and method.obj is not None:
+        method = method.obj
+    split_call = (
+        isinstance(method, Method) and method.name == 'split'
+        and isinstance(method.obj, types.str)
+    )
+    if split_call and any(
+        keyword.arg not in {'sep', 'maxsplit'} for keyword in (node.keywords or ())
+    ):
+        raise UnsupportedError('unsupported str.split argument binding')
     implementation = value.impl if isinstance(value, FuncSort) else None
     contract = isinstance(implementation, _ContractSolver) or isinstance(
         getattr(implementation, 'impl', None), _ContractSolver,
@@ -861,6 +881,8 @@ def eval_call(node: astroid.Call, ctx: Context) -> ProxySort:
     def argument(arg_node):
         if contract:
             return materialize_contract_argument(arg_node, resolve_row=resolve_row)
+        if split_call and isinstance(arg_node, astroid.Const) and arg_node.value is None:
+            return NoneSort()
         return eval_expr(node=arg_node, ctx=ctx)
 
     call_args = []
@@ -873,6 +895,11 @@ def eval_call(node: astroid.Call, ctx: Context) -> ProxySort:
             assert isinstance(keyword, astroid.Keyword)
             assert keyword.arg is not None
             call_kwargs[keyword.arg] = argument(keyword.value)
+
+    if isinstance(value, RowClassSort):
+        # Keep field names (including ctx/var_name) separate from evaluator
+        # metadata. Row constructors are data construction, not trusted calls.
+        return value.construct(call_args, call_kwargs, ctx=ctx)
 
     target_name = node.func.as_string()
     # Resolve the callable's binding before selecting a model. Source text

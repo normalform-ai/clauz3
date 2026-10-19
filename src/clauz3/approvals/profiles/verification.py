@@ -50,7 +50,13 @@ def verify(
 def _verified_basis(request: dict[str, object]) -> dict[str, object]:
     # Imports are intentionally confined to the child process.
     from clauz3._vendor import deal_solver
-    from clauz3.guarantees import contract_descriptions, contract_documentation
+    from clauz3.contract_literals import fixed_literal_value
+    from clauz3.decorators import import_aliases
+    from clauz3.guarantees import (
+        contract_descriptions,
+        contract_documentation,
+        contract_identities,
+    )
     from clauz3.imports_policy import build_policy
     from clauz3.prover import _selected_layer_context, prove_text
     from clauz3.runner import (
@@ -99,15 +105,18 @@ def _verified_basis(request: dict[str, object]) -> dict[str, object]:
                 raise ValueError(
                     f"submitted {field} differs from independent verification"
                 )
-        if not verified["guarantees"]:
-            raise ValueError("a remembered contract needs explicit guarantees")
+        eligible = bool(verified["guarantees"])
         # Row-class arguments require a schema identity, not merely the class
         # name. Keep those requests manual until that identity is represented.
+        aliases = import_aliases(ast.parse(source))
         for expression in cast(list[str], verified["guarantees"]):
             call = ast.parse(expression, mode="eval").body
             assert isinstance(call, ast.Call)
             for argument in [*call.args, *(kw.value for kw in call.keywords)]:
-                ast.literal_eval(argument)
+                try:
+                    fixed_literal_value(argument, aliases)
+                except (ValueError, TypeError):
+                    eligible = False
         # Exact syntax plus exact import bindings is deliberately conservative:
         # aliases/default arguments need not match semantically in this MVP.
         imports = [
@@ -133,12 +142,21 @@ def _verified_basis(request: dict[str, object]) -> dict[str, object]:
         ).hexdigest()
         # Presentation is a historical snapshot, not a new matching rule.
         # The trusted source identity above already binds the docstring source.
+        basis["profile_eligible"] = eligible
+        basis["contract_identities"] = contract_identities(
+            source=source,
+            target=target,
+            roots=roots,
+            sources=layer.profile_source_identity(),
+        )
         basis["contract_documentation"] = contract_documentation(
             source=source, target=target
         )
         basis["contract_descriptions"] = contract_descriptions(
             source=source, target=target
         )
+        # Reject code changed while snapshotting source.
+        layer.profile_source_identity()
         return basis
 
 

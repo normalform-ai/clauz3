@@ -9,8 +9,10 @@ from clauz3.sessions.skills import SkillDocument
 
 AUTHORING_ID = "builtin:clauz3-authoring"
 RECIPES = {
+    "create-duckdb": ("Create a DuckDB table with fictional transactions", ("db",)),
     "read-file": ("Read one UTF-8 file", ("filesystem",)),
     "count-lines": ("Count logical lines, including blank lines", ("filesystem",)),
+    "write-file": ("Write one exact file without reading it", ("filesystem",)),
     "write-and-read": ("Write a file and read it back", ("filesystem",)),
     "grep-named-files": ("Search two named files", ("filesystem",)),
     "list-files": ("List all file names", ("filesystem",)),

@@ -51,6 +51,9 @@
     socket.send(JSON.stringify({ method, params }));
   }
   function controls() {
+    $("copy-handoff").disabled =
+      !state.conversationId || Boolean($("copy-handoff").dataset.copying);
+    $("conversation-rename-current").disabled = !state.conversationId;
     const active = (state.runs || []).some(
       (r) => !["completed", "refused", "failed", "cancelled"].includes(r.phase),
     );
@@ -59,21 +62,38 @@
     $("prompt").disabled = !ready || state.historyLimited;
     $("send").disabled = !ready || state.busy || active || state.historyLimited;
     $("stop").disabled = !ready;
+    $("agent-select").disabled =
+      !connected || state.busy || state.stopping || Boolean(state.turn);
     $("new").disabled =
       !connected ||
       state.busy ||
       active ||
       state.stopping ||
       (!state.sessionId && !state.ended);
+    // Switching waits for the agent, but returning to the current
+    // conversation never does: it is only a change of view.
+    const switching = !connected || state.busy || active || state.stopping;
     $("conversation-list")
       .querySelectorAll("button")
-      .forEach(
-        (b) =>
-          (b.disabled = !connected || state.busy || active || state.stopping),
-      );
-    const waiting = (state.runs || []).some(
+      .forEach((b) => {
+        b.disabled = switching && !b.hasAttribute("aria-current");
+        if (b.classList.contains("conversation-link"))
+          b.title = b.disabled
+            ? "Finish or stop the current action to switch conversations"
+            : b.dataset.label;
+      });
+    const waitingCount = (state.runs || []).filter(
       (r) => r.phase === "awaiting_approval",
-    );
+    ).length;
+    const waiting = waitingCount > 0;
+    $("approval-count").textContent = String(waitingCount);
+    $("approval-count").hidden = !waiting;
+    $("approvals-waiting").hidden =
+      !waiting || location.pathname !== "/ui/profile";
+    $("approvals-waiting-text").textContent =
+      waitingCount === 1
+        ? "An action in this conversation is waiting for your approval."
+        : `${waitingCount} actions in this conversation are waiting for your approval.`;
     $("status").textContent = !connected
       ? "Reconnecting…"
       : state.stopping
@@ -117,6 +137,16 @@
   }
   function display(message) {
     const p = message.params || {};
+    if (message.method === "clauz3/workspace_changed") {
+      // A full page refresh drops old file previews, approval polls and drafts
+      // from the display. The server already owns the new project and lease.
+      location.assign("/ui");
+      return;
+    }
+    if (message.method === "clauz3/confirm_workspace") {
+      document.dispatchEvent(new CustomEvent("clauz3:confirm-workspace", { detail: p }));
+      return;
+    }
     if (message.method === "clauz3/conversations") {
       conversations = p.conversations;
       renderHistory();
@@ -147,6 +177,7 @@
       return;
     }
     if (message.method === "clauz3/notice") {
+      document.dispatchEvent(new CustomEvent("clauz3:workspace-notice", { detail: p.text }));
       notice(p.text);
       return;
     }
@@ -172,7 +203,11 @@
     if (message.method === "clauz3/user") {
       currentTurn = turnNode(p.turn);
       assistant = null;
-      currentTurn.append(text("div", p.text, "user-message"));
+      const message = text("div", "", "user-message");
+      const actions = text("div", "", "message-actions");
+      actions.append(clauz3Copy.button("Copy message", () => p.text));
+      message.append(text("div", p.text), actions);
+      currentTurn.append(message);
       if (!replaying && $("prompt").value === p.text) {
         $("prompt").value = "";
         storage.set(draftKey, "");
@@ -185,18 +220,30 @@
     }
     if (message.method !== "session/update") return;
     const u = p.update || {};
+    // Setup metadata is not a visible turn and must not hide the welcome view.
+    if (
+      !["agent_message_chunk", "tool_call", "tool_call_update", "plan"].includes(
+        u.sessionUpdate,
+      )
+    )
+      return;
     currentTurn ||= turnNode(state.turn || 1);
     if (
       u.sessionUpdate === "agent_message_chunk" &&
       u.content?.type === "text"
     ) {
       if (!assistant) {
-        assistant = text("div", "", "assistant-message markdown");
+        assistant = text("div", "", "assistant-message");
         assistant.source = "";
+        assistant.content = text("div", "", "markdown");
+        const message = assistant;
+        const actions = text("div", "", "message-actions");
+        actions.append(clauz3Copy.button("Copy response", () => message.source));
+        assistant.append(assistant.content, actions);
         currentTurn.append(assistant);
       }
       assistant.source += u.content.text || "";
-      assistant.replaceChildren(clauz3Markdown.render(assistant.source));
+      assistant.content.replaceChildren(clauz3Markdown.render(assistant.source));
     } else if (
       u.sessionUpdate === "tool_call" ||
       u.sessionUpdate === "tool_call_update"
@@ -208,7 +255,7 @@
         const node = document.createElement("details");
         node.className = "tool";
         const summary = text("summary", "Tool");
-        const body = text("pre", "");
+        const body = text("div", "", "tool-body");
         node.append(summary, body);
         currentTurn.append(node);
         item = { node, summary, body, data: {} };
@@ -216,19 +263,7 @@
       }
       for (const [key, value] of Object.entries(u))
         if (value !== null) item.data[key] = value;
-      const data = item.data;
-      item.summary.textContent = `${data.title || data.name || "Tool"} · ${(data.status || "pending").replaceAll("_", " ")}`;
-      const content = (data.content || [])
-        .map((c) => c.content?.text || (c.type === "diff" ? c.newText : ""))
-        .filter(Boolean)
-        .join("\n");
-      item.body.textContent = [
-        data.rawInput ? JSON.stringify(data.rawInput, null, 2) : "",
-        content,
-        data.rawOutput ? JSON.stringify(data.rawOutput, null, 2) : "",
-      ]
-        .filter(Boolean)
-        .join("\n\n");
+      clauz3ToolCards.render(item, item.data, state.unrestricted);
     } else if (u.sessionUpdate === "plan") {
       let plan = currentTurn.querySelector(".plan");
       if (!plan) {
@@ -257,15 +292,21 @@
   function applyState(next) {
     state = next;
     renderHistory();
-    $("project-path").textContent = state.cwd || "";
-    $("project-name").textContent =
+    const name =
       (state.cwd || "").split("/").filter(Boolean).pop() || "Your project";
+    $("project-path").textContent = state.cwd || "";
+    $("workspace-picker").title = state.cwd || "";
+    $("project-name").textContent = name;
+    $("workspace-avatar").textContent = name.slice(0, 2);
     $("model").textContent = `${state.agentLabel || "Claude"} · ${state.model || "default"}`;
     $("prompt-label").textContent = `Message ${state.agentLabel || "agent"}`;
     $("unrestricted-mode").hidden = !state.unrestricted;
     $("confinement").textContent = state.unrestricted
       ? "Unrestricted: native tools can bypass proofs and approval."
       : "Your approval controls effects.";
+    document
+      .querySelector(".sidebar-bottom")
+      .classList.toggle("unrestricted", Boolean(state.unrestricted));
     const selector = $("agent-select");
     if (selector.dataset.agent !== state.agent) {
       selector.replaceChildren(...(state.providers || []).map((provider) => {
@@ -278,9 +319,15 @@
       selector.dataset.agent = state.agent;
     }
     selector.hidden = !(state.providers || []).length;
-    $("agent-select-label").hidden = selector.hidden;
-    $("agent-install").hidden = selector.hidden;
-    $("agent-install-list").replaceChildren(...(state.providers || []).filter(p => !p.available).map(p => text("li", `${p.label}: ${p.install}`)));
+    // An agent is chosen before the first message; afterwards it is fixed.
+    selector.title = [
+      state.turn
+        ? "Start a new conversation to use a different agent."
+        : "Agent for this conversation",
+      ...(state.providers || [])
+        .filter((p) => !p.available)
+        .map((p) => `${p.label}: ${p.install}`),
+    ].join("\n");
     const key = `clauz3-draft:${state.cwd}:${state.conversationId}`;
     if (draftKey !== key) {
       draftKey = key;
@@ -294,10 +341,14 @@
         const heading = text("div", "", "run-heading");
         const badge = text("span", "", "phase");
         heading.append(text("strong", "Action review"), badge);
-        const detail = text("p", "", "run-diagnostic");
-        node.append(heading, detail);
+        const summary = text("p", "", "run-summary");
+        const reason = text("p", "", "run-reason");
+        const diagnostics = text("details", "", "run-diagnostics");
+        const detail = text("pre", "", "run-diagnostic");
+        diagnostics.append(text("summary", "Run diagnostics"), detail);
+        node.append(heading, summary, reason, diagnostics);
         turnNode(run.turn || 1).append(node);
-        item = { node, badge, detail };
+        item = { node, badge, summary, reason, diagnostics, detail };
         runs.set(run.run_id, item);
       }
       item.badge.textContent = phases[run.phase] || run.phase;
@@ -308,15 +359,12 @@
           : ["failed", "refused"].includes(run.phase)
             ? " failed"
             : "");
-      item.detail.textContent = [
-        run.reason,
-        run.description,
-        run.predicate,
-        run.result ? `Result: ${run.result}` : "",
-        run.exit_code !== undefined ? `Exit code: ${run.exit_code}` : "",
-      ]
-        .filter(Boolean)
-        .join("\n");
+      const status = window.clauz3RunStatus(run);
+      item.summary.textContent = status.summary;
+      item.reason.textContent = status.reason;
+      item.reason.hidden = !status.reason;
+      item.detail.textContent = status.diagnostics;
+      item.diagnostics.hidden = !status.diagnostics;
       if (run.request_id && approvals.has(run.request_id))
         attachApproval(item, approvals.get(run.request_id), run);
       else if (
@@ -334,7 +382,7 @@
           text("summary", "Show source"),
           text("pre", event.record.program || ""),
         );
-        card.append(guarantees, source);
+        card.append(text("h3", "Verified limits"), guarantees, source);
         const link = text("a", "View approval profile and history");
         link.href = "/ui/profile";
         card.append(link);
@@ -496,18 +544,79 @@
     }
   });
   $("stop").addEventListener("click", () => send("session/cancel"));
+  async function handoff(conversationId) {
+    const response = await fetch("/api/chat/handoff", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ conversationId }),
+    });
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({}));
+      throw new Error(result.detail || "Could not save the conversation snapshot");
+    }
+    const result = await response.json();
+    return result.text;
+  }
+  clauz3Copy.bind($("copy-handoff"), () => handoff(state.conversationId));
   $("new").addEventListener("click", () => {
     notice("");
     navigate("/ui");
-    send("clauz3/new", { agent: $("agent-select").value || state.agent || "claude" });
+    send("clauz3/new", { agent: state.agent || "claude" });
   });
-  $("resume-new").addEventListener("click", () => $("new").click());
+  $("agent-select").addEventListener("change", () => {
+    // The server replaces an unused conversation rather than adding another.
+    notice("");
+    send("clauz3/new", {
+      agent: $("agent-select").value,
+      domains: state.libraries || [],
+    });
+  });
+  $("resume-new").addEventListener("click", () => {
+    notice("");
+    navigate("/ui");
+    send("clauz3/new", {
+      agent: state.agent || "claude",
+      domains: state.libraries || [],
+    });
+  });
   log.addEventListener("click", (event) => {
     if (event.target.closest(".suggestions button")) {
       $("prompt").value = event.target.textContent;
       $("prompt").focus();
     }
   });
+  let menuChat = null;
+  function startRename(id) {
+    const item = $("conversation-list").querySelector(`li[data-id="${CSS.escape(id)}"]`);
+    const chat = conversations.find((c) => c.id === id);
+    if (!item || !chat) return;
+    const form = document.createElement("form");
+    form.className = "rename-form";
+    const input = document.createElement("input");
+    input.value = chat.title;
+    input.maxLength = 120;
+    input.required = true;
+    input.setAttribute("aria-label", "Conversation title");
+    const save = text("button", "Save");
+    save.type = "submit";
+    form.append(input, save);
+    item.replaceChildren(form);
+    input.focus();
+    input.select();
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      send("clauz3/rename", { id: chat.id, title: input.value });
+      $("history-search").focus();
+      historySignature = "";
+    });
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        $("history-search").focus();
+        historySignature = "";
+        renderHistory();
+      }
+    });
+  }
   function renderHistory() {
     const query = $("history-search").value.toLowerCase();
     const signature = JSON.stringify([
@@ -529,52 +638,66 @@
     historySignature = signature;
     const list = $("conversation-list");
     list.replaceChildren();
-    for (const chat of conversations.filter((c) =>
+    const matches = conversations.filter((c) =>
       c.title.toLowerCase().includes(query),
-    )) {
-      const item = text("li", "");
-      const button = text("button", chat.title, "conversation-link");
-      button.title = `${chat.title} · ${new Date(chat.updated * 1000).toLocaleString()}`;
-      if (chat.id === state.conversationId)
-        button.setAttribute("aria-current", "true");
-      button.addEventListener("click", () => {
-        navigate("/ui");
-        send("clauz3/select", { id: chat.id });
-      });
-      const rename = text("button", "⋯", "conversation-rename");
-      rename.setAttribute("aria-label", `Rename ${chat.title}`);
-      rename.addEventListener("click", () => {
-        const form = document.createElement("form");
-        form.className = "rename-form";
-        const input = document.createElement("input");
-        input.value = chat.title;
-        input.maxLength = 120;
-        input.required = true;
-        input.setAttribute("aria-label", "Conversation title");
-        const save = text("button", "Save");
-        save.type = "submit";
-        form.append(input, save);
-        item.replaceChildren(form);
-        input.focus();
-        input.select();
-        form.addEventListener("submit", (event) => {
-          event.preventDefault();
-          send("clauz3/rename", { id: chat.id, title: input.value });
-          $("history-search").focus();
-          historySignature = "";
+    );
+    for (const group of clauz3History.group(matches)) {
+      list.append(text("li", group.label, "history-group"));
+      for (const chat of group.conversations) {
+        const item = text("li", "");
+        item.dataset.id = chat.id;
+        const button = text("button", chat.title, "conversation-link");
+        button.dataset.label = `${chat.title} · ${new Date(chat.updated * 1000).toLocaleString()}`;
+        button.title = button.dataset.label;
+        if (chat.id === state.conversationId)
+          button.setAttribute("aria-current", "true");
+        button.addEventListener("click", () => {
+          navigate("/ui");
+          if (chat.id !== state.conversationId)
+            send("clauz3/select", { id: chat.id });
         });
-        input.addEventListener("keydown", (event) => {
-          if (event.key === "Escape") {
-            $("history-search").focus();
-            historySignature = "";
-            renderHistory();
-          }
+        const more = text("button", "", "conversation-more");
+        more.innerHTML = '<svg class="icon"><use href="#icon-dots" /></svg>';
+        more.setAttribute("aria-label", `Actions for ${chat.title}`);
+        more.setAttribute("aria-haspopup", "menu");
+        more.setAttribute("aria-expanded", "false");
+        more.addEventListener("click", () => {
+          menuChat = chat.id;
+          clauz3Menu.toggle($("conversation-menu"), more);
         });
-      });
-      item.append(button, rename);
-      list.append(item);
+        item.append(button, more);
+        list.append(item);
+      }
     }
+    if (!matches.length && query)
+      list.append(text("li", "No matching conversations", "history-empty"));
+    controls();
   }
+  $("approvals-waiting-review").addEventListener("click", () => {
+    navigate("/ui");
+    log
+      .querySelector(".phase.waiting")
+      ?.closest(".run")
+      ?.scrollIntoView({ block: "center" });
+  });
+  $("conversation-menu-rename").addEventListener("click", () => {
+    $("conversation-menu").hidePopover();
+    startRename(menuChat);
+  });
+  clauz3Copy.bind($("conversation-menu-handoff"), () => handoff(menuChat));
+  $("conversation-actions-toggle").addEventListener("click", (event) =>
+    clauz3Menu.toggle($("conversation-actions"), event.currentTarget),
+  );
+  $("conversation-rename-current").addEventListener("click", () => {
+    $("conversation-actions").hidePopover();
+    startRename(state.conversationId);
+  });
+  document.addEventListener("keydown", (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key === "k") {
+      event.preventDefault();
+      $("history-search").focus();
+    }
+  });
   async function refreshHistory() {
     if (historyBusy) return;
     historyBusy = true;
@@ -598,6 +721,8 @@
     $("chat-view").hidden = profile || libraries;
     $("approvals-view").hidden = !profile;
     $("libraries-view").hidden = !libraries;
+    controls();
+    // The chat view is shown by the selected conversation, not a nav link.
     document
       .querySelectorAll(".sidebar nav a")
       .forEach((a) =>
@@ -620,7 +745,7 @@
   }
   document.addEventListener("click", (event) => {
     const link = event.target.closest(
-      'a[href="/ui/profile"], a[href="/ui/libraries"], .sidebar nav a[href="/ui"]',
+      'a[href="/ui/profile"], a[href="/ui/libraries"]',
     );
     if (link && !event.metaKey && !event.ctrlKey && !event.shiftKey) {
       event.preventDefault();
@@ -632,7 +757,7 @@
     navigate("/ui");
     const params = { ...event.detail.params };
     if (event.detail.method === "clauz3/new") {
-      params.agent = $("agent-select").value || state.agent || "claude";
+      params.agent = state.agent || "claude";
     }
     send(event.detail.method, params);
   });
