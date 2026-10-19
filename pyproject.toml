@@ -1,6 +1,6 @@
 [project]
 name = "clauz3"
-version = "0.1.4"
+dynamic = ["version"]
 description = "Static contract experiments for agent-authored Python"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -54,8 +54,22 @@ docs = [
 ]
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "uv-dynamic-versioning"]
 build-backend = "hatchling.build"
+
+# The version comes from the git tag of a GitHub release.
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
+# Ref.: https://github.com/ninoseki/uv-dynamic-versioning/
+[tool.uv-dynamic-versioning]
+vcs = "git"
+style = "pep440"
+fallback-version = "0.0.0"
+
+[tool.uv]
+# Reinstall the editable package when commits or tags change its version.
+cache-keys = [{ file = "pyproject.toml" }, { git = { commit = true, tags = true } }]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/clauz3"]
