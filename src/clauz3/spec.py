@@ -769,8 +769,25 @@ class SumSpec:
         return ComparisonSpec(left=self, op=">", right=other)
 
     def value(self, *, ctx: Any) -> ProxySort:
-        import z3
+        total, axioms = self.value_with_axioms(ctx=ctx)
+        if axioms:
+            raise UnsupportedError(
+                "sum(selector) over a loop needs side axioms; compare it with "
+                "<=, <, >= or > inside a contract"
+            )
+        return total
 
+    def value_with_axioms(self, *, ctx: Any) -> tuple[ProxySort, list[z3.BoolRef]]:
+        """Return the symbolic total plus side axioms that constrain it.
+
+        Unquantified facts contribute an exact ``If(cond, selector, 0)`` term.
+        A quantified fact whose selector depends on the loop variable has no
+        closed-form sum in Z3, so it contributes a fresh total ``s`` bounded by
+        the promotion law ``n * min <= s <= n * max`` (see
+        ``_promotion_bound``). The axioms hold for the real sum, so a goal
+        proved under them is proved for the program.
+        """
+        axioms: list[z3.BoolRef] = []
         total: ProxySort = types.int.val(0, ctx=ctx)
         zero = types.int.val(0, ctx=ctx)
         for fact in self.relation.facts(ctx):
@@ -785,14 +802,18 @@ class SumSpec:
             if not quantifiers:
                 contrib = if_expr(cond, base, zero, ctx=ctx)
             else:
-                if self.selector is not None:
-                    bound_vars = [q.bound_var for q in quantifiers]
-                    if _expr_uses_any_bound_var(base, bound_vars):
-                        raise UnsupportedError(
-                            "sum(selector) where selector depends on the loop "
-                            "variable is not supported in v1; see "
-                            "docs/todos/quantified-aggregates.md"
-                        )
+                bound_vars = [q.bound_var for q in quantifiers]
+                if self.selector is not None and _expr_uses_any_bound_var(
+                    base, bound_vars
+                ):
+                    # A row-dependent selector has no closed-form total; bound
+                    # it by promotion instead (see `_promotion_bound`).
+                    fact_total, fact_axioms = _promotion_bound(
+                        quantifiers=quantifiers, cond=cond, base=base, ctx=ctx
+                    )
+                    axioms.extend(fact_axioms)
+                    total = total.m_add(fact_total, ctx=ctx)
+                    continue
                 # A quantified fact stands for one call per loop index, so its
                 # contribution is `base` times the product of the loop trip
                 # counts. `cond` may mention the loops' bound variables (a call
@@ -849,7 +870,166 @@ class SumSpec:
                 contrib = if_expr(cond, multiplied, zero, ctx=ctx)
 
             total = total.m_add(contrib, ctx=ctx)
-        return total
+        return total, axioms
+
+
+_PROMOTION_COUNTER = itertools.count()
+
+
+def _promotion_bound(
+    *, quantifiers: Any, cond: Any, base: Any, ctx: Any
+) -> tuple[ProxySort, list[z3.BoolRef]]:
+    """Bound a loop sum by promotion: ``n * min(f) <= sum(f) <= n * max(f)``.
+
+    For ``sum(map f xs)`` with ``n = len(xs)``, every term lies between the
+    smallest and largest term, so the total lies between ``n`` copies of each.
+    Skipped iterations (``cond`` false) count as a ``0`` term. The extreme
+    terms are named by fresh Skolem indices ``j_lo``/``j_hi`` that lie in the
+    loop range, so the axioms below are all true of the real sum::
+
+        empty    -> s == 0
+        nonempty -> in_range(j_lo) & in_range(j_hi)
+                    & forall v. in_range(v) -> f(j_lo) <= f(v) <= f(j_hi)
+                    & n * f(j_lo) <= s <= n * f(j_hi)
+
+    Per-element facts (preconditions, branch guards, row postconditions) then
+    lift to the total, e.g. ``f(v) <= 10`` and ``n <= 100`` give ``s <= 1000``.
+
+    ``n * f(j)`` is nonlinear and Z3 rarely settles it within the proof
+    timeout, so when every loop length has a literal bound ``len <= K`` in
+    ``ctx.given`` (a trusted ``@deal.post``) we also add the linear
+    relaxation ``K * min(f(j_lo), 0) <= s <= K * max(f(j_hi), 0)``, guarded
+    by ``len <= K`` so it is true regardless of the givens.
+
+    The row count ``n`` is the product of the loop lengths, which is only the
+    row count when each length is independent of the enclosing loop indices,
+    so a nested loop whose inner length depends on the outer row is refused.
+    """
+    uid = next(_PROMOTION_COUNTER)
+    bound_vars = [q.bound_var for q in quantifiers]
+    for depth, q in enumerate(quantifiers):
+        if _expr_uses_any_bound_var(q.upper, bound_vars[:depth]):
+            raise UnsupportedError(
+                "sum(selector) over a nested loop whose inner length depends "
+                "on the outer row is not supported; see "
+                "docs/todos/quantified-aggregates.md"
+            )
+    zero = z3.IntVal(0)
+    cond_z3 = cond.expr if hasattr(cond, "expr") else cond
+    base_z3 = base.expr if hasattr(base, "expr") else base
+    term = z3.If(cond_z3, base_z3, zero)
+
+    def at(indices: list[z3.ArithRef]) -> z3.ArithRef:
+        return cast(
+            z3.ArithRef,
+            z3.substitute(term, list(zip(bound_vars, indices, strict=True))),
+        )
+
+    def in_range(indices: list[z3.ArithRef]) -> z3.BoolRef:
+        return z3.And(
+            *[
+                z3.And(q.lower <= idx, idx < q.upper)
+                for q, idx in zip(quantifiers, indices, strict=True)
+            ]
+        )
+
+    j_lo = [z3.Int(f"sum_lo_{uid}_{k}") for k in range(len(quantifiers))]
+    j_hi = [z3.Int(f"sum_hi_{uid}_{k}") for k in range(len(quantifiers))]
+    s = z3.Int(f"sum_total_{uid}")
+    n: z3.ArithRef = z3.IntVal(1)
+    for q in quantifiers:
+        n = n * (q.upper - q.lower)
+    lo, hi = at(j_lo), at(j_hi)
+
+    nonempty = z3.And(*[q.lower < q.upper for q in quantifiers])
+    every_term_between = z3.ForAll(
+        bound_vars,
+        z3.Implies(in_range(bound_vars), z3.And(lo <= term, term <= hi)),
+    )
+    axioms = [
+        z3.Implies(z3.Not(nonempty), s == 0),
+        z3.Implies(
+            nonempty,
+            z3.And(
+                in_range(j_lo),
+                in_range(j_hi),
+                every_term_between,
+                n * lo <= s,
+                s <= n * hi,
+            ),
+        ),
+    ]
+    caps = [_literal_upper_bound(q.upper - q.lower, ctx=ctx) for q in quantifiers]
+    if all(cap is not None for cap in caps):
+        k_total = 1
+        within_caps = []
+        for q, cap in zip(quantifiers, caps, strict=True):
+            assert cap is not None
+            k_total *= cap
+            within_caps.append(q.upper - q.lower <= cap)
+        k = z3.IntVal(k_total)
+        axioms.append(
+            z3.Implies(
+                z3.And(nonempty, *within_caps),
+                z3.And(
+                    k * z3.If(lo < 0, lo, zero) <= s,
+                    s <= k * z3.If(hi > 0, hi, zero),
+                ),
+            )
+        )
+    return types.int(expr=s), axioms
+
+
+def _literal_upper_bound(expr: z3.ArithRef, *, ctx: Any) -> int | None:
+    """Return the tightest literal ``K`` with ``expr <= K`` among the givens.
+
+    Only unconditional top-level conjuncts of the form ``expr <= K`` (in any
+    orientation, after ``z3.simplify``) count; conditional givens are skipped.
+    """
+    target = z3.simplify(expr)
+    best: int | None = None
+
+    def conjuncts(e: z3.ExprRef) -> list[z3.ExprRef]:
+        if z3.is_and(e):
+            return [c for child in e.children() for c in conjuncts(child)]
+        return [e]
+
+    for given in ctx.given:
+        raw = given.expr if hasattr(given, "expr") else given
+        if not isinstance(raw, z3.BoolRef):
+            continue
+        for atom in conjuncts(z3.simplify(raw)):
+            cap = _match_upper_bound(atom, target)
+            if cap is not None and (best is None or cap < best):
+                best = cap
+    return best
+
+
+def _match_upper_bound(atom: z3.ExprRef, target: z3.ExprRef) -> int | None:
+    negated = z3.is_not(atom)
+    if negated:
+        atom = atom.arg(0)
+    if atom.num_args() != 2:
+        return None
+    left, right = atom.arg(0), atom.arg(1)
+    kind = atom.decl().kind()
+    # Normalise to "target <op> literal" with op one of <=, <.
+    if left.eq(target) and z3.is_int_value(right):
+        value, flipped = int(cast(z3.IntNumRef, right).as_long()), False
+    elif right.eq(target) and z3.is_int_value(left):
+        value, flipped = int(cast(z3.IntNumRef, left).as_long()), True
+    else:
+        return None
+    le, lt, ge, gt = z3.Z3_OP_LE, z3.Z3_OP_LT, z3.Z3_OP_GE, z3.Z3_OP_GT
+    if flipped:
+        kind = {le: ge, lt: gt, ge: le, gt: lt}.get(kind, kind)
+    if negated:
+        kind = {le: gt, lt: ge, ge: lt, gt: le}.get(kind, kind)
+    if kind == le:
+        return value
+    if kind == lt:
+        return value - 1
+    return None
 
 
 @dataclass(frozen=True)
@@ -859,8 +1039,16 @@ class ComparisonSpec(ContractSpec):
     right: Any
 
     def solve(self, *, ctx: Any) -> BoolSort:
-        left = self.left.value(ctx=ctx)
-        right = _as_proxy(self.right, ctx=ctx)
+        left, axioms = self.left.value_with_axioms(ctx=ctx)
+        result = self._compare(left, _as_proxy(self.right, ctx=ctx), ctx=ctx)
+        if not axioms:
+            return result
+        # The axioms are true of the real total, so guarding the comparison
+        # with them is sound in either polarity (the fresh symbols are
+        # universally quantified by the validity check).
+        return types.bool(expr=z3.Implies(z3.And(*axioms), result.expr))
+
+    def _compare(self, left: ProxySort, right: Any, *, ctx: Any) -> BoolSort:
         if self.op == "<=":
             return left.m_le(right, ctx=ctx)
         if self.op == "<":

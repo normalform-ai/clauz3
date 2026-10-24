@@ -63,9 +63,24 @@ def test_count_too_tight_fail() -> None:
     assert _prove("count_too_tight_fail.py") == [Conclusion.FAIL]
 
 
-def test_sum_selector_depending_on_row_raises_unsupported() -> None:
-    """sum(selector) depending on bound-var field raises UnsupportedError -> not OK."""
-    assert _prove_fixture("sum_selector_depends_on_row_skip.py") == [Conclusion.SKIP]
+def test_sum_selector_depending_on_row_fails_without_per_row_bound() -> None:
+    """sum(amount) over a loop with unbounded amounts must not prove <= 1000."""
+    assert _prove_fixture("sum_selector_depends_on_row_fail.py") == [Conclusion.FAIL]
+
+
+def test_sum_selector_promotion_lifts_per_row_guard() -> None:
+    """<= 100 rows, each charge <= 10: promotion bound proves total <= 1000."""
+    assert _prove_fixture("sum_selector_guarded_pass.py") == [Conclusion.OK]
+
+
+def test_sum_selector_promotion_bound_is_tight() -> None:
+    """100 charges of 10 reach 1000, so a 999 cap must not prove."""
+    assert _prove_fixture("sum_selector_guarded_too_tight_fail.py") != [Conclusion.OK]
+
+
+def test_sum_selector_promotion_composes_with_direct_facts() -> None:
+    """A direct charge(100) plus <= 100 loop charges of <= 9 stays <= 1000."""
+    assert _prove_fixture("sum_selector_plus_direct_pass.py") == [Conclusion.OK]
 
 
 def test_distinct_over_loop_fails_without_uniqueness_postcondition() -> None:
