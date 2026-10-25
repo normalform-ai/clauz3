@@ -29,6 +29,8 @@ every value, is CaMeL — see [background § CaMeL](background.md#camel) for how
 two compare, and
 [Defend against malicious repos](../how-to/malware-repo-defense.md) for the
 data-flow contracts that come closest here.
+[Instructions are not controls](instructions-and-contracts.md) walks through
+the research on indirect injection and where a contract bounds it.
 
 ### Does it sandbox the code or stop it doing arbitrary things?
 
