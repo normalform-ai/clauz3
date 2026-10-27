@@ -87,6 +87,7 @@ nav:
     - rsync: stdlib/rsync.md
   - Explanation:
     - How ClauZ3 compares: explanation/comparison.md
+    - Risk taxonomies: explanation/risk-taxonomies.md
     - Concepts: explanation/concepts.md
     - Background: explanation/background.md
     - Cedar: explanation/cedar.md

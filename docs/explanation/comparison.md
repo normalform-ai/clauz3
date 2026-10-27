@@ -105,3 +105,4 @@ Being clear about the gaps is part of the pitch:
 - [Concepts](concepts.md) — actors, trust, and static proof vs runtime.
 - [Background and related work](background.md) — the long-form comparison.
 - [FAQ](faq.md) — short answers to the usual objections.
+- [Risk taxonomies](risk-taxonomies.md) — where ClauZ3 sits in published AI and agent risk taxonomies, with a formal coverage model.
