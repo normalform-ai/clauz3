@@ -74,8 +74,19 @@ def test_sum_selector_promotion_lifts_per_row_guard() -> None:
 
 
 def test_sum_selector_promotion_bound_is_tight() -> None:
-    """100 charges of 10 reach 1000, so a 999 cap must not prove."""
-    assert _prove_fixture("sum_selector_guarded_too_tight_fail.py") != [Conclusion.OK]
+    """3 charges of 10 reach 30, so a 29 cap must fail with a counterexample."""
+    assert _prove_fixture("sum_selector_guarded_too_tight_fail.py") == [Conclusion.FAIL]
+
+
+def test_sum_selector_promotion_symbols_cannot_be_aliased() -> None:
+    """Soundness: parameters named like the bound's internal symbols must not
+    alias the fresh total or Skolem indices and make the guarantee vacuous."""
+    assert _prove_fixture("sum_selector_aliased_total_fail.py") == [Conclusion.FAIL]
+
+
+def test_sum_selector_nested_dependent_loop_is_refused() -> None:
+    """An inner length that depends on the outer row has no product row count."""
+    assert _prove_fixture("sum_selector_nested_dependent_skip.py") == [Conclusion.SKIP]
 
 
 def test_sum_selector_promotion_composes_with_direct_facts() -> None:

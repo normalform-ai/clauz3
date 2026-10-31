@@ -873,9 +873,6 @@ class SumSpec:
         return total, axioms
 
 
-_PROMOTION_COUNTER = itertools.count()
-
-
 def _promotion_bound(
     *, quantifiers: Any, cond: Any, base: Any, ctx: Any
 ) -> tuple[ProxySort, list[z3.BoolRef]]:
@@ -905,7 +902,6 @@ def _promotion_bound(
     row count when each length is independent of the enclosing loop indices,
     so a nested loop whose inner length depends on the outer row is refused.
     """
-    uid = next(_PROMOTION_COUNTER)
     bound_vars = [q.bound_var for q in quantifiers]
     for depth, q in enumerate(quantifiers):
         if _expr_uses_any_bound_var(q.upper, bound_vars[:depth]):
@@ -933,9 +929,12 @@ def _promotion_bound(
             ]
         )
 
-    j_lo = [z3.Int(f"sum_lo_{uid}_{k}") for k in range(len(quantifiers))]
-    j_hi = [z3.Int(f"sum_hi_{uid}_{k}") for k in range(len(quantifiers))]
-    s = z3.Int(f"sum_total_{uid}")
+    # FreshInt names (``sum_total!N``) are not Python identifiers, so no
+    # entry-function parameter can alias these and satisfy the axioms by
+    # construction.
+    j_lo = [z3.FreshInt("sum_lo") for _ in quantifiers]
+    j_hi = [z3.FreshInt("sum_hi") for _ in quantifiers]
+    s = z3.FreshInt("sum_total")
     n: z3.ArithRef = z3.IntVal(1)
     for q in quantifiers:
         n = n * (q.upper - q.lower)

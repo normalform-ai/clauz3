@@ -39,6 +39,13 @@ def db_query_invoices(table: str) -> list[InvoiceRow]:
     return []
 
 
+@deal.has("db_read")
+@deal.post(lambda result: len(result) <= 3)
+def db_query_invoices3(table: str) -> list[InvoiceRow]:
+    """Trusted DB query returning up to 3 InvoiceRows."""
+    return []
+
+
 @deal.has("billing")
 def charge(amount: int) -> None:
     """MOCK trusted charge."""
