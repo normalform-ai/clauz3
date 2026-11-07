@@ -84,6 +84,39 @@ def test_sum_selector_promotion_symbols_cannot_be_aliased() -> None:
     assert _prove_fixture("sum_selector_aliased_total_fail.py") == [Conclusion.FAIL]
 
 
+def test_sum_selector_promotion_survives_a_str_parameter() -> None:
+    """A str parameter adds a quantified domain given; the cap reader must
+    skip it, not crash the encoding into SKIP."""
+    assert _prove_fixture("sum_selector_str_param_pass.py") == [Conclusion.OK]
+
+
+def test_sum_selector_promotion_survives_a_str_row_field() -> None:
+    """A str row field adds a quantified given for the query result."""
+    assert _prove_fixture("sum_selector_str_row_field_pass.py") == [Conclusion.OK]
+
+
+def test_sum_selector_promotion_lower_bound() -> None:
+    """Nonnegative charges prove total >= 0 through the lower half."""
+    assert _prove_fixture("sum_selector_lower_bound_pass.py") == [Conclusion.OK]
+
+
+def test_sum_selector_promotion_lower_bound_fails_on_empty() -> None:
+    """The query may return no rows, so total >= 1 must fail."""
+    assert _prove_fixture("sum_selector_lower_bound_fail.py") == [Conclusion.FAIL]
+
+
+def test_sum_selector_uncapped_positive_bound_fails() -> None:
+    """Without len(result) <= K the total is unbounded: a real counterexample."""
+    assert _prove_fixture("sum_selector_uncapped_fail.py") == [Conclusion.FAIL]
+
+
+def test_sum_selector_uncapped_nonpositive_terms_prove() -> None:
+    """Without a cap only the nonlinear bound exists, yet terms <= 0 prove."""
+    assert _prove_fixture("sum_selector_uncapped_nonpositive_pass.py") == [
+        Conclusion.OK
+    ]
+
+
 def test_sum_selector_nested_dependent_loop_is_refused() -> None:
     """An inner length that depends on the outer row has no product row count."""
     assert _prove_fixture("sum_selector_nested_dependent_skip.py") == [Conclusion.SKIP]

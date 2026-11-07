@@ -889,7 +889,8 @@ def _promotion_bound(
                     & forall v. in_range(v) -> f(j_lo) <= f(v) <= f(j_hi)
                     & n * f(j_lo) <= s <= n * f(j_hi)
 
-    Per-element facts (preconditions, branch guards, row postconditions) then
+    Per-element facts the prover may assume (branch guards, trusted query
+    postconditions; not a callee's ``@deal.pre``, which is an obligation) then
     lift to the total, e.g. ``f(v) <= 10`` and ``n <= 100`` give ``s <= 1000``.
 
     ``n * f(j)`` is nonlinear and Z3 rarely settles it within the proof
@@ -1008,7 +1009,9 @@ def _match_upper_bound(atom: z3.ExprRef, target: z3.ExprRef) -> int | None:
     negated = z3.is_not(atom)
     if negated:
         atom = atom.arg(0)
-    if atom.num_args() != 2:
+    # Quantified givens (string domains, in-loop postconditions) are not
+    # applications; num_args() would raise on them, so they give no cap.
+    if not z3.is_app(atom) or atom.num_args() != 2:
         return None
     left, right = atom.arg(0), atom.arg(1)
     kind = atom.decl().kind()

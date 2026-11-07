@@ -252,12 +252,15 @@ invisible and the encoding charges both loops in full.
   [docs/todos/quantified-postconditions.md](../todos/quantified-postconditions.md).
 - `sum(lambda r: r.numeric_field)` over a quantified fact is proved through a
   promotion bound, `len * min(term) <= sum <= len * max(term)`, not an exact
-  sum. A per-row bound (a branch guard, a trusted precondition) lifts to the
-  total, e.g. at most 100 rows each charged at most 10 proves `<= 1000`. Z3
-  only settles this within the timeout when the trusted query states a literal
-  `len(result) <= K`, and nested loops whose inner length depends on
-  the outer row are refused. Goals that need the exact sum, such as "the total equals
-  the sum of the rows", do not prove. See
+  sum. A per-row bound the prover can *assume* lifts to the total: a branch
+  guard in the loop, or a trusted query's postcondition. For example, at most
+  100 rows each charged at most 10 proves `<= 1000`. A trusted callee's
+  `@deal.pre` does not count, because it is an obligation the program must
+  meet, not a fact the guarantee may use. A positive per-row bound needs a
+  literal `len(result) <= K` on the query; without one the total is unbounded
+  and the guarantee fails. Nested loops whose inner length depends on the outer
+  row are refused. Goals that need the exact sum, such as "the total equals the
+  sum of the rows", do not prove. See
   [docs/todos/quantified-aggregates.md](../todos/quantified-aggregates.md).
 - `count()` and `sum()` with a constant selector are supported over a quantified
   fact, but a row-dependent condition does not tighten an upper bound and no

@@ -41,7 +41,10 @@ budget proofs fast (~1.5s).
 
 What it buys: per-row bounds lift to totals ("<= 100 invoices, each charge
 <= 10, so total <= 1000"), and loop totals compose with ordinary facts by
-addition, which is fold promotion over `concat`.
+addition, which is fold promotion over `concat`. Only bounds the prover may
+assume count: branch guards and trusted query postconditions. A trusted
+callee's `@deal.pre` is an obligation, checked separately, and never
+tightens the total.
 
 What it doesn't: anything needing the exact sum, or a bound that depends on how
 many rows pass a filter (the relaxation charges every row the maximum term).

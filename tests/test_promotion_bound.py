@@ -97,6 +97,9 @@ M = z3.Int("m")
         (M <= 7, None),
         (N <= M, None),
         (N == 7, None),
+        # Quantified givens are not applications and must not crash.
+        (z3.ForAll([M], M <= N), None),
+        (z3.Not(z3.ForAll([M], M <= N)), None),
     ],
     ids=str,
 )
