@@ -89,6 +89,7 @@ nav:
     - How ClauZ3 compares: explanation/comparison.md
     - Concepts: explanation/concepts.md
     - Background: explanation/background.md
+    - Instructions and contracts: explanation/instructions-and-contracts.md
     - Cedar: explanation/cedar.md
     - Distributed trusted layers: explanation/distributed-trusted-layers.md
     - FAQ: explanation/faq.md
