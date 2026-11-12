@@ -91,6 +91,9 @@ def test_switch_tutorial_and_back_preserves_histories_and_rotates_authority(
         assert tutorial == storage / "tutorials/email"
         assert state["libraries"] == ["email"]
         ready(ws)
+        # The switched-to conversation still publishes to this tab.
+        ws.send_json({"method": "session/prompt", "params": {"prompt": "hi"}})
+        until(ws, "clauz3/user")
         snapshot = client.get("/api/workspaces").json()
         assert snapshot["tutorial"]
         assert snapshot["recent"][0]["path"] == str(project)

@@ -736,6 +736,32 @@ def test_second_tab_has_retryable_close_code(client: TestClient) -> None:
         assert reloaded.receive_json()["params"]["sessionId"] == "fixture"
 
 
+def test_takeover_displaces_the_other_tab(client: TestClient) -> None:
+    login(client)
+    url = "ws://127.0.0.1/api/chat/acp"
+    headers = {"Origin": "http://127.0.0.1"}
+    first = client.websocket_connect(url, headers=headers).__enter__()
+    ready(first)
+    with client.websocket_connect(f"{url}?takeover=1", headers=headers) as second:
+        restore = second.receive_json()
+        assert restore["method"] == "clauz3/restore"
+        assert restore["params"]["sessionId"] == "fixture"
+        with pytest.raises(WebSocketDisconnect) as displaced:
+            while True:
+                first.receive_json()
+        assert displaced.value.code == 4001
+        # The displaced tab's socket closes; its cleanup must not detach this tab.
+        first.__exit__(None, None, None)
+        with client.websocket_connect(url, headers=headers) as third:
+            with pytest.raises(WebSocketDisconnect) as rejected:
+                third.receive_json()
+            assert rejected.value.code == 1013
+        second.send_json({"method": "session/prompt", "params": {"prompt": "hi"}})
+        until(second, lambda m: m["method"] == "clauz3/user")
+    with client.websocket_connect(url, headers=headers) as reloaded:
+        assert reloaded.receive_json()["params"]["sessionId"] == "fixture"
+
+
 @pytest.mark.parametrize("startup_updates", [False, True])
 def test_new_reuses_an_unused_conversation(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, startup_updates: bool
