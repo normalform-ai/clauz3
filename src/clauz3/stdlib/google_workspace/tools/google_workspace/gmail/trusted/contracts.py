@@ -1,9 +1,10 @@
-"""Email send and draft policies for the assistant domain.
+"""Email search, send and draft policies for the assistant domain.
 
 Recipient, count, uniqueness and content policies cover both ``send_email``
 and ``create_draft``. ``drafts_only()`` forbids send calls. ``dry_run_only()``
 constrains send calls to explicit previews; combine it with ``no_drafts()``
-to forbid mailbox writes too. Each policy covers only this email domain.
+to forbid mailbox writes too. ``read_only()`` forbids both, leaving
+``search_messages`` available. Each policy covers only this email domain.
 """
 
 from clauz3.spec import ContractSpec, contract, effect
@@ -12,11 +13,12 @@ from clauz3.spec import no_guarantees as core_no_guarantees
 Email = effect("send_email", "create_draft")
 Send = effect("send_email")
 Draft = effect("create_draft")
+Search = effect("search_messages")
 
 
 @contract(description="No restrictions are imposed on email tools.")
 def no_guarantees() -> ContractSpec:
-    """Impose no restrictions on email sending, previews, or draft creation.
+    """Impose no restrictions on email search, sending, previews, or drafts.
 
     This is an explicit unrestricted email policy, not a read-only or preview
     policy. Other contracts in the same program still apply. It does not
@@ -201,3 +203,39 @@ def no_drafts() -> ContractSpec:
     Effects from other libraries are not covered.
     """
     return Draft.empty()
+
+
+@contract(
+    description=(
+        "Email tools may only search and read messages; sending, "
+        "previewing sends and saving drafts are forbidden."
+    )
+)
+def read_only() -> ContractSpec:
+    """Allow searching and reading Gmail, but forbid every send and draft call.
+
+    Use for questions about the mailbox, such as the latest message from
+    someone. ``send_email`` previews count as sends here. Searches are not
+    limited; add ``searches_at_most(count)`` to bound them. Effects from
+    other libraries, such as writing results to a file, are not covered.
+    """
+    return Email.empty()
+
+
+@contract(description="Email tools cannot search or read messages.")
+def no_searches() -> ContractSpec:
+    """Forbid search_messages calls, so the run reads no mailbox content.
+
+    Sending and drafting remain governed by the other contracts.
+    """
+    return Search.empty()
+
+
+@contract(description="Email tools make at most {count} mailbox searches.")
+def searches_at_most(count: int) -> ContractSpec:
+    """Cap the number of search_messages calls per run.
+
+    This bounds calls, not messages: each search may return up to its own
+    ``max_results`` messages. Sends and drafts are not counted.
+    """
+    return Search.count() <= count
