@@ -8,7 +8,7 @@ trusted := "../tools/google_workspace/gmail/trusted"
 effects := trusted + "/effects.py"
 prove := clauz3 + " prove --trusted-root " + trusted + " --import-root .."
 
-test: lint cases signature-regressions drafts runtime
+test: lint cases signature-regressions drafts searches runtime
 
 # The selected email layer must load even when the program never imports it.
 signature-regressions:
@@ -71,6 +71,17 @@ campaign-pass:
 
 email-no-guarantees-pass:
     {{prove}} cases/email_no_guarantees_pass.py
+
+searches:
+    {{prove}} cases/search_read_only_pass.py
+    {{prove}} cases/reply_to_search_results_pass.py
+    if {{prove}} cases/reply_to_search_results_count_fail.py; then exit 1; fi
+    if {{prove}} cases/search_read_only_send_fail.py; then exit 1; fi
+    if {{prove}} cases/search_read_only_draft_fail.py; then exit 1; fi
+    if {{prove}} cases/searches_at_most_fail.py; then exit 1; fi
+    if {{prove}} cases/no_searches_fail.py; then exit 1; fi
+    if {{prove}} cases/search_max_results_fail.py; then exit 1; fi
+    if {{prove}} cases/search_empty_query_fail.py; then exit 1; fi
 
 # Runtime tests mock subprocess.run: no mailbox operations occur.
 runtime:

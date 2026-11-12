@@ -27,6 +27,7 @@ from uuid import uuid4
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
+from starlette.websockets import WebSocketState
 
 from clauz3.libraries.install import InstallError
 from clauz3.libraries.workspace import WorkspaceLibraries
@@ -834,6 +835,8 @@ def install_chat(
     workspaces = Workspaces(store.path.parent)
     leases = ExitStack()
     switching = False
+    # The one browser tab attached to the conversation; another tab may take over.
+    attached_tab: WebSocket | None = None
     manager = (
         WorkspaceLibraries(
             Path(config.cwd),
@@ -1222,17 +1225,23 @@ def install_chat(
 
     @app.websocket("/api/chat/acp")
     async def socket(websocket: WebSocket) -> None:
-        nonlocal conversation, config, store, manager, leases, switching
+        nonlocal conversation, config, store, manager, leases, switching, attached_tab
         if not authorized(websocket, mutation=True):
             # Accept only to deliver the close code; never send workspace data.
             await websocket.accept()
             await websocket.close(code=1008)
             return
-        if conversation.subscriber is not None:
-            await websocket.accept()
-            await websocket.close(code=1013, reason="Workspace open in another tab")
-            return
+        previous = attached_tab
+        if previous is not None:
+            if websocket.query_params.get("takeover") != "1":
+                await websocket.accept()
+                await websocket.close(code=1013, reason="Workspace open in another tab")
+                return
+            # The displaced tab offers its own "Use here" rather than reconnecting.
+            if previous.client_state is WebSocketState.CONNECTED:
+                await previous.close(code=4001, reason="Opened in another tab")
         await websocket.accept()
+        attached_tab = websocket
         queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=256)
         conversation.subscriber = queue
         await websocket.send_json(
@@ -1291,7 +1300,8 @@ def install_chat(
                 configure(saved).model_copy(update={"prompt": None}), store, saved
             )
             app.state.conversation = conversation
-            conversation.subscriber = queue
+            if attached_tab is websocket:
+                conversation.subscriber = queue
             await websocket.send_json(
                 {
                     "method": "clauz3/restore",
@@ -1431,7 +1441,8 @@ def install_chat(
                                 selected_config(saved), store, saved
                             )
                             app.state.conversation = conversation
-                            conversation.subscriber = queue
+                            if attached_tab is websocket:
+                                conversation.subscriber = queue
                             await websocket.send_json(
                                 {
                                     "method": "clauz3/workspace_changed",
@@ -1610,8 +1621,14 @@ def install_chat(
                     )
         except (WebSocketDisconnect, ValueError):
             pass
+        except RuntimeError:
+            # Another tab took over and closed this socket.
+            if attached_tab is websocket:
+                raise
         finally:
-            conversation.subscriber = None
+            if attached_tab is websocket:
+                attached_tab = None
+                conversation.subscriber = None
             sender.cancel()
             with suppress(asyncio.CancelledError, Exception):
                 await sender

@@ -1,5 +1,6 @@
 """Runtime routing tests. Every subprocess invocation is mocked."""
 
+import json
 import os
 import subprocess
 import sys
@@ -11,6 +12,7 @@ import deal
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from tools.google_workspace.gmail.trusted import effects  # noqa: E402
+from tools.google_workspace.gmail.trusted.schemas import Message  # noqa: E402
 
 
 class EmailEffectsTests(unittest.TestCase):
@@ -125,6 +127,80 @@ class EmailEffectsTests(unittest.TestCase):
             ],
             check=True,
         )
+
+    def test_search_returns_message_rows_without_writing(self) -> None:
+        stdout = json.dumps(
+            [
+                {
+                    "id": "m1",
+                    "threadId": "t1",
+                    "date": "2026-11-06 15:59",
+                    "from": "Alice <alice@example.com>",
+                    "subject": "hello",
+                    "labels": ["INBOX", "UNREAD"],
+                    "body": "hi there",
+                }
+            ]
+        )
+        completed = subprocess.CompletedProcess([], 0, stdout=stdout, stderr="")
+        with patch(
+            "tools.google_workspace.gmail.trusted.effects.subprocess.run",
+            return_value=completed,
+        ) as run:
+            messages = effects.search_messages("-in:spam from:alice", 1)
+        run.assert_called_once_with(
+            [
+                "gog",
+                "gmail",
+                "messages",
+                "search",
+                "--no-input",
+                "--json",
+                "--results-only",
+                "--include-body",
+                "--max=1",
+                "--",
+                "-in:spam from:alice",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertEqual(
+            messages,
+            [
+                Message(
+                    id="m1",
+                    thread_id="t1",
+                    date="2026-11-06 15:59",
+                    sender="Alice <alice@example.com>",
+                    sender_address="alice@example.com",
+                    subject="hello",
+                    labels="INBOX,UNREAD",
+                    body="hi there",
+                )
+            ],
+        )
+
+    def test_search_with_no_matches_returns_empty_list(self) -> None:
+        completed = subprocess.CompletedProcess([], 0, stdout="[]\n", stderr="")
+        with patch(
+            "tools.google_workspace.gmail.trusted.effects.subprocess.run",
+            return_value=completed,
+        ):
+            self.assertEqual(effects.search_messages("from:nobody", 5), [])
+
+    def test_invalid_search_arguments_do_not_execute(self) -> None:
+        for query, max_results in (("", 1), ("is:unread", 0), ("is:unread", 51)):
+            with (
+                self.subTest(query=query, max_results=max_results),
+                patch(
+                    "tools.google_workspace.gmail.trusted.effects.subprocess.run"
+                ) as run,
+                self.assertRaises(deal.PreContractError),
+            ):
+                effects.search_messages(query, max_results)
+            run.assert_not_called()
 
 
 if __name__ == "__main__":
