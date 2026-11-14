@@ -9,7 +9,7 @@
   grid-template-columns: repeat(3, 1fr);
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface);
   margin-bottom: 30px;
 }
 .profile-stats div {
@@ -42,8 +42,8 @@
   color: var(--muted);
 }
 .profile-tabs button[aria-selected="true"] {
-  border-bottom: 2px solid var(--green);
-  color: var(--green);
+  border-bottom: 2px solid var(--link, var(--green));
+  color: var(--link, var(--green));
 }
 .profile-search {
   display: flex;
@@ -60,7 +60,7 @@
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 12px;
-  background: white;
+  background: var(--surface);
   color: inherit;
 }
 #profile-result {
@@ -74,7 +74,7 @@
   border: 1px solid var(--line);
   border-radius: 12px;
   margin: 14px 0;
-  background: white;
+  background: var(--surface);
 }
 .profile-card-heading {
   display: flex;
@@ -92,16 +92,16 @@
   padding: 5px 9px;
   border-radius: 20px;
   white-space: nowrap;
-  background: #edf3ec;
-  color: #36654a;
+  background: var(--accent-soft);
+  color: var(--accent-text);
 }
 .profile-badge.disabled {
-  background: #f0f1f0;
-  color: #7b847e;
+  background: var(--surface-subtle);
+  color: var(--muted);
 }
 .profile-badge.reviewed {
-  background: #fff0df;
-  color: #84581a;
+  background: var(--warn-bg);
+  color: var(--warn-fg);
 }
 .profile-date {
   font-size: 11px;
@@ -130,7 +130,7 @@
   padding: 48px 22px;
 }
 .empty-mark {
-  color: var(--green);
+  color: var(--link, var(--green));
   font-size: 28px;
 }
 .profile-empty h2 {
@@ -178,7 +178,7 @@
 }
 
 .contract-library { font-weight: 650; margin: .8rem 0 .35rem; }
-.contract-mock { color: #63417f; background: #f1eafa; border-radius: 1rem; padding: .15rem .5rem; font-size: .8rem; margin-left: .5rem; }
-.contract-symbol, .contract-identity-unavailable { font-size: .85rem; color: #58665f; }
+.contract-mock { color: var(--mock-fg); background: var(--mock-bg); border-radius: 1rem; padding: .15rem .5rem; font-size: .8rem; margin-left: .5rem; }
+.contract-symbol, .contract-identity-unavailable { font-size: .85rem; color: var(--muted); }
 .contract-symbol code, .contract-provenance code, .contract-expression { overflow-wrap: anywhere; }
 .contract-source { max-height: 24rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
