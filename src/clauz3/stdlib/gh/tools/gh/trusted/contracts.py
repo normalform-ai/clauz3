@@ -55,10 +55,8 @@ def read_only() -> ContractSpec:
 
     Pins each ``action`` (the verb) to ``READ_ONLY_ACTIONS``, so the program
     cannot run ``merge`` / ``close`` / ``delete`` / ``edit`` ... on any GitHub
-    object. The ``command`` and extra ``args`` are not constrained; the
-    guarantee relies on the built-in gh commands, so a locally configured gh
-    alias or extension whose second word is a read-only verb is not covered.
-    Stack ``only_commands`` to exclude those.
+    object. The ``gh`` effect accepts only gh's built-in commands, so a local
+    alias or extension cannot give a read-only verb another meaning.
     """
     return Gh.all(lambda e: e.action in READ_ONLY_ACTIONS)
 
@@ -80,7 +78,13 @@ def only_commands(allowlist: list[str]) -> ContractSpec:
     return Gh.all(lambda e: e.command in allowlist)
 
 
-@contract(description="No GitHub command uses any of these actions: {blocklist}.")
+@contract(
+    description=(
+        "No GitHub command uses any of these actions: {blocklist}. Only the action "
+        "word is compared, so for example blocking delete does not stop "
+        "pr merge --delete-branch."
+    )
+)
 def never_actions(blocklist: list[str]) -> ContractSpec:
     """Guarantee no GitHub command uses any of the listed actions.
 
@@ -93,38 +97,28 @@ def never_actions(blocklist: list[str]) -> ContractSpec:
     return Gh.all(lambda e: e.action not in blocklist)
 
 
-@contract(
-    description=(
-        "Every GitHub command is pointed at the repository {repo}. A pull "
-        "request or issue link given to a command can still reach another "
-        "repository."
-    )
-)
+@contract(description="GitHub commands work only on the repository {repo}.")
 def only_repo(repo: str) -> ContractSpec:
-    """Guarantee every GitHub command is given the repository ``repo``.
+    """Guarantee every GitHub command works on the repository ``repo``.
 
-    ``repo`` is the full ``owner/name`` slug passed as ``--repo``. gh resolves
-    a pull-request or issue URL argument against the URL's own repository, so
-    this does not stop an argument such as
-    ``https://github.com/other/repo/pull/1`` from reaching another repository.
+    ``repo`` is the full ``owner/name`` slug passed as ``--repo``. The ``gh``
+    effect refuses web-address arguments, which gh would resolve against the
+    address's own repository instead.
+    Commands whose arguments name a second repository on purpose, such as
+    ``issue transfer`` and ``label clone``, still reach it; stack
+    ``never_actions(["transfer", "clone"])`` to exclude them.
     """
     return Gh.all(lambda e: e.repo == repo)
 
 
-@contract(
-    description=(
-        "Every GitHub command is pointed at a repository owned by {owner}. A pull "
-        "request or issue link given to a command can still reach another "
-        "repository."
-    )
-)
+@contract(description="GitHub commands work only on repositories owned by {owner}.")
 def only_owner(owner: str) -> ContractSpec:
-    """Guarantee every GitHub command is given a repository owned by ``owner``.
+    """Guarantee every GitHub command works on a repository owned by ``owner``.
 
     Matches any ``owner/<name>`` slug passed as ``--repo``, so an agent can
     range over one organization's repositories without naming each one. As
-    with ``only_repo``, a pull-request or issue URL argument is resolved
-    against the URL's own repository and is not covered.
+    with ``only_repo``, web-address arguments are refused by the ``gh``
+    effect.
     """
     prefix = owner + "/"
     return Gh.all(lambda e: e.repo.startswith(prefix))

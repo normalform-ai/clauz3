@@ -27,6 +27,56 @@ import clauz3
 DEFAULT_TIMEOUT_SECONDS = 120
 
 
+def is_builtin_command(command: str) -> bool:
+    """Whether ``command`` is one of gh's built-in top-level commands.
+
+    The list is the built-in command set of the gh version this library
+    targets (gh 2.101: the core, GitHub Actions and additional command groups
+    of ``gh --help``). ``alias`` and ``extension`` are excluded, as is
+    ``copilot``, which runs a separately installed program. Aliases and
+    extensions are refused because their meaning comes from local
+    configuration, so a contract over the second word could not describe
+    what they do. The list is written inline because preconditions cannot
+    read module-level constants.
+    """
+    return command in [
+        "auth",
+        "browse",
+        "codespace",
+        "discussion",
+        "gist",
+        "issue",
+        "org",
+        "pr",
+        "project",
+        "release",
+        "repo",
+        "skill",
+        "cache",
+        "run",
+        "workflow",
+        "agent-task",
+        "api",
+        "attestation",
+        "completion",
+        "config",
+        "gpg-key",
+        "label",
+        "licenses",
+        "preview",
+        "ruleset",
+        "search",
+        "secret",
+        "ssh-key",
+        "status",
+        "variable",
+    ]
+
+
+@clauz3.requires(
+    lambda command, action, args, repo: is_builtin_command(command),
+    message="command must be a built-in gh command (no aliases or extensions)",
+)
 @clauz3.requires(
     lambda command, action, args, repo: (
         len(command) > 0 and len(action) > 0 and len(repo) > 0
@@ -42,6 +92,16 @@ def gh(command: str, action: str, args: list[str], repo: str) -> str:
     shell. ``repo`` is always supplied as ``--repo`` so every call is scoped to
     a single repository, which ``only_repo`` / ``only_owner`` can then pin.
 
+    ``command`` must be one of gh's built-in commands (``is_builtin_command``,
+    a precondition), so
+    aliases and extensions are refused.
+
+    Refer to pull requests and issues by number, not by web address: gh
+    resolves a URL against the URL's own repository, ignoring ``--repo``. Any
+    argument containing ``://`` or ``github.com`` (in any letter case) raises
+    ``ValueError`` before gh runs, so ``only_repo`` / ``only_owner`` hold.
+    Put text that must contain a link in a file and pass ``--body-file``.
+
     Long flags must be passed as separate arguments (``["--body", "text"]``):
     any argument that starts with ``--`` and contains ``=`` raises
     ``ValueError`` before gh runs. This keeps one spelling per flag, so a
@@ -49,6 +109,11 @@ def gh(command: str, action: str, args: list[str], repo: str) -> str:
     exact membership without ``--admin=true`` slipping past it.
     """
     for arg in args:
+        if "://" in arg or "github.com" in arg.lower():
+            raise ValueError(
+                f"gh argument {arg!r} looks like a web address; refer to pull "
+                "requests and issues by numbers, not web addresses"
+            )
         if arg.startswith("--") and "=" in arg:
             raise ValueError(
                 f"gh flag {arg!r} must be passed as separate arguments "

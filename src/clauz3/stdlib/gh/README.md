@@ -34,7 +34,13 @@ Import with `from tools.gh.trusted.effects import gh`:
 
 - `gh(command: str, action: str, args: list[str], repo: str) -> str` — run
   `gh <command> <action> <args...> --repo <repo>` and return its stdout.
-  Precondition: `command`, `action`, and `repo` non-empty.
+  Preconditions: `command`, `action`, and `repo` non-empty; `command` is one
+  of gh's built-in commands (`is_builtin_command`), so aliases and extensions
+  are refused.
+  Refer to pull requests and issues by number, not URL: gh resolves a URL
+  against its own repository, ignoring `--repo`, so any argument containing
+  `://` or `github.com` raises `ValueError`. Put text containing links in a
+  file and pass `--body-file`.
   Pass long flags as separate arguments (`["--body", "text"]`, not
   `["--body=text"]`): any argument starting with `--` that contains `=` raises
   `ValueError` before gh runs, so each flag has one spelling a contract can
@@ -64,8 +70,10 @@ Import with `from tools.gh.trusted import contracts as gh_rules`:
 
 `read_only`, `only_commands`, and `never_actions` are name-set policies;
 `only_repo` is an equality policy and `only_owner` is a `str.startswith` prefix
-policy. `only_repo` and `only_owner` check the `--repo` value only: gh resolves
-a pull-request or issue URL argument against the URL's own repository.
+policy. `only_repo` and `only_owner` check the `--repo` value; web-address
+arguments that would override it are refused by the effect. Commands that name
+a second repository on purpose (`issue transfer`, `label clone`) can still
+reach it.
 
 ## Example
 

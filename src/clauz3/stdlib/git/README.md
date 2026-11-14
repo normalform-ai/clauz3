@@ -28,8 +28,12 @@ clauz3 prove --trusted-root tools/git/trusted plan.py
 Import with `from tools.git.trusted.effects import git, git_push`:
 
 - `git(subcommand: str, args: list[str], cwd: str) -> str` — run
-  `git <subcommand> <args...>` in `cwd` and return its stdout. Precondition:
-  `subcommand` and `cwd` non-empty.
+  `git <subcommand> <args...>` in `cwd` and return its stdout. Preconditions:
+  `subcommand` and `cwd` non-empty; `subcommand` is a built-in git command
+  (`is_builtin_subcommand`), which leaves out `push` and every other pushing
+  command, so pushes always go through `git_push`. Aliases and third-party
+  `git-*` commands are refused. An argument starting with `--output` raises
+  `ValueError` (it would make `diff`/`log`/`show` write a file).
 - `git_push(remote: str, branch: str, cwd: str) -> str` — push `branch` to
   `remote` from the repo at `cwd`. Precondition: all three non-empty.
 
@@ -40,13 +44,17 @@ Import with `from tools.git.trusted import contracts as git_rules`:
 - `git_rules.no_guarantees()` — explicit null contract.
 - `git_rules.no_git()` — the program runs no local git subcommands (does not by
   itself forbid `git_push`; stack `no_push()`).
-- `git_rules.read_only()` — every subcommand is a read-only inspection command
-  (`READ_ONLY_SUBCOMMANDS`: `status`, `log`, `diff`, `show`, `branch`, ...).
+- `git_rules.read_only()` — every subcommand only looks at the repository
+  (`READ_ONLY_SUBCOMMANDS`: `status`, `log`, `diff`, `show`, `rev-parse`, ...)
+  and nothing is pushed.
 - `git_rules.only_subcommands(allowlist)` — every subcommand is in `allowlist`.
 - `git_rules.never_subcommands(blocklist)` — no subcommand is in `blocklist`.
-- `git_rules.only_in(root)` — every subcommand runs in a directory under `root`.
+- `git_rules.only_in(root)` — every subcommand and push runs in a directory
+  whose path starts with `root`.
 - `git_rules.runs_at_most(count)` — at most `count` subcommands run.
-- `git_rules.no_push()` — the program performs no pushes.
+- `git_rules.no_push()` — the program performs no pushes. Commands that run
+  other programs (`rebase --exec`, `submodule foreach`, hooks) are not
+  covered; `read_only()` excludes them.
 - `git_rules.only_push_to_remote(remote)` — every push targets `remote`.
 - `git_rules.only_push_to_branch(branch)` — every push targets `branch`.
 

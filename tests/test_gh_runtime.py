@@ -6,6 +6,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import cast
 
+import deal
 import pytest
 
 GH_ROOT = Path(__file__).resolve().parents[1] / "src/clauz3/stdlib/gh"
@@ -61,3 +62,36 @@ def test_gh_passes_separate_flags_and_appends_repo(
     assert calls == [
         ["gh", "pr", "comment", "42", "--body", "a=b", "--repo", "cmungall/agent-deal"]
     ]
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["https://github.com/other/repo/pull/1"],
+        ["HTTPS://GITHUB.COM/other/repo/pull/1"],
+        ["https://github.com:443/other/repo/pull/1"],
+        ["https://www.github.com/other/repo/issues/2"],
+        ["https://ghe.example.com/other/repo/pull/1"],
+    ],
+)
+def test_gh_refuses_links_that_override_the_repository(
+    gh_effect: GhEffect, monkeypatch: pytest.MonkeyPatch, args: list[str]
+) -> None:
+    def forbidden(*args: object, **kwargs: object) -> None:
+        pytest.fail("a web address reached the subprocess")
+
+    monkeypatch.setattr(subprocess, "run", forbidden)
+    with pytest.raises(ValueError, match="numbers, not web addresses"):
+        gh_effect("pr", "view", args, "cmungall/agent-deal")
+
+
+@pytest.mark.parametrize("command", ["co", "act", "copilot", "alias", "extension"])
+def test_gh_refuses_aliases_and_extensions(
+    gh_effect: GhEffect, monkeypatch: pytest.MonkeyPatch, command: str
+) -> None:
+    def forbidden(*args: object, **kwargs: object) -> None:
+        pytest.fail("a non-built-in gh command reached the subprocess")
+
+    monkeypatch.setattr(subprocess, "run", forbidden)
+    with pytest.raises(deal.PreContractError, match="built-in"):
+        gh_effect(command, "view", [], "cmungall/agent-deal")

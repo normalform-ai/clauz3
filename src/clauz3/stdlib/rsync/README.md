@@ -31,7 +31,15 @@ Import with `from tools.rsync.trusted.effects import rsync`:
 - `rsync(src: str, dest: str, delete: bool, args: list[str]) -> str` — sync
   `src` to `dest` and return stdout. `delete` adds `--delete`. Precondition:
   `src` and `dest` non-empty. Arguments are passed as an explicit vector, so
-  no field is interpreted by a shell.
+  no field is interpreted by a shell. `args` may not contain options that
+  delete (`--delete*`, `--remove-source-files`), write outside `dest`
+  (`--backup-dir`, `--log-file`, `--temp-dir`/`-T`, `--partial-dir`,
+  `--write-batch`), read from elsewhere (`--files-from`, `--link-dest`,
+  `--compare-dest`, `--copy-dest`, `--read-batch`), or run another program
+  (`-e`/`--rsh`, `--rsync-path`, `-M`/`--remote-option`); see
+  `REFUSED_LONG_OPTIONS` in `effects.py`. These raise `ValueError` before
+  rsync runs, including abbreviations such as `--remove-sou`. Short-option
+  groups like `-avz` are fine.
 
 ## Contracts
 
@@ -43,7 +51,7 @@ Import with `from tools.rsync.trusted import contracts as rsync_rules`:
   (blast-radius guard).
 - `rsync_rules.never_dest_under(prefix)` — no destination is under `prefix`.
 - `rsync_rules.only_src_under(root)` — every source is under `root`.
-- `rsync_rules.no_delete()` — no sync passes `--delete` (data-loss guard).
+- `rsync_rules.no_delete()` — no sync deletes files (data-loss guard).
 - `rsync_rules.syncs_at_most(count)` — at most `count` syncs occur.
 
 `only_*` and `never_*` are path-prefix policies compiled to `str.startswith`;
