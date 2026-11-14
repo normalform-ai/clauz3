@@ -222,7 +222,7 @@ def _rg_text(value: dict[str, str]) -> str:
 @clauz3.ensures(
     lambda pattern, path, glob, max_results, result: len(result) <= max_results
 )
-@deal.has("read", "io", "syscall")
+@deal.has("read", "io", "syscall", "import")
 @clauz3.trusted
 @performs(lambda path: RecursiveRead(path))
 def search_files(pattern: str, path: str, glob: str, max_results: int) -> list[Match]:
@@ -235,40 +235,57 @@ def search_files(pattern: str, path: str, glob: str, max_results: int) -> list[M
 
     ripgrep's defaults apply: ``.gitignore``d (inside a git repository),
     hidden and binary files are skipped, and symlinks are not followed. No
-    matches returns ``[]``; ripgrep errors, such as an invalid pattern, raise.
-    Contracts see a recursive read of ``path``.
+    matches returns ``[]``. Any ripgrep error -- an invalid pattern, a missing
+    ``path``, or a single unreadable file under it -- raises
+    ``subprocess.CalledProcessError`` and returns no partial results. ripgrep
+    searches files in parallel, so which matches are returned when
+    ``max_results`` is reached is unspecified. Contracts see a recursive read
+    of ``path``.
     """
-    # Prefix relative roots so rg cannot parse the path as an option, and
-    # strip the prefix again from reported paths.
+    # No separate body check is needed: ``-e``, ``--`` and the ``./`` prefix
+    # stop option injection, and the plain-path precondition is proved first.
+    # The prefix is stripped again from reported paths.
     prefixed = not (path == "." or os.path.isabs(path) or path.startswith("./"))
     root = "./" + path if prefixed else path
     command = ["rg", "--json", "-e", pattern]
     if glob:
         command += ["--glob", glob]
     command += ["--", root]
-    completed = subprocess.run(  # noqa: S603
-        command, capture_output=True, text=True, timeout=DEFAULT_TIMEOUT_SECONDS
-    )
-    if completed.returncode not in (0, 1):
-        raise subprocess.CalledProcessError(
-            completed.returncode, command, completed.stdout, completed.stderr
-        )
     matches: list[Match] = []
-    for line in completed.stdout.splitlines():
-        event = json.loads(line)
-        if event["type"] != "match":
-            continue
-        data = event["data"]
-        found = _rg_text(data["path"])
-        matches.append(
-            Match(
-                path=found.removeprefix("./") if prefixed else found,
-                line_number=data["line_number"],
-                text=_rg_text(data["lines"]).removesuffix("\n").removesuffix("\r"),
+    # stderr goes to an anonymous file, not a pipe, so a large stderr never
+    # blocks rg. This is ``tempfile.TemporaryFile`` spelled out: deal's linter
+    # crashes inferring that function's body (``os.open`` with an int mode).
+    descriptor, name = tempfile.mkstemp()
+    os.unlink(name)
+    with (
+        os.fdopen(descriptor, "w+b") as stderr,
+        subprocess.Popen(  # noqa: S603
+            command, stdout=subprocess.PIPE, stderr=stderr, encoding="utf-8"
+        ) as process,
+    ):
+        assert process.stdout is not None
+        for line in process.stdout:
+            event = json.loads(line)
+            if event["type"] != "match":
+                continue
+            data = event["data"]
+            found = _rg_text(data["path"])
+            matches.append(
+                Match(
+                    path=found.removeprefix("./") if prefixed else found,
+                    line_number=data["line_number"],
+                    text=_rg_text(data["lines"]).removesuffix("\n").removesuffix("\r"),
+                )
             )
-        )
-        if len(matches) == max_results:
-            break
+            if len(matches) == max_results:
+                process.kill()
+                return matches
+        returncode = process.wait(timeout=DEFAULT_TIMEOUT_SECONDS)
+        if returncode not in (0, 1):
+            stderr.seek(0)
+            raise subprocess.CalledProcessError(
+                returncode, command, stderr=stderr.read().decode("utf-8")
+            )
     return matches
 
 

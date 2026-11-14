@@ -49,7 +49,9 @@ def test_glob_restricts_file_names(search_files: Search, tree: Path) -> None:
 
 
 def test_respects_gitignore(search_files: Search, tree: Path) -> None:
-    assert [m.path for m in search_files("generated", ".", "", 10)] == []
+    paths = [m.path for m in search_files("TODO", ".", "", 10)]
+    assert "./src/app.py" in paths
+    assert not [p for p in paths if "build/" in p]
 
 
 def test_stops_at_max_results(search_files: Search, tree: Path) -> None:
@@ -86,3 +88,15 @@ def test_preconditions(
 ) -> None:
     with pytest.raises(deal.PreContractError):
         search_files(pattern, "src", "", max_results)
+
+
+def test_missing_path_raises(search_files: Search, tree: Path) -> None:
+    with pytest.raises(subprocess.CalledProcessError):
+        search_files("TODO", "missing", "", 10)
+
+
+def test_non_utf8_line(search_files: Search, tree: Path) -> None:
+    (tree / "src/latin1.txt").write_bytes(b"TODO \xff here\n")
+    matches = search_files("TODO", "src/latin1.txt", "", 10)
+    assert len(matches) == 1
+    assert matches[0].text.startswith("TODO ")
