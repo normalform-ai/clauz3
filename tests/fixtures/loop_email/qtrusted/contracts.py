@@ -68,6 +68,12 @@ def total_amount_under(limit: int) -> ContractSpec:
 
 
 @contract
+def total_amount_at_least(limit: int) -> ContractSpec:
+    """Guarantee sum of `amount` is at least limit (lower-bound direction)."""
+    return effect("charge").sum(lambda e: e.amount) >= limit
+
+
+@contract
 def unique_recipients() -> ContractSpec:
     """Guarantee no recipient is emailed twice."""
     return effect("send_email").distinct(lambda e: e.addr)
