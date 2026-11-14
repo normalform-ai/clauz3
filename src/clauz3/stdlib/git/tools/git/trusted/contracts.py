@@ -23,6 +23,7 @@ Push = effect(git_push)
 #: tree, the index, nor any remote. ``read_only`` pins every subcommand to this
 #: set. Deliberately excludes network commands like ``fetch``/``pull`` and any
 #: mutation (``commit``, ``checkout``, ``reset``, ``clean``, ``rebase``, ...).
+#: The ``read_only`` description names these literally; keep them in sync.
 READ_ONLY_SUBCOMMANDS = [
     "status",
     "log",
@@ -43,72 +44,146 @@ READ_ONLY_SUBCOMMANDS = [
 ]
 
 
-@contract
+@contract(description="No restrictions are imposed on git commands.")
 def no_guarantees() -> ContractSpec:
-    """Make no guarantees about git effects."""
+    """Make no guarantees about git commands."""
     return core_no_guarantees()
 
 
-@contract
+@contract(
+    description=(
+        "No git commands are run. The separate git push tool has its own guarantees."
+    )
+)
 def no_git() -> ContractSpec:
-    """Guarantee the program runs no local git subcommands.
+    """Guarantee the program runs no general git commands.
 
-    Does not by itself forbid ``git_push``; stack ``no_push()`` for that.
+    Covers the ``git`` effect only and does not by itself forbid
+    ``git_push``; stack ``no_push()`` for that.
     """
     return Git.empty()
 
 
-@contract
+@contract(
+    description=(
+        "Git commands are limited to status, log, diff, show, branch, remote, "
+        "rev-parse, ls-files, ls-tree, blame, describe, tag, shortlog, reflog, "
+        "cat-file and config, and the separate git push tool is not covered. "
+        "Some of these can still change the local repository depending on "
+        "their options, for example creating a branch or tag or changing a "
+        "setting."
+    )
+)
 def read_only() -> ContractSpec:
-    """Guarantee every git subcommand is a read-only inspection command.
+    """Guarantee git commands are limited to a fixed list of inspection commands.
 
-    Pins each subcommand to ``READ_ONLY_SUBCOMMANDS``, so the program cannot
-    mutate the working tree, index, or any remote via the ``git`` effect.
+    Pins each subcommand of the ``git`` effect to ``READ_ONLY_SUBCOMMANDS``.
+    Arguments are not constrained, so several listed subcommands can still
+    write locally: ``branch``/``tag`` can create or delete refs, ``remote``
+    and ``config`` can change settings, ``reflog`` can expire entries, and
+    ``diff``/``log`` accept ``--output=<file>``. ``git_push`` is a separate
+    effect; stack ``no_push()`` to forbid it.
     """
     return Git.all(lambda e: e.subcommand in READ_ONLY_SUBCOMMANDS)
 
 
-@contract
+@contract(
+    description=(
+        "Git commands are limited to: {allowlist}. The separate git push tool "
+        "has its own guarantees."
+    )
+)
 def only_subcommands(allowlist: list[str]) -> ContractSpec:
-    """Guarantee every git subcommand is in ``allowlist``."""
+    """Guarantee every git command is one of the listed commands.
+
+    Compares the subcommand of each ``git`` effect against ``allowlist``;
+    ``git_push`` is not covered.
+    """
     return Git.all(lambda e: e.subcommand in allowlist)
 
 
-@contract
+@contract(
+    description=(
+        "None of these git commands are run: {blocklist}. The separate git push "
+        "tool has its own guarantees."
+    )
+)
 def never_subcommands(blocklist: list[str]) -> ContractSpec:
-    """Guarantee no git subcommand is in ``blocklist``.
+    """Guarantee none of the listed git commands is run.
 
     Useful to veto specific destructive subcommands (``reset``, ``clean``,
-    ``rebase``) while leaving the rest of git available.
+    ``rebase``) while leaving the rest of git available. ``git_push`` is not
+    covered.
     """
     return Git.all(lambda e: e.subcommand not in blocklist)
 
 
-@contract
+@contract(
+    description=(
+        "Git commands run only in folders whose path starts with {root}. The "
+        "separate git push tool is not covered."
+    )
+)
 def only_in(root: str) -> ContractSpec:
-    """Guarantee every git subcommand runs in a directory under ``root``."""
+    """Guarantee every git command runs in a folder whose path starts with root.
+
+    A literal prefix check on ``cwd``, not resolved directory containment
+    (``/repo`` also admits ``/repo-other``). Arguments that name other paths
+    are not checked, and ``git_push`` is not covered.
+    """
     return Git.all(lambda e: e.cwd.startswith(root))
 
 
-@contract
+@contract(
+    description=(
+        "At most {count} git commands are run, not counting the separate git push tool."
+    )
+)
 def runs_at_most(count: int) -> ContractSpec:
-    """Guarantee at most ``count`` git subcommands run."""
+    """Guarantee at most ``count`` general git commands run."""
     return Git.count() <= count
 
 
-@contract
+@contract(
+    description=(
+        "Nothing is pushed with the git push tool. A push run as a general git "
+        "command is not covered."
+    )
+)
 def no_push() -> ContractSpec:
-    """Guarantee the program performs no git pushes."""
+    """Guarantee the program never uses the git push tool.
+
+    Forbids the ``git_push`` effect only. ``git("push", ...)`` is an ordinary
+    ``git`` effect; forbid it with ``read_only()`` or
+    ``never_subcommands(["push"])``.
+    """
     return Push.empty()
 
 
-@contract
+@contract(
+    description=(
+        "Anything pushed with the git push tool goes only to the remote "
+        "{remote}. A push run as a general git command is not covered."
+    )
+)
 def only_push_to_remote(remote: str) -> ContractSpec:
-    """Guarantee every push targets the remote named ``remote``."""
+    """Guarantee every use of the git push tool targets the remote ``remote``.
+
+    Covers ``git_push`` only, not ``git("push", ...)``. The branch argument is
+    not constrained.
+    """
     return Push.all(lambda e: e.remote == remote)
 
 
-@contract
+@contract(
+    description=(
+        "Anything pushed with the git push tool goes only to the branch "
+        "{branch}. A push run as a general git command is not covered."
+    )
+)
 def only_push_to_branch(branch: str) -> ContractSpec:
-    """Guarantee every push targets the branch named ``branch``."""
+    """Guarantee every use of the git push tool pushes exactly ``branch``.
+
+    Covers ``git_push`` only, not ``git("push", ...)``.
+    """
     return Push.all(lambda e: e.branch == branch)

@@ -11,45 +11,78 @@ DbWrite = effect(create_table, insert_row)
 DbInsert = effect(insert_row)
 
 
-@contract
+@contract(description="No restrictions are imposed on database tools.")
 def no_guarantees() -> ContractSpec:
-    """Make no guarantees about database effects."""
+    """Make no guarantees about database tools."""
     return core_no_guarantees()
 
 
-@contract
+@contract(
+    description=(
+        "Database tools read no rows; creating tables and adding rows are not covered."
+    )
+)
 def no_db_reads() -> ContractSpec:
     """Forbid read_rows calls; creation and insertion are governed separately."""
     return DbRead.empty()
 
 
-@contract
+@contract(description="Database tools read rows at most {count} times.")
 def reads_at_most(count: int) -> ContractSpec:
-    """Guarantee at most ``count`` database reads occur."""
+    """Guarantee at most ``count`` read_rows calls occur (each returns <= 100 rows)."""
     return DbRead.count() <= count
 
 
-@contract
+@contract(
+    description=(
+        "Database tools read rows only from paths starting with {root}; "
+        "creating tables and adding rows are not covered."
+    )
+)
 def only_read_under(root: str) -> ContractSpec:
-    """Guarantee every database source path starts with ``root``."""
+    """Guarantee every database read uses a source path starting with ``root``.
+
+    A literal prefix check, not resolved directory containment.
+    """
     return DbRead.all(lambda e: e.path.startswith(root))
 
 
-@contract
+@contract(
+    description=(
+        "Database tools never read rows from a path starting with {prefix}; "
+        "creating tables and adding rows are not covered."
+    )
+)
 def never_read_under(prefix: str) -> ContractSpec:
-    """Guarantee no database source path starts with ``prefix``."""
+    """Guarantee no database read uses a source path starting with ``prefix``."""
     return DbRead.all(lambda e: not e.path.startswith(prefix))
 
 
-@contract
+@contract(
+    description=(
+        "Database tools read rows only from the table {table}; creating tables "
+        "and adding rows are not covered."
+    )
+)
 def only_table(table: str) -> ContractSpec:
-    """Guarantee every database read targets exactly ``table``."""
+    """Guarantee every database read targets exactly ``table``.
+
+    Compares the table name only; the database path is not constrained.
+    """
     return DbRead.all(lambda e: e.table == table)
 
 
-@contract
+@contract(
+    description=(
+        "Database tools read rows only from these tables: {tables}; creating "
+        "tables and adding rows are not covered."
+    )
+)
 def only_tables(tables: list[str]) -> ContractSpec:
-    """Guarantee every database read targets one of ``tables``."""
+    """Guarantee every database read targets one of ``tables``.
+
+    Compares the table name only; the database path is not constrained.
+    """
     return DbRead.all(lambda e: e.table in tables)
 
 
