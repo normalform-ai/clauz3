@@ -35,6 +35,10 @@ Import with `from tools.gh.trusted.effects import gh`:
 - `gh(command: str, action: str, args: list[str], repo: str) -> str` — run
   `gh <command> <action> <args...> --repo <repo>` and return its stdout.
   Precondition: `command`, `action`, and `repo` non-empty.
+  Pass long flags as separate arguments (`["--body", "text"]`, not
+  `["--body=text"]`): any argument starting with `--` that contains `=` raises
+  `ValueError` before gh runs, so each flag has one spelling a contract can
+  check.
 
 ## Contracts
 
@@ -53,10 +57,15 @@ Import with `from tools.gh.trusted import contracts as gh_rules`:
 - `gh_rules.only_owner(owner)` — every targeted repository belongs to `owner`
   (matches any `owner/<name>` slug).
 - `gh_rules.runs_at_most(count)` — at most `count` invocations occur.
+- `gh_rules.no_admin_override()` — no invocation passes `--admin`, which
+  overrides branch protection and required reviews (e.g. `gh pr merge 42
+  --admin`). State this guarantee unless the user explicitly asked for an
+  admin override.
 
 `read_only`, `only_commands`, and `never_actions` are name-set policies;
 `only_repo` is an equality policy and `only_owner` is a `str.startswith` prefix
-policy.
+policy. `only_repo` and `only_owner` check the `--repo` value only: gh resolves
+a pull-request or issue URL argument against the URL's own repository.
 
 ## Example
 
@@ -69,6 +78,7 @@ from tools.gh.trusted.effects import gh
 @clauz3.guarantee(gh_rules.only_repo("cmungall/agent-deal"))
 @clauz3.guarantee(gh_rules.only_commands(["pr", "issue"]))
 @clauz3.guarantee(gh_rules.never_actions(["merge", "close", "delete"]))
+@clauz3.guarantee(gh_rules.no_admin_override())
 def main() -> None:
     gh("pr", "view", ["42"], "cmungall/agent-deal")
     gh("pr", "comment", ["42", "--body", "looks good"], "cmungall/agent-deal")

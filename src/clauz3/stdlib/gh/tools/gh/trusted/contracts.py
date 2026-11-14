@@ -134,3 +134,21 @@ def only_owner(owner: str) -> ContractSpec:
 def runs_at_most(count: int) -> ContractSpec:
     """Guarantee at most ``count`` GitHub commands are run."""
     return Gh.count() <= count
+
+
+@contract(
+    description=(
+        "No GitHub command overrides branch protection or required reviews (--admin)."
+    )
+)
+def no_admin_override() -> ContractSpec:
+    """Guarantee no GitHub command uses administrator override (``--admin``).
+
+    ``gh pr merge --admin`` merges a pull request that does not meet its
+    branch-protection requirements, such as required reviews or checks. The
+    check is exact membership of ``"--admin"`` in ``args``; this is sound
+    because the ``gh`` effect rejects ``--flag=value`` spellings at run time,
+    and ``--admin`` has no short form. State this unless the user asked for an
+    admin override.
+    """
+    return Gh.all(lambda e: "--admin" not in e.args)

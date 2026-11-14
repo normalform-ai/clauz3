@@ -41,7 +41,19 @@ def gh(command: str, action: str, args: list[str], repo: str) -> str:
     Arguments are passed as an explicit vector, so no field is interpreted by a
     shell. ``repo`` is always supplied as ``--repo`` so every call is scoped to
     a single repository, which ``only_repo`` / ``only_owner`` can then pin.
+
+    Long flags must be passed as separate arguments (``["--body", "text"]``):
+    any argument that starts with ``--`` and contains ``=`` raises
+    ``ValueError`` before gh runs. This keeps one spelling per flag, so a
+    contract such as ``no_admin_override`` can check for ``"--admin"`` by
+    exact membership without ``--admin=true`` slipping past it.
     """
+    for arg in args:
+        if arg.startswith("--") and "=" in arg:
+            raise ValueError(
+                f"gh flag {arg!r} must be passed as separate arguments "
+                "(--flag value), not --flag=value"
+            )
     completed = subprocess.run(  # noqa: S603
         ["gh", command, action, *args, "--repo", repo],
         capture_output=True,
