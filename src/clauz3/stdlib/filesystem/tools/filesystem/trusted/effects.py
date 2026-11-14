@@ -7,14 +7,17 @@ preconditions, and reads the call as the events in ``@performs`` (see
 been proved and approved.
 
 The bodies use ``pathlib``/``shutil``/``os`` directly, not a shell, so no
-argument is ever interpreted by a shell. ``find`` is the exception: it runs the
-``find`` binary with an allowlisted argument grammar.
+argument is ever interpreted by a shell. ``find`` and ``search_files`` are the
+exceptions: they run the ``find`` and ``rg`` binaries with fixed argument
+vectors.
 
 The ``@deal.has(...)`` markers are deal's own: they buy its runtime guard and
 the ``clauz3 lint`` check on these bodies, and play no part in what a contract
 can say.
 """
 
+import base64
+import json
 import os
 import re
 import shutil
@@ -35,6 +38,7 @@ from tools.filesystem.trusted.events import (
     RecursiveWrite,
     WriteText,
 )
+from tools.filesystem.trusted.schemas import Match
 
 import clauz3
 from clauz3._path_safety import is_plain_path
@@ -194,6 +198,78 @@ def find(path: str, args: list[str]) -> list[str]:
         check=True,
     )
     return [os.fsdecode(item) for item in completed.stdout.split(b"\0") if item]
+
+
+def _rg_text(value: dict[str, str]) -> str:
+    """Decode a ripgrep JSON text field, which is base64 bytes when not UTF-8."""
+    if "text" in value:
+        return value["text"]
+    return os.fsdecode(base64.b64decode(value["bytes"]))
+
+
+@clauz3.requires(
+    lambda pattern, path, glob, max_results: is_plain_path(path),
+    message="path must have no .., . or empty segments, or backslashes",
+)
+@clauz3.requires(
+    lambda pattern, path, glob, max_results: len(pattern) > 0 and len(path) > 0,
+    message="pattern and path must be non-empty",
+)
+@clauz3.requires(
+    lambda pattern, path, glob, max_results: max_results >= 1 and max_results <= 1000,
+    message="max_results must be between 1 and 1000",
+)
+@clauz3.ensures(
+    lambda pattern, path, glob, max_results, result: len(result) <= max_results
+)
+@deal.has("read", "io", "syscall")
+@clauz3.trusted
+@performs(lambda path: RecursiveRead(path))
+def search_files(pattern: str, path: str, glob: str, max_results: int) -> list[Match]:
+    """Return up to ``max_results`` lines under ``path`` matching ``pattern``.
+
+    ``pattern`` is a ripgrep (Rust) regular expression; the search is recursive.
+    ``glob`` limits file names, for example ``*.py``; an empty string searches
+    all files. ``max_results`` must be between 1 and 1000. Each result is a
+    ``Match`` with the file path, one-based line number and line text.
+
+    ripgrep's defaults apply: ``.gitignore``d (inside a git repository),
+    hidden and binary files are skipped, and symlinks are not followed. No
+    matches returns ``[]``; ripgrep errors, such as an invalid pattern, raise.
+    Contracts see a recursive read of ``path``.
+    """
+    # Prefix relative roots so rg cannot parse the path as an option, and
+    # strip the prefix again from reported paths.
+    prefixed = not (path == "." or os.path.isabs(path) or path.startswith("./"))
+    root = "./" + path if prefixed else path
+    command = ["rg", "--json", "-e", pattern]
+    if glob:
+        command += ["--glob", glob]
+    command += ["--", root]
+    completed = subprocess.run(  # noqa: S603
+        command, capture_output=True, text=True, timeout=DEFAULT_TIMEOUT_SECONDS
+    )
+    if completed.returncode not in (0, 1):
+        raise subprocess.CalledProcessError(
+            completed.returncode, command, completed.stdout, completed.stderr
+        )
+    matches: list[Match] = []
+    for line in completed.stdout.splitlines():
+        event = json.loads(line)
+        if event["type"] != "match":
+            continue
+        data = event["data"]
+        found = _rg_text(data["path"])
+        matches.append(
+            Match(
+                path=found.removeprefix("./") if prefixed else found,
+                line_number=data["line_number"],
+                text=_rg_text(data["lines"]).removesuffix("\n").removesuffix("\r"),
+            )
+        )
+        if len(matches) == max_results:
+            break
+    return matches
 
 
 # -- writing ----------------------------------------------------------------
