@@ -894,10 +894,13 @@ def _promotion_bound(
     lift to the total, e.g. ``f(v) <= 10`` and ``n <= 100`` give ``s <= 1000``.
 
     ``n * f(j)`` is nonlinear and Z3 rarely settles it within the proof
-    timeout, so when every loop length has a literal bound ``len <= K`` in
-    ``ctx.given`` (a trusted ``@deal.post``) we also add the linear
-    relaxation ``K * min(f(j_lo), 0) <= s <= K * max(f(j_hi), 0)``, guarded
-    by ``len <= K`` so it is true regardless of the givens.
+    timeout, so for each literal bound ``len <= K`` that appears anywhere in
+    ``ctx.given`` (a trusted ``@deal.post``, possibly under a branch) we also
+    add the linear relaxation ``K * min(f(j_lo), 0) <= s <= K * max(f(j_hi),
+    0)``. Each relaxation is guarded by its own ``len <= K``, so it is true
+    whatever the givens say; a candidate that does not actually hold only
+    leaves its relaxation inert. With several loops, ``K`` is the product of
+    one candidate per loop.
 
     The row count ``n`` is the product of the loop lengths, which is only the
     row count when each length is independent of the enclosing loop indices,
@@ -914,6 +917,13 @@ def _promotion_bound(
     zero = z3.IntVal(0)
     cond_z3 = cond.expr if hasattr(cond, "expr") else cond
     base_z3 = base.expr if hasattr(base, "expr") else base
+    # The fresh total is an Int, so the real sum must be an Int too: a Real
+    # term could make the axioms unsatisfiable and prove a bound vacuously.
+    if not isinstance(base_z3, z3.ExprRef) or not base_z3.sort().eq(z3.IntSort()):
+        raise UnsupportedError(
+            "sum(selector) over a loop needs an int selector; got",
+            str(base_z3.sort()) if isinstance(base_z3, z3.ExprRef) else "non-z3",
+        )
     term = z3.If(cond_z3, base_z3, zero)
 
     def at(indices: list[z3.ArithRef]) -> z3.ArithRef:
@@ -959,12 +969,11 @@ def _promotion_bound(
             ),
         ),
     ]
-    caps = [_literal_upper_bound(q.upper - q.lower, ctx=ctx) for q in quantifiers]
-    if all(cap is not None for cap in caps):
+    caps = [_literal_upper_bounds(q.upper - q.lower, ctx=ctx) for q in quantifiers]
+    for combo in itertools.islice(itertools.product(*caps), _MAX_RELAXATIONS):
         k_total = 1
         within_caps = []
-        for q, cap in zip(quantifiers, caps, strict=True):
-            assert cap is not None
+        for q, cap in zip(quantifiers, combo, strict=True):
             k_total *= cap
             within_caps.append(q.upper - q.lower <= cap)
         k = z3.IntVal(k_total)
@@ -980,29 +989,43 @@ def _promotion_bound(
     return types.int(expr=s), axioms
 
 
-def _literal_upper_bound(expr: z3.ArithRef, *, ctx: Any) -> int | None:
-    """Return the tightest literal ``K`` with ``expr <= K`` among the givens.
+# Each relaxation is one guarded linear axiom; this bounds how many a
+# multi-loop sum emits when every loop has several candidate caps.
+_MAX_RELAXATIONS = 16
 
-    Only unconditional top-level conjuncts of the form ``expr <= K`` (in any
-    orientation, after ``z3.simplify``) count; conditional givens are skipped.
+
+def _literal_upper_bounds(expr: z3.ArithRef, *, ctx: Any) -> list[int]:
+    """Return every literal ``K`` with an ``expr <= K`` atom in the givens.
+
+    Atoms are collected from anywhere in each simplified given, including
+    under ``Or`` (a postcondition reached under a branch becomes
+    ``Or(inactive, len <= K)``) and quantifier bodies, in any orientation.
+    The candidates are only hints: ``_promotion_bound`` guards each
+    relaxation with its own ``expr <= K``, so a candidate that does not hold
+    never constrains anything. Sorted tightest first.
     """
     target = z3.simplify(expr)
-    best: int | None = None
+    found: set[int] = set()
+    seen: set[int] = set()
 
-    def conjuncts(e: z3.ExprRef) -> list[z3.ExprRef]:
-        if z3.is_and(e):
-            return [c for child in e.children() for c in conjuncts(child)]
-        return [e]
+    def walk(e: z3.ExprRef) -> None:
+        if e.get_id() in seen:
+            return
+        seen.add(e.get_id())
+        cap = _match_upper_bound(e, target)
+        if cap is not None:
+            found.add(cap)
+        if z3.is_quantifier(e):
+            walk(e.body())
+        elif z3.is_app(e):
+            for child in e.children():
+                walk(child)
 
     for given in ctx.given:
         raw = given.expr if hasattr(given, "expr") else given
-        if not isinstance(raw, z3.BoolRef):
-            continue
-        for atom in conjuncts(z3.simplify(raw)):
-            cap = _match_upper_bound(atom, target)
-            if cap is not None and (best is None or cap < best):
-                best = cap
-    return best
+        if isinstance(raw, z3.BoolRef):
+            walk(z3.simplify(raw))
+    return sorted(found)
 
 
 def _match_upper_bound(atom: z3.ExprRef, target: z3.ExprRef) -> int | None:

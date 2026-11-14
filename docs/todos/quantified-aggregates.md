@@ -34,10 +34,21 @@ where `n = len(xs)` and `j_lo`/`j_hi` are fresh Skolem indices in range
 encoding is sound in either polarity.
 
 `n * f(j)` is nonlinear, and Z3 misses the 5s proof timeout on even the bare
-core. When each loop length has a literal `len(result) <= K` among the givens
-(a trusted `@deal.post`), we add the linear relaxation `K * min(f(j_lo), 0) <=
-sum <= K * max(f(j_hi), 0)`, guarded by `len <= K`. That makes the realistic
-budget proofs fast (~1.5s).
+core. So for each literal `len(result) <= K` that appears anywhere in the
+givens (a trusted `@deal.post`, also when the query runs under a branch and the
+given is `Or(inactive, len <= K)`), we add the linear relaxation `K *
+min(f(j_lo), 0) <= sum <= K * max(f(j_hi), 0)`, guarded by its own `len <= K`.
+The guard makes each relaxation true whatever the givens say, so a candidate
+that does not hold just stays inert. Independent nested loops use the product
+of one cap per loop (at most 16 combinations). That makes the realistic budget
+proofs fast (~2s). The selector must be `int`: a non-`int` term is refused,
+because the fresh total is an `Int`.
+
+Without any cap only the nonlinear core remains. A positive per-row bound is
+then false anyway (the row count is unbounded) and Z3 finds the counterexample
+quickly, but a true goal may time out to SKIP, so the end-to-end tests stick to
+capped queries. `tests/test_promotion_bound.py` checks the axioms themselves on
+ground instances, with no solver search.
 
 What it buys: per-row bounds lift to totals ("<= 100 invoices, each charge
 <= 10, so total <= 1000"), and loop totals compose with ordinary facts by
@@ -78,5 +89,5 @@ for specific aggregate shapes.
 
 (D) covers budget-style guarantees. If exact totals are needed, add (B),
 bounded unrolling, next. It composes with the existing for-loop handler and
-can reuse `_literal_upper_bound` to find `K`. Revisit (A) or (C) if
+can reuse `_literal_upper_bounds` to find `K`. Revisit (A) or (C) if
 unrolling proves insufficient.

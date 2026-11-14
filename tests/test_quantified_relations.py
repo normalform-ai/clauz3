@@ -110,11 +110,27 @@ def test_sum_selector_uncapped_positive_bound_fails() -> None:
     assert _prove_fixture("sum_selector_uncapped_fail.py") == [Conclusion.FAIL]
 
 
-def test_sum_selector_uncapped_nonpositive_terms_prove() -> None:
-    """Without a cap only the nonlinear bound exists, yet terms <= 0 prove."""
-    assert _prove_fixture("sum_selector_uncapped_nonpositive_pass.py") == [
-        Conclusion.OK
+def test_sum_selector_promotion_over_two_independent_loops() -> None:
+    """<= 100 * 100 rows, each charge <= 10: the product cap proves 100000."""
+    assert _prove_fixture("sum_selector_two_loops_pass.py") == [Conclusion.OK]
+
+
+def test_sum_selector_promotion_two_loops_cap_is_a_product() -> None:
+    """3 * 3 charges of 10 reach 90: an 89 cap fails. A sum or max of the
+    per-loop caps would wrongly prove it."""
+    assert _prove_fixture("sum_selector_two_loops_too_tight_fail.py") == [
+        Conclusion.FAIL
     ]
+
+
+def test_sum_selector_promotion_through_a_helper() -> None:
+    """A charge emitted inside a helper called in the loop is bounded too."""
+    assert _prove_fixture("sum_selector_helper_pass.py") == [Conclusion.OK]
+
+
+def test_sum_selector_promotion_with_a_conditional_query() -> None:
+    """A query under a branch still yields its length cap."""
+    assert _prove_fixture("sum_selector_conditional_query_pass.py") == [Conclusion.OK]
 
 
 def test_sum_selector_nested_dependent_loop_is_refused() -> None:
