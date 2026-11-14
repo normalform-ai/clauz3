@@ -50,11 +50,23 @@
   const $ = (id) => document.getElementById(id);
   const view = $("approvals-view");
   if (!view) return;
-  try {
-    const savedTheme = globalThis.localStorage?.getItem("clauz3-theme");
-    if (savedTheme && document.documentElement?.dataset)
-      document.documentElement.dataset.theme = savedTheme;
-  } catch {}
+  if (!globalThis.clauz3Theme) {
+    try {
+      const saved = globalThis.localStorage?.getItem("clauz3-theme");
+      const valid = [
+        "parchment",
+        "indigo",
+        "obsidian",
+        "swiss",
+        "solarized",
+        "sage",
+      ];
+      if (document.documentElement?.dataset)
+        document.documentElement.dataset.theme = valid.includes(saved)
+          ? saved
+          : "parchment";
+    } catch {}
+  }
   let snapshot = { rules: [], history: [] },
     tab = "rules",
     loading = false,
