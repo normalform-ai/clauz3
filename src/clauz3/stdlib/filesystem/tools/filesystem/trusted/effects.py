@@ -17,7 +17,9 @@ can say.
 
 import os
 import shutil
+import stat
 import subprocess
+import tempfile
 from pathlib import Path
 
 import deal
@@ -228,6 +230,61 @@ def append_file(path: str, text: str) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("a", encoding="utf-8") as fh:
         fh.write(text)
+
+
+@clauz3.requires(
+    lambda path, old, new, replace_all=False: is_plain_path(path),
+    message="path must have no .., . or empty segments, or backslashes",
+)
+@clauz3.requires(
+    lambda path, old, new, replace_all=False: len(path) > 0 and len(old) > 0,
+    message="path and old must be non-empty",
+)
+@clauz3.requires(
+    lambda path, old, new, replace_all=False: old != new,
+    message="old and new must differ",
+)
+@deal.has("read", "write")
+@clauz3.trusted
+@performs(lambda path, new: [Read(path), WriteText(path, new)])
+def edit_file(path: str, old: str, new: str, replace_all: bool = False) -> None:
+    """Replace the exact text ``old`` with ``new`` in the existing file ``path``.
+
+    ``old`` must occur exactly once unless ``replace_all`` is true, in which
+    case every occurrence is replaced and at least one must exist. Otherwise
+    ``ValueError`` reports how many were found and the file is unchanged. The
+    file must exist; this never creates one. Line endings and permission bits
+    are preserved, and the new contents replace the file atomically.
+
+    Contracts see a read of ``path`` and a text write of ``new`` to ``path``.
+    ``must_not_write`` and ``write_length_at_most`` therefore check only the
+    inserted text, not the resulting file.
+    """
+    target = Path(path)
+    with target.open(encoding="utf-8", newline="") as stream:
+        text = stream.read()
+    found = text.count(old)
+    if found == 0 or (found > 1 and not replace_all):
+        raise ValueError(
+            f"edit_file needs exactly one occurrence of old in {path}, "
+            f"found {found}; pass replace_all=True to replace every one"
+            if found
+            else f"edit_file found 0 occurrences of old in {path}"
+        )
+    updated = text.replace(old, new) if replace_all else text.replace(old, new, 1)
+    mode = target.stat().st_mode
+    descriptor, temporary = tempfile.mkstemp(
+        dir=target.parent, prefix=f".{target.name}.", suffix=".tmp"
+    )
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="") as stream:
+            stream.write(updated)
+        os.chmod(temporary, stat.S_IMODE(mode))
+        os.replace(temporary, target)
+    except BaseException:
+        # Remove the partial temporary file, then let the error propagate.
+        os.unlink(temporary)
+        raise
 
 
 # -- managing files and directories ------------------------------------------
