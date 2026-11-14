@@ -296,6 +296,9 @@ def search_files(pattern: str, path: str, glob: str, max_results: int) -> list[M
         timer.start()
         try:
             for line in process.stdout:
+                # A line read after the timer's kill may be truncated.
+                if timed_out.is_set():
+                    break
                 event = json.loads(line)
                 if event["type"] != "match":
                     continue

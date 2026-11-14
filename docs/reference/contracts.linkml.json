@@ -11,7 +11,7 @@
     "FilesystemAppendFile": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.append_file",
-        "source_sha256": "dc4e4d30a3a7e8e6517502bb76accf2a25cdda6fa5e3f20d6a5e8ea70a2ce891"
+        "source_sha256": "e9c4b382462b135df0059ef1c796531d221fcb48e58ddca0bca8aae13a5cae2c"
       },
       "attributes": {
         "path": {
@@ -40,7 +40,7 @@
     "FilesystemChmod": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.chmod",
-        "source_sha256": "dc4e4d30a3a7e8e6517502bb76accf2a25cdda6fa5e3f20d6a5e8ea70a2ce891"
+        "source_sha256": "e9c4b382462b135df0059ef1c796531d221fcb48e58ddca0bca8aae13a5cae2c"
       },
       "attributes": {
         "mode": {
@@ -69,7 +69,7 @@
     "FilesystemCopy": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.copy",
-        "source_sha256": "dc4e4d30a3a7e8e6517502bb76accf2a25cdda6fa5e3f20d6a5e8ea70a2ce891"
+        "source_sha256": "e9c4b382462b135df0059ef1c796531d221fcb48e58ddca0bca8aae13a5cae2c"
       },
       "attributes": {
         "dest": {
@@ -142,7 +142,7 @@
     "FilesystemEditFile": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.edit_file",
-        "source_sha256": "dc4e4d30a3a7e8e6517502bb76accf2a25cdda6fa5e3f20d6a5e8ea70a2ce891"
+        "source_sha256": "e9c4b382462b135df0059ef1c796531d221fcb48e58ddca0bca8aae13a5cae2c"
       },
       "attributes": {
         "new": {
@@ -190,7 +190,7 @@
     "FilesystemFind": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.find",
-        "source_sha256": "dc4e4d30a3a7e8e6517502bb76accf2a25cdda6fa5e3f20d6a5e8ea70a2ce891"
+        "source_sha256": "e9c4b382462b135df0059ef1c796531d221fcb48e58ddca0bca8aae13a5cae2c"
       },
       "attributes": {
         "args": {
@@ -220,7 +220,7 @@
     "FilesystemGrep": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.grep",
-        "source_sha256": "dc4e4d30a3a7e8e6517502bb76accf2a25cdda6fa5e3f20d6a5e8ea70a2ce891"
+        "source_sha256": "e9c4b382462b135df0059ef1c796531d221fcb48e58ddca0bca8aae13a5cae2c"
       },
       "attributes": {
         "path": {
@@ -271,7 +271,7 @@
     "FilesystemMakeDir": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.make_dir",
-        "source_sha256": "dc4e4d30a3a7e8e6517502bb76accf2a25cdda6fa5e3f20d6a5e8ea70a2ce891"
+        "source_sha256": "e9c4b382462b135df0059ef1c796531d221fcb48e58ddca0bca8aae13a5cae2c"
       },
       "attributes": {
         "path": {
@@ -291,7 +291,7 @@
     "FilesystemMove": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.move",
-        "source_sha256": "dc4e4d30a3a7e8e6517502bb76accf2a25cdda6fa5e3f20d6a5e8ea70a2ce891"
+        "source_sha256": "e9c4b382462b135df0059ef1c796531d221fcb48e58ddca0bca8aae13a5cae2c"
       },
       "attributes": {
         "dest": {
@@ -691,7 +691,7 @@
     "FilesystemReadFile": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.read_file",
-        "source_sha256": "dc4e4d30a3a7e8e6517502bb76accf2a25cdda6fa5e3f20d6a5e8ea70a2ce891"
+        "source_sha256": "e9c4b382462b135df0059ef1c796531d221fcb48e58ddca0bca8aae13a5cae2c"
       },
       "attributes": {
         "path": {
@@ -711,7 +711,7 @@
     "FilesystemReadLine": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.read_line",
-        "source_sha256": "dc4e4d30a3a7e8e6517502bb76accf2a25cdda6fa5e3f20d6a5e8ea70a2ce891"
+        "source_sha256": "e9c4b382462b135df0059ef1c796531d221fcb48e58ddca0bca8aae13a5cae2c"
       },
       "attributes": {
         "line_number": {
@@ -740,7 +740,7 @@
     "FilesystemReadLines": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.read_lines",
-        "source_sha256": "dc4e4d30a3a7e8e6517502bb76accf2a25cdda6fa5e3f20d6a5e8ea70a2ce891"
+        "source_sha256": "e9c4b382462b135df0059ef1c796531d221fcb48e58ddca0bca8aae13a5cae2c"
       },
       "attributes": {
         "path": {
@@ -794,7 +794,7 @@
     "FilesystemRemove": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.remove",
-        "source_sha256": "dc4e4d30a3a7e8e6517502bb76accf2a25cdda6fa5e3f20d6a5e8ea70a2ce891"
+        "source_sha256": "e9c4b382462b135df0059ef1c796531d221fcb48e58ddca0bca8aae13a5cae2c"
       },
       "attributes": {
         "path": {
@@ -814,7 +814,7 @@
     "FilesystemSearchFiles": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.search_files",
-        "source_sha256": "dc4e4d30a3a7e8e6517502bb76accf2a25cdda6fa5e3f20d6a5e8ea70a2ce891"
+        "source_sha256": "e9c4b382462b135df0059ef1c796531d221fcb48e58ddca0bca8aae13a5cae2c"
       },
       "attributes": {
         "glob": {
@@ -861,7 +861,7 @@
     "FilesystemTouch": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.touch",
-        "source_sha256": "dc4e4d30a3a7e8e6517502bb76accf2a25cdda6fa5e3f20d6a5e8ea70a2ce891"
+        "source_sha256": "e9c4b382462b135df0059ef1c796531d221fcb48e58ddca0bca8aae13a5cae2c"
       },
       "attributes": {
         "path": {
@@ -881,7 +881,7 @@
     "FilesystemWriteFile": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.write_file",
-        "source_sha256": "dc4e4d30a3a7e8e6517502bb76accf2a25cdda6fa5e3f20d6a5e8ea70a2ce891"
+        "source_sha256": "e9c4b382462b135df0059ef1c796531d221fcb48e58ddca0bca8aae13a5cae2c"
       },
       "attributes": {
         "content": {
