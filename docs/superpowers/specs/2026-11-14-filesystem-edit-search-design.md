@@ -72,11 +72,25 @@ def search_files(pattern: str, path: str, glob: str, max_results: int) -> list[M
   contracts, as with `search_messages`.
 - ripgrep defaults apply and are documented: `.gitignore`d, hidden and binary
   files are skipped, and symlinks are not followed. No flag to change this in
-  this version.
-- Invocation: `rg --json -e PATTERN [--glob GLOB] -- ROOT`, with an explicit
-  argument vector. `-e` and `--` stop a pattern or path that starts with `-`
-  being read as an option, and relative roots are prefixed with `./` as `find`
-  does. Exit status 1 (no matches) returns `[]`; status 2 raises.
+  this version. Ignore files are honoured only at or below `path`: a
+  `.gitignore` above `path`, the global `core.excludesFile`, and
+  `.git/info/exclude` are not read, so a repository-root `.gitignore` applies
+  when searching `.` but not when searching a subdirectory of it; narrow with
+  `glob` instead.
+- Invocation: `rg --no-config --no-ignore-parent --no-ignore-global
+  --no-ignore-exclude --json -e PATTERN [--glob GLOB] -- ROOT`, with an
+  explicit argument vector. `-e` and `--` stop a pattern or path that starts
+  with `-` being read as an option, and relative roots are prefixed with `./`
+  as `find` does. `--no-config` ignores the user's ripgrep configuration
+  (`RIPGREP_CONFIG_PATH` and the rest): a config could turn on `--follow` and
+  traverse symlinks `search_files` is meant to leave alone, include files the
+  project's `.gitignore` excludes, or run arbitrary commands via `--pre`.
+  `--no-ignore-parent`, `--no-ignore-global` and `--no-ignore-exclude` keep
+  ripgrep from reading any ignore file outside `path` -- otherwise ripgrep
+  ascends from the directory it is run in (not from `path`) looking for
+  `.gitignore` files, which could hide a match under `path` because of a rule
+  that lives above it, outside what `RecursiveRead(path)` declares was read.
+  Exit status 1 (no matches) returns `[]`; status 2 raises.
 - `RecursiveRead(path)` already means "a path that may be a directory and its
   descendants", so `never_read_under` and `only_reads_files_under` treat a
   search exactly as they treat a recursive copy source.

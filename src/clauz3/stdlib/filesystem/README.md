@@ -141,18 +141,33 @@ is allowed.
   `glob` limits file names (`""` for all), and at most `max_results` (1 to
   1000) `Match` rows are returned, each with `path`, `line_number` and `text`.
   ripgrep's defaults apply: `.gitignore`d (inside a git repository), hidden
-  and binary files are skipped. Needs `rg` on the PATH. Any ripgrep error,
-  including a missing `path` or one unreadable file, raises and returns no
-  partial results.
+  and binary files are skipped, and a symlink encountered under `path` is not
+  followed — but a symlink given as `path` itself is followed. The user's own
+  ripgrep configuration is ignored, so it cannot change any of this. Ignore
+  files are honoured only at or below `path`: a `.gitignore` above `path`
+  (including global and repository excludes) is not read, so a
+  repository-root `.gitignore` applies when searching `.` but not when
+  searching a subdirectory of it; use `glob` to narrow a search instead.
+  Needs `rg` on the PATH. Which matches are returned when `max_results` is
+  reached is unspecified. Any ripgrep error, including a missing `path` or
+  one unreadable file, raises and returns no partial results, unless
+  `max_results` is reached first, in which case the matches found so far are
+  returned instead.
 - `find(path, args) -> list[str]`: list paths under `path` using `-name`,
   `-path`, `-type f/d/l`, `-mindepth` and `-maxdepth`, optionally negated with
   `-not`. Other arguments raise `ValueError` before `find` runs.
 - `write_file(path, content)`: write UTF-8 text, creating parent directories.
 - `append_file(path, text)`: append UTF-8 text, creating the file as needed.
 - `edit_file(path, old, new, replace_all=False)`: replace the exact text `old`
-  with `new` in an existing file. `old` must occur exactly once unless
-  `replace_all` is true; otherwise `ValueError` and the file is unchanged.
-  Line endings and permission bits are preserved.
+  with `new` in an existing, writable file. Occurrences are counted at every
+  position, overlapping ones included; `old` must occur exactly once unless
+  `replace_all` is true, in which case every non-overlapping occurrence, left
+  to right, is replaced; otherwise `ValueError` and the file is unchanged.
+  Line endings and permission bits are preserved. The write goes through a
+  temporary file in the same directory, renamed over `path`, so it needs
+  write permission on the directory as well as the file; a process killed
+  mid-write can leave a stray `.NAME.*.tmp` sibling behind. A read-only file
+  raises `PermissionError` rather than being rewritten.
 - `make_dir(path)`, `touch(path)`: create a directory (with parents) or an
   empty file.
 - `remove(path)`: delete a file, or a directory and everything under it.
@@ -182,8 +197,17 @@ def main() -> None:
 An edit is a read of the file and a text write of `new`. `must_not_write` and
 `write_length_at_most` check that inserted text, not the resulting file:
 deleting text can join its neighbours into a forbidden string, and that is
-not detected. A search is a recursive read of its `path`, so
-`never_read_under` refuses a search of any parent of the forbidden directory.
+not detected. `old` is matched at every position, including overlapping
+ones, so `"aa"` against `"aaa"` is two occurrences, not one; `replace_all`
+replaces every non-overlapping occurrence left to right. `edit_file` refuses
+to rewrite a read-only file (`PermissionError`), and otherwise writes through
+a temporary file in the same directory before renaming it over `path`, so it
+needs write permission on that directory too, and a process killed mid-edit
+can leave a stray `.NAME.*.tmp` sibling behind. A search is a recursive read
+of its `path`, so `never_read_under` refuses a search of any parent of the
+forbidden directory; it ignores the user's own ripgrep configuration, so a
+guarantee cannot be defeated by a config file that turns on following
+symlinks.
 
 Editing a symlink replaces the link with a regular file holding the new
 contents (the target is unchanged), and hard links and ownership are not

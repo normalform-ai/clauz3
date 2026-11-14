@@ -11,7 +11,7 @@
     "FilesystemAppendFile": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.append_file",
-        "source_sha256": "2a06871963877ca8b35e732abeb5347cf0c2361e6719d839a89b55bfcde946ec"
+        "source_sha256": "dc4e4d30a3a7e8e6517502bb76accf2a25cdda6fa5e3f20d6a5e8ea70a2ce891"
       },
       "attributes": {
         "path": {
@@ -40,7 +40,7 @@
     "FilesystemChmod": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.chmod",
-        "source_sha256": "2a06871963877ca8b35e732abeb5347cf0c2361e6719d839a89b55bfcde946ec"
+        "source_sha256": "dc4e4d30a3a7e8e6517502bb76accf2a25cdda6fa5e3f20d6a5e8ea70a2ce891"
       },
       "attributes": {
         "mode": {
@@ -69,7 +69,7 @@
     "FilesystemCopy": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.copy",
-        "source_sha256": "2a06871963877ca8b35e732abeb5347cf0c2361e6719d839a89b55bfcde946ec"
+        "source_sha256": "dc4e4d30a3a7e8e6517502bb76accf2a25cdda6fa5e3f20d6a5e8ea70a2ce891"
       },
       "attributes": {
         "dest": {
@@ -142,7 +142,7 @@
     "FilesystemEditFile": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.edit_file",
-        "source_sha256": "2a06871963877ca8b35e732abeb5347cf0c2361e6719d839a89b55bfcde946ec"
+        "source_sha256": "dc4e4d30a3a7e8e6517502bb76accf2a25cdda6fa5e3f20d6a5e8ea70a2ce891"
       },
       "attributes": {
         "new": {
@@ -184,13 +184,13 @@
         }
       },
       "class_uri": "cz:tools.filesystem.trusted.effects.edit_file",
-      "description": "Replace the exact text ``old`` with ``new`` in the existing file ``path``.\n\n``old`` must occur exactly once unless ``replace_all`` is true, in which\ncase every occurrence is replaced and at least one must exist. Otherwise\n``ValueError`` reports how many were found and the file is unchanged. The\nfile must exist; this never creates one. Line endings and permission bits\nare preserved, and the new contents replace the file atomically.\n\nContracts see a read of ``path`` and a text write of ``new`` to ``path``.\n``must_not_write`` and ``write_length_at_most`` therefore check only the\ninserted text, not the resulting file. A symlink at ``path`` is replaced\nby a regular file holding the new contents (the link's target is not\nchanged), as are hard links; ownership is not preserved.",
+      "description": "Replace the exact text ``old`` with ``new`` in the existing file ``path``.\n\nOccurrences are counted at every position ``old`` starts, including\noverlapping ones (``\"aaa\"`` contains two occurrences of ``\"aa\"``). ``old``\nmust occur exactly once unless ``replace_all`` is true, in which case\nevery non-overlapping occurrence, taken left to right, is replaced, and at\nleast one must exist. Otherwise ``ValueError`` reports how many were\nfound and the file is unchanged. The file must exist and be writable;\nthis never creates one, and raises ``PermissionError`` rather than\nrewrite a read-only file. Line endings and permission bits are preserved.\n\nThe new contents are written to a temporary file in the same directory\nand then renamed over ``path``, so this needs write permission on the\ndirectory as well as the file, and a process killed between the write\nand the rename can leave a stray ``.NAME.*.tmp`` sibling behind; the\nrename itself is atomic, so ``path`` is never left half-written.\n\nContracts see a read of ``path`` and a text write of ``new`` to ``path``.\n``must_not_write`` and ``write_length_at_most`` therefore check only the\ninserted text, not the resulting file. A symlink at ``path`` is replaced\nby a regular file holding the new contents (the link's target is not\nchanged), as are hard links; ownership is not preserved.",
       "is_a": "EffectCall"
     },
     "FilesystemFind": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.find",
-        "source_sha256": "2a06871963877ca8b35e732abeb5347cf0c2361e6719d839a89b55bfcde946ec"
+        "source_sha256": "dc4e4d30a3a7e8e6517502bb76accf2a25cdda6fa5e3f20d6a5e8ea70a2ce891"
       },
       "attributes": {
         "args": {
@@ -220,7 +220,7 @@
     "FilesystemGrep": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.grep",
-        "source_sha256": "2a06871963877ca8b35e732abeb5347cf0c2361e6719d839a89b55bfcde946ec"
+        "source_sha256": "dc4e4d30a3a7e8e6517502bb76accf2a25cdda6fa5e3f20d6a5e8ea70a2ce891"
       },
       "attributes": {
         "path": {
@@ -271,7 +271,7 @@
     "FilesystemMakeDir": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.make_dir",
-        "source_sha256": "2a06871963877ca8b35e732abeb5347cf0c2361e6719d839a89b55bfcde946ec"
+        "source_sha256": "dc4e4d30a3a7e8e6517502bb76accf2a25cdda6fa5e3f20d6a5e8ea70a2ce891"
       },
       "attributes": {
         "path": {
@@ -291,7 +291,7 @@
     "FilesystemMove": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.move",
-        "source_sha256": "2a06871963877ca8b35e732abeb5347cf0c2361e6719d839a89b55bfcde946ec"
+        "source_sha256": "dc4e4d30a3a7e8e6517502bb76accf2a25cdda6fa5e3f20d6a5e8ea70a2ce891"
       },
       "attributes": {
         "dest": {
@@ -691,7 +691,7 @@
     "FilesystemReadFile": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.read_file",
-        "source_sha256": "2a06871963877ca8b35e732abeb5347cf0c2361e6719d839a89b55bfcde946ec"
+        "source_sha256": "dc4e4d30a3a7e8e6517502bb76accf2a25cdda6fa5e3f20d6a5e8ea70a2ce891"
       },
       "attributes": {
         "path": {
@@ -711,7 +711,7 @@
     "FilesystemReadLine": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.read_line",
-        "source_sha256": "2a06871963877ca8b35e732abeb5347cf0c2361e6719d839a89b55bfcde946ec"
+        "source_sha256": "dc4e4d30a3a7e8e6517502bb76accf2a25cdda6fa5e3f20d6a5e8ea70a2ce891"
       },
       "attributes": {
         "line_number": {
@@ -740,7 +740,7 @@
     "FilesystemReadLines": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.read_lines",
-        "source_sha256": "2a06871963877ca8b35e732abeb5347cf0c2361e6719d839a89b55bfcde946ec"
+        "source_sha256": "dc4e4d30a3a7e8e6517502bb76accf2a25cdda6fa5e3f20d6a5e8ea70a2ce891"
       },
       "attributes": {
         "path": {
@@ -794,7 +794,7 @@
     "FilesystemRemove": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.remove",
-        "source_sha256": "2a06871963877ca8b35e732abeb5347cf0c2361e6719d839a89b55bfcde946ec"
+        "source_sha256": "dc4e4d30a3a7e8e6517502bb76accf2a25cdda6fa5e3f20d6a5e8ea70a2ce891"
       },
       "attributes": {
         "path": {
@@ -814,7 +814,7 @@
     "FilesystemSearchFiles": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.search_files",
-        "source_sha256": "2a06871963877ca8b35e732abeb5347cf0c2361e6719d839a89b55bfcde946ec"
+        "source_sha256": "dc4e4d30a3a7e8e6517502bb76accf2a25cdda6fa5e3f20d6a5e8ea70a2ce891"
       },
       "attributes": {
         "glob": {
@@ -855,13 +855,13 @@
         }
       },
       "class_uri": "cz:tools.filesystem.trusted.effects.search_files",
-      "description": "Return up to ``max_results`` lines under ``path`` matching ``pattern``.\n\n``pattern`` is a ripgrep (Rust) regular expression; the search is recursive.\n``glob`` limits file names, for example ``*.py``; an empty string searches\nall files. ``max_results`` must be between 1 and 1000. Each result is a\n``Match`` with the file path, one-based line number and line text.\n\nripgrep's defaults apply: ``.gitignore``d (inside a git repository),\nhidden and binary files are skipped, and symlinks are not followed. No\nmatches returns ``[]``. Any ripgrep error -- an invalid pattern, a missing\n``path``, or a single unreadable file under it -- raises\n``subprocess.CalledProcessError`` and returns no partial results. ripgrep\nsearches files in parallel, so which matches are returned when\n``max_results`` is reached is unspecified. Contracts see a recursive read\nof ``path``.",
+      "description": "Return up to ``max_results`` lines under ``path`` matching ``pattern``.\n\n``pattern`` is a ripgrep (Rust) regular expression; the search is recursive.\n``glob`` limits file names, for example ``*.py``; an empty string searches\nall files. ``max_results`` must be between 1 and 1000. Each result is a\n``Match`` with the file path, one-based line number and line text.\n\nripgrep's defaults apply: ``.gitignore``d (inside a git repository),\nhidden and binary files are skipped, and a symlink encountered under\n``path`` is not followed -- but a symlink given as ``path`` itself is\nfollowed. The user's own ripgrep configuration (``RIPGREP_CONFIG_PATH``\nand the rest) is ignored, so these defaults cannot be changed from\noutside the call. Ignore files are honoured only at or below ``path``:\na ``.gitignore`` above ``path`` (including the global and repository\nexcludes) is not read, so a repository-root ``.gitignore`` applies when\nsearching ``.`` but not when searching a subdirectory of it; use\n``glob`` to narrow a search instead. No matches returns ``[]``. ripgrep\nsearches files in parallel, so which matches are returned when\n``max_results`` is reached is unspecified. Any ripgrep error -- an\ninvalid pattern, a missing ``path``, or a single unreadable file under\nit -- raises ``subprocess.CalledProcessError`` with no partial results,\nunless ``max_results`` is reached first, in which case the matches found\nso far are returned and no error is raised. Contracts see a recursive\nread of ``path``.",
       "is_a": "EffectCall"
     },
     "FilesystemTouch": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.touch",
-        "source_sha256": "2a06871963877ca8b35e732abeb5347cf0c2361e6719d839a89b55bfcde946ec"
+        "source_sha256": "dc4e4d30a3a7e8e6517502bb76accf2a25cdda6fa5e3f20d6a5e8ea70a2ce891"
       },
       "attributes": {
         "path": {
@@ -881,7 +881,7 @@
     "FilesystemWriteFile": {
       "annotations": {
         "python_symbol": "tools.filesystem.trusted.effects.write_file",
-        "source_sha256": "2a06871963877ca8b35e732abeb5347cf0c2361e6719d839a89b55bfcde946ec"
+        "source_sha256": "dc4e4d30a3a7e8e6517502bb76accf2a25cdda6fa5e3f20d6a5e8ea70a2ce891"
       },
       "attributes": {
         "content": {

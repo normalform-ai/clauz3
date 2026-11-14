@@ -24,6 +24,7 @@ import shutil
 import stat
 import subprocess
 import tempfile
+import threading
 from pathlib import Path
 
 import deal
@@ -234,20 +235,38 @@ def search_files(pattern: str, path: str, glob: str, max_results: int) -> list[M
     ``Match`` with the file path, one-based line number and line text.
 
     ripgrep's defaults apply: ``.gitignore``d (inside a git repository),
-    hidden and binary files are skipped, and symlinks are not followed. No
-    matches returns ``[]``. Any ripgrep error -- an invalid pattern, a missing
-    ``path``, or a single unreadable file under it -- raises
-    ``subprocess.CalledProcessError`` and returns no partial results. ripgrep
+    hidden and binary files are skipped, and a symlink encountered under
+    ``path`` is not followed -- but a symlink given as ``path`` itself is
+    followed. The user's own ripgrep configuration (``RIPGREP_CONFIG_PATH``
+    and the rest) is ignored, so these defaults cannot be changed from
+    outside the call. Ignore files are honoured only at or below ``path``:
+    a ``.gitignore`` above ``path`` (including the global and repository
+    excludes) is not read, so a repository-root ``.gitignore`` applies when
+    searching ``.`` but not when searching a subdirectory of it; use
+    ``glob`` to narrow a search instead. No matches returns ``[]``. ripgrep
     searches files in parallel, so which matches are returned when
-    ``max_results`` is reached is unspecified. Contracts see a recursive read
-    of ``path``.
+    ``max_results`` is reached is unspecified. Any ripgrep error -- an
+    invalid pattern, a missing ``path``, or a single unreadable file under
+    it -- raises ``subprocess.CalledProcessError`` with no partial results,
+    unless ``max_results`` is reached first, in which case the matches found
+    so far are returned and no error is raised. Contracts see a recursive
+    read of ``path``.
     """
     # No separate body check is needed: ``-e``, ``--`` and the ``./`` prefix
     # stop option injection, and the plain-path precondition is proved first.
     # The prefix is stripped again from reported paths.
     prefixed = not (path == "." or os.path.isabs(path) or path.startswith("./"))
     root = "./" + path if prefixed else path
-    command = ["rg", "--json", "-e", pattern]
+    command = [
+        "rg",
+        "--no-config",
+        "--no-ignore-parent",
+        "--no-ignore-global",
+        "--no-ignore-exclude",
+        "--json",
+        "-e",
+        pattern,
+    ]
     if glob:
         command += ["--glob", glob]
     command += ["--", root]
@@ -264,28 +283,46 @@ def search_files(pattern: str, path: str, glob: str, max_results: int) -> list[M
         ) as process,
     ):
         assert process.stdout is not None
-        for line in process.stdout:
-            event = json.loads(line)
-            if event["type"] != "match":
-                continue
-            data = event["data"]
-            found = _rg_text(data["path"])
-            matches.append(
-                Match(
-                    path=found.removeprefix("./") if prefixed else found,
-                    line_number=data["line_number"],
-                    text=_rg_text(data["lines"]).removesuffix("\n").removesuffix("\r"),
+        # process.wait(timeout=...) below only runs once stdout ends, so a
+        # slow or hung rg would otherwise block forever. This timer bounds
+        # the whole call, including the time spent streaming matches.
+        timed_out = threading.Event()
+
+        def _kill_on_timeout() -> None:
+            timed_out.set()
+            process.kill()
+
+        timer = threading.Timer(DEFAULT_TIMEOUT_SECONDS, _kill_on_timeout)
+        timer.start()
+        try:
+            for line in process.stdout:
+                event = json.loads(line)
+                if event["type"] != "match":
+                    continue
+                data = event["data"]
+                found = _rg_text(data["path"])
+                matches.append(
+                    Match(
+                        path=found.removeprefix("./") if prefixed else found,
+                        line_number=data["line_number"],
+                        text=_rg_text(data["lines"])
+                        .removesuffix("\n")
+                        .removesuffix("\r"),
+                    )
                 )
-            )
-            if len(matches) == max_results:
-                process.kill()
-                return matches
-        returncode = process.wait(timeout=DEFAULT_TIMEOUT_SECONDS)
-        if returncode not in (0, 1):
-            stderr.seek(0)
-            raise subprocess.CalledProcessError(
-                returncode, command, stderr=stderr.read().decode("utf-8")
-            )
+                if len(matches) == max_results:
+                    process.kill()
+                    return matches
+            if timed_out.is_set():
+                raise subprocess.TimeoutExpired(command, DEFAULT_TIMEOUT_SECONDS)
+            returncode = process.wait(timeout=DEFAULT_TIMEOUT_SECONDS)
+            if returncode not in (0, 1):
+                stderr.seek(0)
+                raise subprocess.CalledProcessError(
+                    returncode, command, stderr=stderr.read().decode("utf-8")
+                )
+        finally:
+            timer.cancel()
     return matches
 
 
@@ -344,11 +381,20 @@ def append_file(path: str, text: str) -> None:
 def edit_file(path: str, old: str, new: str, replace_all: bool = False) -> None:
     """Replace the exact text ``old`` with ``new`` in the existing file ``path``.
 
-    ``old`` must occur exactly once unless ``replace_all`` is true, in which
-    case every occurrence is replaced and at least one must exist. Otherwise
-    ``ValueError`` reports how many were found and the file is unchanged. The
-    file must exist; this never creates one. Line endings and permission bits
-    are preserved, and the new contents replace the file atomically.
+    Occurrences are counted at every position ``old`` starts, including
+    overlapping ones (``"aaa"`` contains two occurrences of ``"aa"``). ``old``
+    must occur exactly once unless ``replace_all`` is true, in which case
+    every non-overlapping occurrence, taken left to right, is replaced, and at
+    least one must exist. Otherwise ``ValueError`` reports how many were
+    found and the file is unchanged. The file must exist and be writable;
+    this never creates one, and raises ``PermissionError`` rather than
+    rewrite a read-only file. Line endings and permission bits are preserved.
+
+    The new contents are written to a temporary file in the same directory
+    and then renamed over ``path``, so this needs write permission on the
+    directory as well as the file, and a process killed between the write
+    and the rename can leave a stray ``.NAME.*.tmp`` sibling behind; the
+    rename itself is atomic, so ``path`` is never left half-written.
 
     Contracts see a read of ``path`` and a text write of ``new`` to ``path``.
     ``must_not_write`` and ``write_length_at_most`` therefore check only the
@@ -359,6 +405,8 @@ def edit_file(path: str, old: str, new: str, replace_all: bool = False) -> None:
     target = Path(path)
     with target.open(encoding="utf-8", newline="") as stream:
         text = stream.read()
+    if not os.access(target, os.W_OK):
+        raise PermissionError(f"edit_file cannot write {path}: file is not writable")
     found = sum(1 for _ in re.finditer(f"(?={re.escape(old)})", text))
     if found == 0 or (found > 1 and not replace_all):
         raise ValueError(

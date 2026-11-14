@@ -86,6 +86,16 @@ def test_missing_file_is_not_created(edit_file: Edit, tmp_path: Path) -> None:
     assert not target.exists()
 
 
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores permission bits")
+def test_refuses_a_read_only_file(edit_file: Edit, tmp_path: Path) -> None:
+    target = tmp_path / "a.py"
+    target.write_bytes(b"x = 1\n")
+    target.chmod(0o444)
+    with pytest.raises(PermissionError):
+        edit_file(str(target), "x", "y")
+    assert target.read_bytes() == b"x = 1\n"
+
+
 @pytest.mark.parametrize("old,new", [("", "x"), ("same", "same")])
 def test_preconditions_reject_empty_or_unchanged_text(
     edit_file: Edit, tmp_path: Path, old: str, new: str
