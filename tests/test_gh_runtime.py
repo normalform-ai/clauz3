@@ -95,3 +95,22 @@ def test_gh_refuses_aliases_and_extensions(
     monkeypatch.setattr(subprocess, "run", forbidden)
     with pytest.raises(deal.PreContractError, match="built-in"):
         gh_effect(command, "view", [], "cmungall/agent-deal")
+
+
+@pytest.mark.parametrize(
+    "command,action,args",
+    [("issue", "transfer", ["7", "other/repo"]), ("label", "clone", ["other/repo"])],
+)
+def test_gh_refuses_actions_that_reach_a_second_repository(
+    gh_effect: GhEffect,
+    monkeypatch: pytest.MonkeyPatch,
+    command: str,
+    action: str,
+    args: list[str],
+) -> None:
+    def forbidden(*args: object, **kwargs: object) -> None:
+        pytest.fail("a second-repository action reached the subprocess")
+
+    monkeypatch.setattr(subprocess, "run", forbidden)
+    with pytest.raises(deal.PreContractError, match="second repository"):
+        gh_effect(command, action, args, "cmungall/agent-deal")

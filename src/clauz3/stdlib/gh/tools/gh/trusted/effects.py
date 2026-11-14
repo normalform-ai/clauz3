@@ -74,6 +74,15 @@ def is_builtin_command(command: str) -> bool:
 
 
 @clauz3.requires(
+    lambda command, action, args, repo: (
+        not (
+            (command == "issue" and action == "transfer")
+            or (command == "label" and action == "clone")
+        )
+    ),
+    message="issue transfer and label clone reach a second repository",
+)
+@clauz3.requires(
     lambda command, action, args, repo: is_builtin_command(command),
     message="command must be a built-in gh command (no aliases or extensions)",
 )
@@ -93,8 +102,9 @@ def gh(command: str, action: str, args: list[str], repo: str) -> str:
     a single repository, which ``only_repo`` / ``only_owner`` can then pin.
 
     ``command`` must be one of gh's built-in commands (``is_builtin_command``,
-    a precondition), so
-    aliases and extensions are refused.
+    a precondition), so aliases and extensions are refused. ``issue transfer``
+    and ``label clone`` are refused too (a precondition): they take a second
+    repository as an ordinary argument, past ``--repo``.
 
     Refer to pull requests and issues by number, not by web address: gh
     resolves a URL against the URL's own repository, ignoring ``--repo``. Any

@@ -104,9 +104,8 @@ def only_repo(repo: str) -> ContractSpec:
     ``repo`` is the full ``owner/name`` slug passed as ``--repo``. The ``gh``
     effect refuses web-address arguments, which gh would resolve against the
     address's own repository instead.
-    Commands whose arguments name a second repository on purpose, such as
-    ``issue transfer`` and ``label clone``, still reach it; stack
-    ``never_actions(["transfer", "clone"])`` to exclude them.
+    It also refuses ``issue transfer`` and ``label clone``, which name a
+    second repository as an ordinary argument.
     """
     return Gh.all(lambda e: e.repo == repo)
 

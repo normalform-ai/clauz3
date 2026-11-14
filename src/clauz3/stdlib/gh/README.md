@@ -36,7 +36,8 @@ Import with `from tools.gh.trusted.effects import gh`:
   `gh <command> <action> <args...> --repo <repo>` and return its stdout.
   Preconditions: `command`, `action`, and `repo` non-empty; `command` is one
   of gh's built-in commands (`is_builtin_command`), so aliases and extensions
-  are refused.
+  are refused; `issue transfer` and `label clone` are refused because they
+  reach a second repository.
   Refer to pull requests and issues by number, not URL: gh resolves a URL
   against its own repository, ignoring `--repo`, so any argument containing
   `://` or `github.com` raises `ValueError`. Put text containing links in a
@@ -71,9 +72,9 @@ Import with `from tools.gh.trusted import contracts as gh_rules`:
 `read_only`, `only_commands`, and `never_actions` are name-set policies;
 `only_repo` is an equality policy and `only_owner` is a `str.startswith` prefix
 policy. `only_repo` and `only_owner` check the `--repo` value; web-address
-arguments that would override it are refused by the effect. Commands that name
-a second repository on purpose (`issue transfer`, `label clone`) can still
-reach it.
+arguments that would override it are refused by the effect, as are
+`issue transfer` and `label clone`, which name a second repository as an
+ordinary argument.
 
 ## Example
 
