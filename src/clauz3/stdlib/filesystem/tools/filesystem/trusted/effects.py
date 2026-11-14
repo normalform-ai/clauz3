@@ -16,6 +16,7 @@ can say.
 """
 
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -258,12 +259,14 @@ def edit_file(path: str, old: str, new: str, replace_all: bool = False) -> None:
 
     Contracts see a read of ``path`` and a text write of ``new`` to ``path``.
     ``must_not_write`` and ``write_length_at_most`` therefore check only the
-    inserted text, not the resulting file.
+    inserted text, not the resulting file. A symlink at ``path`` is replaced
+    by a regular file holding the new contents (the link's target is not
+    changed), as are hard links; ownership is not preserved.
     """
     target = Path(path)
     with target.open(encoding="utf-8", newline="") as stream:
         text = stream.read()
-    found = text.count(old)
+    found = sum(1 for _ in re.finditer(f"(?={re.escape(old)})", text))
     if found == 0 or (found > 1 and not replace_all):
         raise ValueError(
             f"edit_file needs exactly one occurrence of old in {path}, "
@@ -283,7 +286,7 @@ def edit_file(path: str, old: str, new: str, replace_all: bool = False) -> None:
         os.replace(temporary, target)
     except BaseException:
         # Remove the partial temporary file, then let the error propagate.
-        os.unlink(temporary)
+        Path(temporary).unlink(missing_ok=True)
         raise
 
 

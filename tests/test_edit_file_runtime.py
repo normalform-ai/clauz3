@@ -23,6 +23,17 @@ def test_replaces_a_unique_occurrence(edit_file: Edit, tmp_path: Path) -> None:
     target.write_text("x = 1\ny = 2\n")
     edit_file(str(target), "y = 2", "y = 3")
     assert target.read_text() == "x = 1\ny = 3\n"
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["a.py"]
+
+
+def test_overlapping_matches_count_every_position(
+    edit_file: Edit, tmp_path: Path
+) -> None:
+    target = tmp_path / "a.py"
+    target.write_text("aaa\n")
+    with pytest.raises(ValueError, match="found 2"):
+        edit_file(str(target), "aa", "b")
+    assert target.read_text() == "aaa\n"
 
 
 @pytest.mark.parametrize("text,found", [("x = 1\n", 0), ("y\ny\n", 2)])
