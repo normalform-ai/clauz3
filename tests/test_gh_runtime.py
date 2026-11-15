@@ -48,8 +48,21 @@ def test_gh_rejects_joined_long_flags_before_subprocess(
         gh_effect("pr", "merge", args, "cmungall/agent-deal")
 
 
-def test_gh_passes_separate_flags_and_appends_repo(
-    gh_effect: GhEffect, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    "command,action,args",
+    [
+        ("pr", "comment", ["42", "--body", "a=b"]),
+        # A trailing value-taking flag must not swallow the repository.
+        ("label", "create", ["bug", "--description"]),
+        ("release", "create", ["v1", "--notes"]),
+    ],
+)
+def test_gh_pins_repo_before_agent_arguments(
+    gh_effect: GhEffect,
+    monkeypatch: pytest.MonkeyPatch,
+    command: str,
+    action: str,
+    args: list[str],
 ) -> None:
     calls: list[list[str]] = []
 
@@ -58,11 +71,26 @@ def test_gh_passes_separate_flags_and_appends_repo(
         return subprocess.CompletedProcess(argv, 0, stdout="ok", stderr="")
 
     monkeypatch.setattr(subprocess, "run", record)
-    result = gh_effect("pr", "comment", ["42", "--body", "a=b"], "cmungall/agent-deal")
-    assert result == "ok"
-    assert calls == [
-        ["gh", "pr", "comment", "42", "--body", "a=b", "--repo", "cmungall/agent-deal"]
-    ]
+    assert gh_effect(command, action, args, "cmungall/agent-deal") == "ok"
+    assert calls == [["gh", command, action, "--repo", "cmungall/agent-deal", *args]]
+
+
+@pytest.mark.usefixtures("no_gh_subprocess")
+@pytest.mark.parametrize(
+    "args", [["-wS", "repo:other/victim"], ["-Srepo:other/victim"]]
+)
+def test_gh_refuses_search_inside_short_option_groups(
+    gh_effect: GhEffect, args: list[str]
+) -> None:
+    with pytest.raises(ValueError, match="-S"):
+        gh_effect("pr", "list", args, "cmungall/agent-deal")
+
+
+@pytest.mark.usefixtures("no_gh_subprocess")
+@pytest.mark.parametrize("repo", ["ghe.example.com/owner/name", "a/b/c/d"])
+def test_gh_refuses_host_qualified_repositories(gh_effect: GhEffect, repo: str) -> None:
+    with pytest.raises((ValueError, deal.PreContractError), match="owner/name"):
+        gh_effect("pr", "list", [], repo)
 
 
 @pytest.mark.parametrize(

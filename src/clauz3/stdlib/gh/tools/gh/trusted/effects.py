@@ -1,7 +1,7 @@
 """Trusted GitHub-CLI effect: a real (non-mock) ``gh`` subprocess.
 
 ``gh`` runs a single GitHub CLI invocation of the shape
-``gh <command> <action> <args...> --repo <repo>`` and returns its stdout. It
+``gh <command> <action> --repo <repo> <args...>`` and returns its stdout. It
 is recorded by name so the contracts in ``contracts.py`` can scope which
 GitHub objects an agent may touch (``command``, e.g. ``pr`` / ``issue``),
 which verbs it may run (``action``, e.g. ``view`` / ``merge``), and which
@@ -71,6 +71,18 @@ def is_builtin_command(command: str) -> bool:
         "status",
         "variable",
     ]
+
+
+def is_owner_name_slug(repo: str) -> bool:
+    """Whether ``repo`` is exactly ``owner/name`` (one ``/``, no empty parts).
+
+    gh reads a three-part ``HOST/OWNER/REPO`` slug as naming a host, which
+    would let ``only_owner("ghe.example.com")`` admit any owner on that host.
+
+    >>> [is_owner_name_slug(r) for r in ["a/b", "h/a/b", "a/", "/b", "ab"]]
+    [True, False, False, False, False]
+    """
+    return repo.count("/") == 1 and not repo.startswith("/") and not repo.endswith("/")
 
 
 def is_canonical_action(command: str, action: str) -> bool:
@@ -145,9 +157,15 @@ def _argument_error(arg: str) -> str | None:
     short = arg[1:] if arg.startswith("-") and not arg.startswith("--") else ""
     if "o" in short or "u" in short or "R" in short:
         return "contains -o, -u or -R, which widen the command past --repo"
+    if len(short) > 1 and "S" in short:
+        return "groups -S (search) with other letters; pass -S as its own argument"
     return None
 
 
+@clauz3.requires(
+    lambda command, action, args, repo: is_owner_name_slug(repo),
+    message="repo must be an owner/name slug (no host prefix)",
+)
 @clauz3.requires(
     lambda command, action, args, repo: has_no_scope_flags(args),
     message="args must not widen the command past its --repo repository",
@@ -173,11 +191,15 @@ def _argument_error(arg: str) -> str | None:
 @deal.has("network", "io", "syscall")
 @clauz3.trusted
 def gh(command: str, action: str, args: list[str], repo: str) -> str:
-    """Run ``gh <command> <action> <args...> --repo <repo>`` and return stdout.
+    """Run ``gh <command> <action> --repo <repo> <args...>`` and return stdout.
 
     Arguments are passed as an explicit vector, so no field is interpreted by a
     shell. ``repo`` is always supplied as ``--repo`` so every call is scoped to
-    a single repository, which ``only_repo`` / ``only_owner`` can then pin.
+    a single repository, which ``only_repo`` / ``only_owner`` can then pin. It
+    comes before the agent's ``args`` (gh accepts flags anywhere), so a
+    trailing value-taking flag such as ``--body`` cannot swallow it. ``repo``
+    must be an ``owner/name`` slug: gh reads ``HOST/OWNER/REPO`` as naming a
+    host.
 
     Refused, as preconditions and again in the body (Deal's runtime checks
     are optional, so the body never relies on them):
@@ -203,10 +225,14 @@ def gh(command: str, action: str, args: list[str], repo: str) -> str:
       (``["--body", "text"]``), so ``no_admin_override`` can check for
       ``"--admin"`` by exact membership without ``--admin=true`` slipping
       past it (gh accepts no flag abbreviations);
-    - short-option groups containing ``o``, ``u`` or ``R`` (``-Rother/repo``).
+    - short-option groups containing ``o``, ``u`` or ``R`` (``-Rother/repo``),
+      or ``S`` with other letters (``-wS``); ``-S`` alone is allowed, and
+      ``only_repo`` / ``only_owner`` forbid it.
     """
     if not (len(command) > 0 and len(action) > 0 and len(repo) > 0):
         raise ValueError("command, action, and repo must be non-empty")
+    if not is_owner_name_slug(repo):
+        raise ValueError(f"gh repo {repo!r} must be an owner/name slug")
     if not is_builtin_command(command):
         raise ValueError(f"gh command {command!r} is not a built-in gh command")
     if reaches_second_repository(command, action):
@@ -218,7 +244,7 @@ def gh(command: str, action: str, args: list[str], repo: str) -> str:
         if reason is not None:
             raise ValueError(f"gh argument {arg!r} is refused: it {reason}")
     completed = subprocess.run(  # noqa: S603
-        ["gh", command, action, *args, "--repo", repo],
+        ["gh", command, action, "--repo", repo, *args],
         capture_output=True,
         text=True,
         timeout=DEFAULT_TIMEOUT_SECONDS,

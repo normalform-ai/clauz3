@@ -97,7 +97,12 @@ def never_actions(blocklist: list[str]) -> ContractSpec:
     return Gh.all(lambda e: e.action not in blocklist)
 
 
-@contract(description="GitHub commands work only on the repository {repo}.")
+@contract(
+    description=(
+        "GitHub commands work only on the repository {repo}; GitHub-wide search "
+        "and search filters are not allowed."
+    )
+)
 def only_repo(repo: str) -> ContractSpec:
     """Guarantee every GitHub command works on the repository ``repo``.
 
@@ -105,22 +110,44 @@ def only_repo(repo: str) -> ContractSpec:
     effect refuses web-address arguments, which gh would resolve against the
     address's own repository instead.
     It also refuses ``issue transfer`` and ``label clone``, which name a
-    second repository as an ordinary argument.
+    second repository as an ordinary argument. ``gh search`` and the
+    ``--search``/``-S`` filters of ``list`` commands are forbidden, because a
+    query qualifier such as ``repo:other/name`` reaches other repositories.
     """
-    return Gh.all(lambda e: e.repo == repo)
+    return Gh.all(
+        lambda e: (
+            e.repo == repo
+            and e.command != "search"
+            and "--search" not in e.args
+            and "-S" not in e.args
+        )
+    )
 
 
-@contract(description="GitHub commands work only on repositories owned by {owner}.")
+@contract(
+    description=(
+        "GitHub commands work only on repositories owned by {owner}; GitHub-wide "
+        "search and search filters are not allowed."
+    )
+)
 def only_owner(owner: str) -> ContractSpec:
     """Guarantee every GitHub command works on a repository owned by ``owner``.
 
     Matches any ``owner/<name>`` slug passed as ``--repo``, so an agent can
     range over one organization's repositories without naming each one. As
     with ``only_repo``, web-address arguments are refused by the ``gh``
-    effect.
+    effect and search is forbidden. The effect accepts only ``owner/name``
+    slugs, so a ``HOST/OWNER/REPO`` slug cannot pass for an owner.
     """
     prefix = owner + "/"
-    return Gh.all(lambda e: e.repo.startswith(prefix))
+    return Gh.all(
+        lambda e: (
+            e.repo.startswith(prefix)
+            and e.command != "search"
+            and "--search" not in e.args
+            and "-S" not in e.args
+        )
+    )
 
 
 @contract(description="At most {count} GitHub commands are run.")

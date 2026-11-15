@@ -154,8 +154,9 @@ def no_push() -> ContractSpec:
     Forbids ``git_push``. The general ``git`` effect refuses ``push`` and
     every other pushing command or alias, but commands that can be told to
     run arbitrary programs (``rebase --exec``, ``submodule foreach``,
-    ``bisect run``, ``fetch --upload-pack``, hooks enabled by ``config``)
-    can still push; ``read_only()`` excludes them.
+    ``bisect run``, ``fetch --upload-pack``, ``grep -O``, or settings that
+    name a program, such as ``core.fsmonitor``) can still push;
+    ``read_only()`` excludes them. Hooks never run: the effects disable them.
     """
     return Push.empty()
 

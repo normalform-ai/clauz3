@@ -26,6 +26,12 @@ from clauz3._path_safety import has_no_parent_segments
 
 DEFAULT_TIMEOUT_SECONDS = 120
 
+#: Prepended to every git command line. Allowed commands can write files into
+#: ``.git/hooks`` (``checkout-index --prefix=.git/``), and a later ``commit``
+#: would run such a hook, so hooks are disabled for every call by pointing
+#: ``core.hooksPath`` at a path that contains none.
+NO_HOOKS = ["-c", "core.hooksPath=/dev/null"]
+
 
 def is_builtin_subcommand(subcommand: str) -> bool:
     """Whether the general ``git`` effect may run ``subcommand``.
@@ -50,8 +56,10 @@ def is_builtin_subcommand(subcommand: str) -> bool:
     otherwise push past ``no_push()``. Pushes go through ``git_push``.
     Commands that can still be told to run another program (``rebase
     --exec``, ``submodule foreach``, ``bisect run``, ``fetch
-    --upload-pack``, hooks enabled through ``config``) remain; contract
-    descriptions say they are not covered. The list is written inline
+    --upload-pack``, ``grep -O``/``--open-files-in-pager``, or settings
+    that name a program, such as ``core.fsmonitor`` or a filter driver)
+    remain; contract descriptions say they are not covered. Hooks never run:
+    see ``NO_HOOKS``. The list is written inline
     because preconditions cannot read module-level constants.
     """
     return subcommand in [
@@ -225,7 +233,7 @@ def git(subcommand: str, args: list[str], cwd: str) -> str:
         if arg.startswith("--output"):
             raise ValueError(f"git argument {arg!r} is refused: --output writes a file")
     completed = subprocess.run(  # noqa: S603
-        ["git", "-C", cwd, subcommand, *args],
+        ["git", *NO_HOOKS, "-C", cwd, subcommand, *args],
         capture_output=True,
         text=True,
         timeout=DEFAULT_TIMEOUT_SECONDS,
@@ -267,7 +275,7 @@ def git_push(remote: str, branch: str, cwd: str) -> str:
     if remote.startswith("-") or branch.startswith("-"):
         raise ValueError("remote and branch must not start with '-'")
     completed = subprocess.run(  # noqa: S603
-        ["git", "-C", cwd, "push", remote, branch],
+        ["git", *NO_HOOKS, "-C", cwd, "push", remote, branch],
         capture_output=True,
         text=True,
         timeout=DEFAULT_TIMEOUT_SECONDS,

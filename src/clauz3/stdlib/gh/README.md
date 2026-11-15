@@ -10,7 +10,7 @@ contract. The body runs only under `clauz3 run`, after a program is proved and
 approved. Arguments are passed as an explicit vector (never a shell string), so
 no field is interpreted by a shell.
 
-Every invocation has the shape `gh <command> <action> <args...> --repo <repo>`.
+Every invocation has the shape `gh <command> <action> --repo <repo> <args...>`.
 Recording `command` (the GitHub object, e.g. `pr`) and `action` (the verb, e.g.
 `view`) separately is the policy surface a raw shell allowlist cannot express:
 `read_only` constrains the verb while `only_commands` and `only_repo`
@@ -33,7 +33,9 @@ clauz3 prove --trusted-root tools/gh/trusted plan.py
 Import with `from tools.gh.trusted.effects import gh`:
 
 - `gh(command: str, action: str, args: list[str], repo: str) -> str` — run
-  `gh <command> <action> <args...> --repo <repo>` and return its stdout.
+  `gh <command> <action> --repo <repo> <args...>` and return its stdout.
+  `--repo` comes first, so a trailing value-taking flag cannot swallow it, and
+  `repo` must be an `owner/name` slug (gh reads `HOST/OWNER/REPO` as a host).
   Preconditions: `command`, `action`, and `repo` non-empty; `command` is one
   of gh's built-in commands (`is_builtin_command`), so aliases and extensions
   are refused; action aliases are refused (`is_canonical_action`: write
@@ -58,7 +60,8 @@ earlier calls):
 - `--flag=value`: pass long flags as separate arguments (`["--body", "text"]`),
   so each flag has one spelling a contract can check. gh accepts no flag
   abbreviations, so `--adm` is not `--admin`.
-- Short-option groups containing `o`, `u` or `R`, such as `-Rother/repo`.
+- Short-option groups containing `o`, `u` or `R`, such as `-Rother/repo`, or
+  `S` grouped with other letters (`-wS`).
 
 ## Contracts
 
@@ -73,9 +76,9 @@ Import with `from tools.gh.trusted import contracts as gh_rules`:
 - `gh_rules.never_actions(blocklist)` — no action (verb) is in `blocklist`,
   e.g. `never_actions(["merge", "close", "delete"])`.
 - `gh_rules.only_repo(repo)` — every invocation targets the `owner/name` slug
-  `repo`.
+  `repo`, and none uses `gh search` or a `--search`/`-S` filter.
 - `gh_rules.only_owner(owner)` — every targeted repository belongs to `owner`
-  (matches any `owner/<name>` slug).
+  (matches any `owner/<name>` slug), and none uses search.
 - `gh_rules.runs_at_most(count)` — at most `count` invocations occur.
 - `gh_rules.no_admin_override()` — no invocation passes `--admin`, which
   overrides branch protection and required reviews (e.g. `gh pr merge 42
@@ -87,7 +90,8 @@ Import with `from tools.gh.trusted import contracts as gh_rules`:
 policy. `only_repo` and `only_owner` check the `--repo` value; web-address
 arguments that would override it are refused by the effect, as are
 `issue transfer` and `label clone`, which name a second repository as an
-ordinary argument.
+ordinary argument. Search is forbidden under both because a query qualifier
+such as `repo:other/name` reaches other repositories.
 
 ## Example
 

@@ -65,7 +65,18 @@ def test_git_runs_inspection_commands(
 
     monkeypatch.setattr(subprocess, "run", record)
     assert git_effects.git("log", ["--oneline", "-5"], "/repo") == "ok"
-    assert calls == [["git", "-C", "/repo", "log", "--oneline", "-5"]]
+    assert calls == [
+        [
+            "git",
+            "-c",
+            "core.hooksPath=/dev/null",
+            "-C",
+            "/repo",
+            "log",
+            "--oneline",
+            "-5",
+        ]
+    ]
 
 
 @pytest.mark.usefixtures("no_subprocess")
@@ -119,3 +130,21 @@ def test_git_push_refuses_options_as_remote_or_branch(
 ) -> None:
     with pytest.raises(deal.PreContractError, match="start with"):
         git_effects.git_push(remote, branch, "/repo")
+
+
+def test_git_never_runs_repository_hooks(
+    git_effects: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A hook written into .git/hooks must not run, so it cannot push."""
+    for name in ("AUTHOR", "COMMITTER"):
+        monkeypatch.setenv(f"GIT_{name}_NAME", "Test")
+        monkeypatch.setenv(f"GIT_{name}_EMAIL", "test@example.com")
+    repo = tmp_path / "repo"
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    marker = tmp_path / "hook-ran"
+    hook = repo / ".git/hooks/post-commit"
+    hook.write_text(f"#!/bin/sh\ntouch {marker}\n")
+    hook.chmod(0o755)
+    git_effects.git("commit", ["--allow-empty", "-q", "-m", "x"], str(repo))
+    assert git_effects.git("log", ["--oneline"], str(repo)).strip()
+    assert not marker.exists()

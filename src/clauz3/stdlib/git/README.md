@@ -41,6 +41,9 @@ Import with `from tools.git.trusted.effects import git, git_push`:
   `remote` from the repo at `cwd`. Preconditions: all three non-empty;
   `remote` and `branch` do not start with `-`.
 
+Every git command runs with `-c core.hooksPath=/dev/null`, so repository hooks
+never run, even ones the program writes into `.git/hooks`.
+
 Preconditions are checked by the prover and again by the effect bodies when
 the program runs. One check happens **only when the program runs**: an
 argument starting with `--output` (which makes `diff`/`log`/`show` write a
@@ -62,9 +65,10 @@ Import with `from tools.git.trusted import contracts as git_rules`:
 - `git_rules.only_in(root)` — every subcommand and push runs in a directory
   whose path starts with `root`.
 - `git_rules.runs_at_most(count)` — at most `count` subcommands run.
-- `git_rules.no_push()` — the program performs no pushes. Commands that run
-  other programs (`rebase --exec`, `submodule foreach`, hooks) are not
-  covered; `read_only()` excludes them.
+- `git_rules.no_push()` — the program performs no pushes. Commands that can be
+  told to run other programs (`rebase --exec`, `submodule foreach`,
+  `bisect run`, `fetch --upload-pack`, `grep -O`, settings such as
+  `core.fsmonitor`) are not covered; `read_only()` excludes them.
 - `git_rules.only_push_to_remote(remote)` — every push targets `remote`.
 - `git_rules.only_push_to_branch(branch)` — every push targets `branch`.
 
