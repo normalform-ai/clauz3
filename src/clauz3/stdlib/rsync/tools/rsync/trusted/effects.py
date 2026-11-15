@@ -38,7 +38,8 @@ DEFAULT_TIMEOUT_SECONDS = 600
 #:   ``--keep-dirlinks``, which follows symlinked directories in the
 #:   destination;
 #: - read elsewhere: ``--compare-dest``, ``--copy-dest``, ``--link-dest``,
-#:   ``--files-from``, ``--read-batch``, ``--early-input``;
+#:   ``--files-from``, ``--read-batch``, ``--early-input``, and
+#:   ``--password-file``, which reads a local file and sends it to the daemon;
 #: - run programs or steer the remote side: ``--rsh``, ``--rsync-path``,
 #:   ``--remote-option``, ``--daemon``, ``--server``, ``--sender``.
 #:
@@ -62,6 +63,7 @@ REFUSED_LONG_OPTIONS = [
     "--files-from",
     "--read-batch",
     "--early-input",
+    "--password-file",
     "--rsh",
     "--rsync-path",
     "--remote-option",
@@ -107,6 +109,7 @@ def has_no_refused_option_names(args: list[str]) -> bool:
         and "--files-from" not in args
         and "--read-batch" not in args
         and "--early-input" not in args
+        and "--password-file" not in args
         and "--rsh" not in args
         and "--rsync-path" not in args
         and "--remote-option" not in args
@@ -140,6 +143,12 @@ def _refused(arg: str) -> bool:
 
 
 @clauz3.requires(
+    lambda src, dest, delete, args: (
+        not src.startswith("-") and not dest.startswith("-")
+    ),
+    message="src and dest must not start with '-' (they would be options)",
+)
+@clauz3.requires(
     lambda src, dest, delete, args: has_no_refused_option_names(args),
     message="args must not delete, write or read elsewhere, or run programs",
 )
@@ -164,6 +173,10 @@ def rsync(src: str, dest: str, delete: bool, args: list[str]) -> str:
     Where the sync may write (``only_dest_under``) is an agent-stated guarantee
     recorded as the ``rsync`` effect.
 
+    ``src`` and ``dest`` may not start with ``-``: rsync reads options even
+    after the paths, so ``dest="--delete"`` would turn on deletion and make
+    the last path in ``args`` the destination.
+
     ``args`` may not contain an option that deletes, writes outside ``dest``,
     reads other than from the named sources, or runs another program (see
     ``REFUSED_LONG_OPTIONS`` and ``REFUSED_SHORT_OPTIONS``); one raises
@@ -181,6 +194,8 @@ def rsync(src: str, dest: str, delete: bool, args: list[str]) -> str:
         raise ValueError("src and dest must be non-empty")
     if not (has_no_parent_segments(src) and has_no_parent_segments(dest)):
         raise ValueError("src and dest must not contain parent-directory segments")
+    if src.startswith("-") or dest.startswith("-"):
+        raise ValueError("src and dest must not start with '-'")
     for arg in args:
         if _refused(arg):
             raise ValueError(f"rsync option {arg!r} is refused")

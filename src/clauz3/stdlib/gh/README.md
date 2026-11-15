@@ -59,7 +59,8 @@ earlier calls):
   resolves a URL against its own repository, ignoring `--repo`, so any
   argument containing `://` or `github.com` raises `ValueError`, as does a
   scheme-less address such as `ghe.example.com/owner/repo/pull/5` or
-  `owner/repo/issues/7` (gh would add `https://` and use its repository). Put text
+  `owner/repo/issues/7` (gh would add `https://` and use its repository),
+  including percent-encoded spellings such as `pu%6cl/5`. Put text
   containing links in a file and pass `--body-file`.
 - `--flag=value`: pass long flags as separate arguments (`["--body", "text"]`),
   so each flag has one spelling a contract can check. gh accepts no flag
