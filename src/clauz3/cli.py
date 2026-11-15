@@ -875,6 +875,7 @@ def _approval_service(args: argparse.Namespace) -> int:
         ApprovalServiceError,
         ApprovalPolicyError,
         ApprovalAuthorizationError,
+        OSError,  # The port could not be bound, e.g. it is already in use.
     ) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2

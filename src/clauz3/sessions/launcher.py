@@ -30,7 +30,7 @@ from clauz3.approvals.client import (
     APPROVAL_SERVICE_ENV,
     APPROVAL_TOKEN_ENV,
 )
-from clauz3.approvals.login_links import remove_login_url, save_login_url
+from clauz3.approvals.login_links import forget_link, keep_link
 from clauz3.approvals.policy import load_approval_policy
 from clauz3.approvals.receipts import SIGNING_KEY_ENV, VERIFY_KEY_ENV, generate_keypair
 from clauz3.libraries.install import InstallError
@@ -425,7 +425,7 @@ def start_session(
     base_env["no_proxy"] = base_env["NO_PROXY"] = f"{no_proxy},127.0.0.1,localhost"
     service: subprocess.Popen[bytes] | None = None
     harness: subprocess.Popen[bytes] | None = None
-    login_url: str | None = None
+    saved_link: str | None = None
     try:
         with (
             _handle_termination(),
@@ -532,19 +532,22 @@ def start_session(
                     raise
                 listener.close()
                 login_url = f"{url}/ui/login?key={decision}"
-                save_login_url(login_url)
+                if keep_link(login_url):
+                    saved_link = login_url
                 print(f"Approval service: {url}", file=sys.stderr)
                 print(
                     f"Approver UI (keep private): {login_url}",
                     file=sys.stderr,
-                )
-                # The key changes on every start, signing out open tabs.
-                print(
-                    "Signed out after a restart? Run `clauz3 login-url` "
-                    "to print the current link.",
-                    file=sys.stderr,
                     flush=True,
                 )
+                if saved_link is not None:
+                    # The key changes on every start, signing out open tabs.
+                    print(
+                        "Signed out after a restart? Run `clauz3 login-url` "
+                        "to print the current link.",
+                        file=sys.stderr,
+                        flush=True,
+                    )
                 if open_browser:
                     try:
                         opened = webbrowser.open(login_url)
@@ -612,8 +615,8 @@ def start_session(
             finally:
                 _stop(harness)
                 _stop(service)
-                if login_url is not None:
-                    remove_login_url(login_url)
+                if saved_link is not None:
+                    forget_link(saved_link)
                 if service is not None:
                     print("Approval service stopped.", file=sys.stderr)
                 if harness is not None:

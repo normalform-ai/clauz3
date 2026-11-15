@@ -65,7 +65,8 @@ The launcher prints the private sign-in link and saves it, mode 0600, as
 start mints a new approver key, so a tab left open across a restart holds a
 stale session cookie. `web/signed-out.js` loads before the other scripts and
 wraps `fetch`: the first 401 from any request, or a chat socket closed with
-1008, replaces the whole page with one message saying the tab is signed out,
+1008, replaces the whole page (that request, and any later one, never settles,
+so no script's error handling writes to the removed elements) with one message saying the tab is signed out,
 usually after a restart, and to run `clauz3 login-url`. The stale conversation
 and its approval cards are removed rather than left looking usable; 403 means a
 refused request, not a lost sign-in, so it does not sign the tab out. The

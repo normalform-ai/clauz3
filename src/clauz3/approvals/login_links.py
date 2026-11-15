@@ -8,20 +8,58 @@ for ``clauz3 login-url`` to print. Nothing else reads or prints these files.
 >>> url = "http://127.0.0.1:8765/ui/login?key=secret"
 >>> _port(url)
 8765
+>>> _port(http_origin("::1", 8765) + "/ui/login?key=secret")
+8765
 """
 
+import json
 import os
 import secrets
-import socket
+import sys
 from contextlib import suppress
 from pathlib import Path
 from urllib.parse import urlsplit
+from urllib.request import ProxyHandler, Request, build_opener
 
 from clauz3.libraries.discovery import global_library_root
 
 
 class LoginLinkError(Exception):
     """No running clauz3 server has a saved sign-in link."""
+
+
+def http_origin(host: str, port: int) -> str:
+    """The ``http://`` origin for a bind host, bracketing an IPv6 address.
+
+    >>> http_origin("127.0.0.1", 8765)
+    'http://127.0.0.1:8765'
+    >>> http_origin("::1", 8765)
+    'http://[::1]:8765'
+    """
+    return f"http://[{host}]:{port}" if ":" in host else f"http://{host}:{port}"
+
+
+def keep_link(url: str) -> bool:
+    """Save ``url`` if the user store allows it; otherwise warn and go on.
+
+    The saved file is only a convenience copy of a link the server already
+    printed, so a read-only or broken store must not stop the server. The
+    warning never includes the link.
+    """
+    try:
+        save_login_url(url)
+    except (OSError, ValueError) as exc:
+        _warn("save", exc)
+        return False
+    return True
+
+
+def forget_link(url: str) -> None:
+    """Remove a link saved by :func:`keep_link`, warning if that fails."""
+    try:
+        remove_login_url(url)
+    except (OSError, ValueError) as exc:
+        _warn("remove", exc)
 
 
 def login_links_dir() -> Path:
@@ -65,7 +103,7 @@ def login_url(port: int | None = None) -> str:
                 f"no clauz3 server sign-in link is saved for port {port}; "
                 "start one with `clauz3 ui`"
             )
-        if not _listening(url):
+        if not _serving(url):
             raise LoginLinkError(
                 f"the clauz3 server on port {port} is not running; "
                 "start it again with `clauz3 ui`"
@@ -78,7 +116,7 @@ def login_url(port: int | None = None) -> str:
     )
     for path in paths:
         url = _read(path)
-        if url is not None and _listening(url):
+        if url is not None and _serving(url):
             return url
     raise LoginLinkError("no clauz3 server is running; start one with `clauz3 ui`")
 
@@ -109,14 +147,33 @@ def _port(url: str) -> int:
     return port
 
 
-def _listening(url: str) -> bool:
-    """Whether something accepts connections at the link's host and port.
+def _serving(url: str) -> bool:
+    """Whether a clauz3 server answers the link's unauthenticated health check.
 
-    Only a TCP connection is made; the key is never sent anywhere.
+    The request goes to ``/health`` only and carries no key. A port now used by
+    another program, or a silent one, does not count as a running server.
     """
     parts = urlsplit(url)
+    request = Request(
+        f"{parts.scheme}://{parts.netloc}/health",
+        # The service's host allow-list always includes 127.0.0.1, and its
+        # host check cannot parse a bracketed IPv6 Host header.
+        headers={"Host": f"127.0.0.1:{_port(url)}"},
+    )
     try:
-        with socket.create_connection((parts.hostname, _port(url)), timeout=1):
-            return True
+        with build_opener(ProxyHandler({})).open(request, timeout=1) as response:
+            body = response.read(256)
     except OSError:
         return False
+    try:
+        return bool(json.loads(body) == {"ok": True})
+    except ValueError:
+        return False
+
+
+def _warn(action: str, exc: OSError | ValueError) -> None:
+    # ``exc`` describes a store path or a malformed port, never the key.
+    print(
+        f"warning: could not {action} the sign-in link for `clauz3 login-url`: {exc}",
+        file=sys.stderr,
+    )

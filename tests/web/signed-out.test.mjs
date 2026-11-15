@@ -62,12 +62,21 @@ test("only a missing or stale sign-in counts as signed out", () => {
   for (const code of [1000, 1006, 1013, 4001]) assert.equal(api.close(code), false);
 });
 
+// Resolves to "pending" when a promise has not settled after other tasks ran.
+const settled = (promise) =>
+  Promise.race([
+    promise.then(() => "resolved", () => "rejected"),
+    new Promise((resolve) => setTimeout(() => resolve("pending"), 20)),
+  ]);
+
 test("a 401 from any request replaces the page with one signed-out message", async () => {
   const { api, document, fetch, requests } = load([200, 401]);
   assert.equal((await fetch("/ui/rows")).status, 200);
   assert.equal(api.active, false);
   assert.match(document.body.text, /Your approval needed/);
-  assert.equal((await fetch("/api/chat/conversations")).status, 401);
+  // The caller never resumes, so no catch or finally block of any script
+  // writes to elements that are no longer on the page.
+  assert.equal(await settled(fetch("/api/chat/conversations")), "pending");
   assert.deepEqual(requests, ["/ui/rows", "/api/chat/conversations"]);
   assert.equal(api.active, true);
   assert.equal(document.title, "Clauz3 · Signed out");
@@ -93,4 +102,11 @@ test("entering twice keeps a single message", () => {
   const [page] = document.body.children;
   api.enter(document);
   assert.deepEqual(document.body.children, [page]);
+});
+
+test("once signed out, later requests are not sent and never settle", async () => {
+  const { api, document, fetch, requests } = load([200]);
+  api.enter(document);
+  assert.equal(await settled(fetch("/api/workspace/libraries")), "pending");
+  assert.deepEqual(requests, []);
 });

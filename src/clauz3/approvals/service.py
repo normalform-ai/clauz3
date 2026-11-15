@@ -2,6 +2,7 @@
 
 import hmac
 import secrets
+import socket
 import threading
 import time
 from collections.abc import Mapping, Sequence
@@ -38,7 +39,7 @@ from clauz3.approvals.decisions import (
     parse_decision,
 )
 from clauz3.approvals.descriptions import render_guarantees
-from clauz3.approvals.login_links import remove_login_url, save_login_url
+from clauz3.approvals.login_links import forget_link, http_origin, keep_link
 from clauz3.approvals.policy import (
     ApprovalPolicy,
     auto_approval_response,
@@ -1245,18 +1246,23 @@ def serve_approval_service(
         decision_token=decision_token,
         allowed_hosts=allowed_hosts,
     )
-    print(f"{APPROVAL_SERVICE_ENV}=http://{host}:{port}", flush=True)
-    if auth_token:
-        print(f"CLAUZ3_APPROVAL_TOKEN={auth_token}", flush=True)
-    approver_token = decision_token if decision_token is not None else auth_token
-    if not approver_token:
-        uvicorn.run(app, host=host, port=port)
-        return
-    login_url = f"http://{host}:{port}/ui/login?key={approver_token}"
-    save_login_url(login_url)
-    print(f"approver UI (keep private): {login_url}")
-    print("Run `clauz3 login-url` to print this link again.", flush=True)
-    try:
-        uvicorn.run(app, host=host, port=port)
-    finally:
-        remove_login_url(login_url)
+    # Bind before printing or saving anything: a second service on a busy port
+    # must fail here, without replacing the running server's saved link.
+    family = socket.AF_INET6 if ":" in host else socket.AF_INET
+    with socket.create_server((host, port), family=family) as listener:
+        origin = http_origin(host, listener.getsockname()[1])
+        print(f"{APPROVAL_SERVICE_ENV}={origin}", flush=True)
+        if auth_token:
+            print(f"CLAUZ3_APPROVAL_TOKEN={auth_token}", flush=True)
+        approver_token = decision_token if decision_token is not None else auth_token
+        login_url = f"{origin}/ui/login?key={approver_token}"
+        saved = bool(approver_token) and keep_link(login_url)
+        if approver_token:
+            print(f"approver UI (keep private): {login_url}")
+        if saved:
+            print("Run `clauz3 login-url` to print this link again.", flush=True)
+        try:
+            uvicorn.Server(uvicorn.Config(app)).run(sockets=[listener])
+        finally:
+            if saved:
+                forget_link(login_url)

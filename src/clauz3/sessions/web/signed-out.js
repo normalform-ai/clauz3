@@ -51,12 +51,17 @@ globalThis.clauz3SignedOut = (() => {
       doc.title = "Clauz3 · Signed out";
       doc.body.replaceChildren(page);
     },
-    // Every script's requests go through fetch, so one wrapper covers them all.
+    // Every script's requests go through fetch, so one wrapper covers them
+    // all. A signed-out request never settles: the replaced page has none of
+    // the elements the callers' catch and finally blocks would update.
     watch(fetcher) {
+      const never = () => new Promise(() => {});
       return async (...args) => {
+        if (active) return never();
         const result = await fetcher(...args);
-        if (api.response(result.status)) api.enter();
-        return result;
+        if (!api.response(result.status)) return result;
+        api.enter();
+        return never();
       };
     },
   };

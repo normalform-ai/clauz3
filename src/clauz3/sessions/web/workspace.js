@@ -447,7 +447,7 @@
     pollBusy = true;
     try {
       const response = await fetch("/ui/rows", { cache: "no-store" });
-      // A 401 has already replaced the page with the signed-out message.
+      // A 401 replaces the page with the signed-out message and never returns.
       if (!response.ok) throw new Error("Cannot load approvals. Retrying…");
       const template = document.createElement("template");
       template.innerHTML = await response.text();

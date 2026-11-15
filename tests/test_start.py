@@ -607,6 +607,29 @@ def test_launch_saves_private_login_link_until_it_stops(
     assert url not in capsys.readouterr().err
 
 
+def test_launch_continues_when_the_link_cannot_be_saved(
+    project: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    fake_agent(tmp_path, monkeypatch, "import sys\nsys.exit(0)\n")
+
+    def refuse(url: str) -> Path:
+        raise PermissionError(13, "Permission denied", "/store/login")
+
+    monkeypatch.setattr("clauz3.approvals.login_links.save_login_url", refuse)
+    assert main(["start", "claude", "--no-browser"]) == 0
+    err = capsys.readouterr().err
+    warnings = [line for line in err.splitlines() if line.startswith("warning: could")]
+    assert warnings == [
+        "warning: could not save the sign-in link for `clauz3 login-url`: "
+        "[Errno 13] Permission denied: '/store/login'"
+    ]
+    assert err.count("/ui/login?key=") == 1
+    assert "Run `clauz3 login-url`" not in err
+
+
 def test_default_session_accepts_browser_approval(
     project: Path,
     tmp_path: Path,

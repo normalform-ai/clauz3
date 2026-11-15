@@ -457,13 +457,17 @@ started server that is still listening.
 | `--port PORT` | most recent server | Print the link of the server on this port. |
 
 Each server writes its link to `login/<port>.url` in the user-wide clauz3 store
-(`$CLAUZ3_HOME`, default `~/.local/share/clauz3`) when it starts, replacing any
-link from an earlier start on the same port, and removes it when it stops. The
-directory is mode `0700` and each file mode `0600`, so only your user account
-can read them; nothing is written to the project. The command only reads these
-files and checks that the port accepts connections. It exits with status `2`
-and an error when no saved link belongs to a running server. Treat the printed
-link like a password.
+(`$CLAUZ3_HOME`, default `~/.local/share/clauz3`) once it has bound its port,
+replacing any link from an earlier start on the same port, and removes it when
+it stops. A server that cannot bind a busy port leaves the running server's
+link alone. The directory is mode `0700` and each file mode `0600`, so only
+your user account can read them; nothing is written to the project. Saving is
+best-effort: if the store cannot be written, the server prints one warning
+(without the link) and keeps running, and the link is only in its terminal
+output. The command only reads these files and asks the server's
+unauthenticated `/health` endpoint, without the key, whether a clauz3 server
+still answers on that port. It exits with status `2` and an error when no saved
+link belongs to a running server. Treat the printed link like a password.
 
 Browser sessions and the sign-in key are not kept across restarts, so a
 restart always signs out open tabs.
