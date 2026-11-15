@@ -18,6 +18,7 @@ prover never runs the body — it records each call as a fact and proves the
 contract; the body runs only under ``clauz3 run``.
 """
 
+import re
 import subprocess
 
 import deal
@@ -25,6 +26,13 @@ import deal
 import clauz3
 
 DEFAULT_TIMEOUT_SECONDS = 120
+
+#: A pull request, issue or discussion address without a scheme, such as
+#: ``ghe.example.com/owner/repo/pull/5`` or ``owner/repo/issues/7``. gh adds
+#: ``https://`` to a selector that lacks ``:/`` and then uses the address's
+#: host and repository instead of ``--repo``. Ordinary paths
+#: (``notes/pr.md``, ``docs/pull/x``) have no ``/pull/<digits>`` segment.
+REPOSITORY_ADDRESS = re.compile(r"[^/\s]+/[^/\s]+/(pull|pulls|issues|discussions)/\d")
 
 
 def is_builtin_command(command: str) -> bool:
@@ -155,6 +163,11 @@ def _argument_error(arg: str) -> str | None:
     >>> [_argument_error(a) is None for a in ["42", "--squash", "-w", "-Rx/y"]]
     [True, True, True, False]
     """
+    if REPOSITORY_ADDRESS.search(arg):
+        return (
+            "looks like a repository address; refer to pull requests and issues "
+            "by numbers, not web addresses"
+        )
     if "://" in arg or "github.com" in arg.lower():
         return (
             "looks like a web address; refer to pull requests and issues by "
@@ -234,9 +247,10 @@ def gh(command: str, action: str, args: list[str], repo: str) -> str:
 
     - web addresses: gh resolves a URL against the URL's own repository,
       ignoring ``--repo``, so any argument containing ``://`` or
-      ``github.com`` (any letter case) is refused. Refer to pull requests and
-      issues by number; put text with links in a file and pass
-      ``--body-file``;
+      ``github.com`` (any letter case) is refused, as is a scheme-less address
+      such as ``ghe.example.com/owner/repo/pull/5`` (``REPOSITORY_ADDRESS``).
+      Refer to pull requests and issues by number; put text with links in a
+      file and pass ``--body-file``;
     - ``--flag=value``: pass long flags as separate arguments
       (``["--body", "text"]``), so ``no_admin_override`` can check for
       ``"--admin"`` by exact membership without ``--admin=true`` slipping

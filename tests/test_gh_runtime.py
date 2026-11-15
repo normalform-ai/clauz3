@@ -267,3 +267,34 @@ def test_gh_body_refuses_api_and_flag_actions_without_deal(
 ) -> None:
     with pytest.raises(ValueError):
         gh_effect(command, action, ["list"], "you/safe")
+
+
+@pytest.mark.usefixtures("no_gh_subprocess")
+@pytest.mark.parametrize(
+    "selector",
+    [
+        "ghe.example.com/o/r/pull/5",
+        "tenant.ghe.com/o/r/pull/5",
+        "localhost:8080/o/r/pull/5",
+        "o/r/pull/5",
+        "o/r/issues/7",
+        "o/r/discussions/3",
+    ],
+)
+def test_gh_refuses_scheme_less_repository_addresses(
+    gh_effect: GhEffect, selector: str
+) -> None:
+    """gh adds https:// to such selectors and uses their repository."""
+    with pytest.raises(ValueError, match="repository address"):
+        gh_effect("pr", "view", [selector], "me/mine")
+
+
+@pytest.mark.parametrize("path", ["./dist/app.tar.gz", "notes/pr.md", "docs/pull/x"])
+def test_gh_allows_ordinary_paths(
+    gh_effect: GhEffect, monkeypatch: pytest.MonkeyPatch, path: str
+) -> None:
+    def record(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(argv, 0, stdout="ok", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", record)
+    assert gh_effect("release", "upload", ["v1", path], "me/mine") == "ok"

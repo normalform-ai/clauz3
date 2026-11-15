@@ -63,7 +63,8 @@ def never_dest_under(prefix: str) -> ContractSpec:
 @contract(
     description=(
         "Every rsync copy names a source starting with {root}; extra source "
-        "paths given among the other rsync options are not checked."
+        "paths given among the other rsync options are not checked, and "
+        "following links (-L or --copy-links) can read outside it."
     )
 )
 def only_src_under(root: str) -> ContractSpec:

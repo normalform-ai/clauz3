@@ -63,8 +63,8 @@ def no_git() -> ContractSpec:
         "show, rev-parse, ls-files, ls-tree, blame, describe, shortlog, "
         "cat-file); nothing is committed, no history is changed and nothing is "
         "pushed, though these commands may read files outside the repository. "
-        "Programs named in the repository's own git settings, such as a diff "
-        "tool, can still run."
+        "Programs named in git settings (the repository's or your own), such as "
+        "a diff tool, can still run."
     )
 )
 def read_only() -> ContractSpec:
@@ -102,7 +102,8 @@ def only_subcommands(allowlist: list[str]) -> ContractSpec:
         "None of these git commands are run: {blocklist}; pushes are covered "
         "separately. "
         "A git command told to run another program (for example rebase --exec), or "
-        "a program named in the repository's git settings, is not covered."
+        "a program named in git settings (the repository's or your own), is not "
+        "covered."
     )
 )
 def never_subcommands(blocklist: list[str]) -> ContractSpec:
@@ -120,8 +121,8 @@ def never_subcommands(blocklist: list[str]) -> ContractSpec:
         "Git commands, including pushes, run only in folders whose path starts "
         "with {root}. Other folders named in a command (such as where a clone "
         "or new worktree goes), a git command told to run another program (for "
-        "example rebase --exec) and programs named in the repository's git "
-        "settings are not covered."
+        "example rebase --exec) and programs named in git settings (the "
+        "repository's or your own) are not covered."
     )
 )
 def only_in(root: str) -> ContractSpec:
@@ -149,7 +150,8 @@ def runs_at_most(count: int) -> ContractSpec:
     description=(
         "Nothing is pushed with git. "
         "A git command told to run another program (for example rebase --exec), or "
-        "a program named in the repository's git settings, is not covered."
+        "a program named in git settings (the repository's or your own), is not "
+        "covered."
     )
 )
 def no_push() -> ContractSpec:
@@ -159,8 +161,9 @@ def no_push() -> ContractSpec:
     every other pushing command or alias, but commands that can be told to
     run arbitrary programs (``rebase --exec``, ``submodule foreach``,
     ``bisect run``, ``fetch --upload-pack``, ``grep -O``) or a program named
-    in the repository's git settings (a diff, merge or filter driver,
-    ``core.sshCommand``) can still push. Hooks and ``core.fsmonitor`` never
+    in git settings, the repository's or the user's (a diff, merge or filter
+    driver, ``core.sshCommand``; ``config --global`` writes the user's), can
+    still push. Hooks and ``core.fsmonitor`` never
     run: the effects disable them.
     """
     return Push.empty()
@@ -170,7 +173,8 @@ def no_push() -> ContractSpec:
     description=(
         "Anything pushed with git goes only to the remote {remote}. "
         "A git command told to run another program (for example rebase --exec), or "
-        "a program named in the repository's git settings, is not covered."
+        "a program named in git settings (the repository's or your own), is not "
+        "covered."
     )
 )
 def only_push_to_remote(remote: str) -> ContractSpec:
@@ -186,7 +190,8 @@ def only_push_to_remote(remote: str) -> ContractSpec:
     description=(
         "Anything pushed with git goes only to the branch {branch}. "
         "A git command told to run another program (for example rebase --exec), or "
-        "a program named in the repository's git settings, is not covered."
+        "a program named in git settings (the repository's or your own), is not "
+        "covered."
     )
 )
 def only_push_to_branch(branch: str) -> ContractSpec:

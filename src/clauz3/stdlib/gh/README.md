@@ -57,7 +57,9 @@ earlier calls):
 
 - Web addresses: refer to pull requests and issues by number, not URL. gh
   resolves a URL against its own repository, ignoring `--repo`, so any
-  argument containing `://` or `github.com` raises `ValueError`. Put text
+  argument containing `://` or `github.com` raises `ValueError`, as does a
+  scheme-less address such as `ghe.example.com/owner/repo/pull/5` or
+  `owner/repo/issues/7` (gh would add `https://` and use its repository). Put text
   containing links in a file and pass `--body-file`.
 - `--flag=value`: pass long flags as separate arguments (`["--body", "text"]`),
   so each flag has one spelling a contract can check. gh accepts no flag

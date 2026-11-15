@@ -71,9 +71,10 @@ Import with `from tools.git.trusted import contracts as git_rules`:
 - `git_rules.runs_at_most(count)` — at most `count` subcommands run.
 - `git_rules.no_push()` — the program performs no pushes. Commands that can be
   told to run other programs (`rebase --exec`, `submodule foreach`,
-  `bisect run`, `fetch --upload-pack`, `grep -O`) and programs named in the
-  repository's git settings (diff, merge or filter drivers, textconv,
-  `core.sshCommand`) are not covered.
+  `bisect run`, `fetch --upload-pack`, `grep -O`) and programs named in git
+  settings, the repository's or the user's (diff, merge or filter drivers,
+  textconv, `core.sshCommand`), are not covered. `git config --global` and
+  `--system` can write the user's settings.
 - `git_rules.only_push_to_remote(remote)` — every push targets `remote`.
 - `git_rules.only_push_to_branch(branch)` — every push targets `branch`.
 
