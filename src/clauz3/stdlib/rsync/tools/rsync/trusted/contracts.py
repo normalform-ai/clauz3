@@ -64,7 +64,7 @@ def never_dest_under(prefix: str) -> ContractSpec:
     description=(
         "Every rsync copy names a source starting with {root}; extra source "
         "paths given among the other rsync options are not checked, and "
-        "following links (-L or --copy-links) can read outside it."
+        "following links (for example -L or -k) can read outside it."
     )
 )
 def only_src_under(root: str) -> ContractSpec:
@@ -73,9 +73,11 @@ def only_src_under(root: str) -> ContractSpec:
     A literal prefix check on ``src``. The ``rsync`` effect refuses options
     that read from elsewhere (``--files-from``, ``--link-dest``, ...), but a
     plain path in ``args`` precedes ``src`` on the command line and is an
-    additional, unchecked source. ``-L``/``--copy-links`` and
-    ``--copy-unsafe-links`` follow symlinks in the source, so they can read
-    files outside ``root``.
+    additional, unchecked source. ``-L``/``--copy-links``,
+    ``--copy-unsafe-links`` and ``-k``/``--copy-dirlinks`` follow symlinks in
+    the source, so they can read files outside ``root``. They are disclosed
+    rather than refused because following links is an ordinary way to copy a
+    tree.
     """
     return Rsync.all(lambda e: e.src.startswith(root))
 

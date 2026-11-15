@@ -279,6 +279,9 @@ def test_gh_body_refuses_api_and_flag_actions_without_deal(
         "o/r/pull/5",
         "o/r/issues/7",
         "o/r/discussions/3",
+        "ghe.example.com/o/r/pu%6cl/5",
+        "ghe.example.com/o/r/pull/%35",
+        "o%2Fr/x/issues/7",
     ],
 )
 def test_gh_refuses_scheme_less_repository_addresses(
@@ -289,7 +292,9 @@ def test_gh_refuses_scheme_less_repository_addresses(
         gh_effect("pr", "view", [selector], "me/mine")
 
 
-@pytest.mark.parametrize("path", ["./dist/app.tar.gz", "notes/pr.md", "docs/pull/x"])
+@pytest.mark.parametrize(
+    "path", ["./dist/app.tar.gz", "notes/pr.md", "docs/pull/x", "50% done"]
+)
 def test_gh_allows_ordinary_paths(
     gh_effect: GhEffect, monkeypatch: pytest.MonkeyPatch, path: str
 ) -> None:

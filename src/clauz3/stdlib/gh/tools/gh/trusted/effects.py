@@ -20,6 +20,7 @@ contract; the body runs only under ``clauz3 run``.
 
 import re
 import subprocess
+from urllib.parse import unquote
 
 import deal
 
@@ -32,6 +33,8 @@ DEFAULT_TIMEOUT_SECONDS = 120
 #: ``https://`` to a selector that lacks ``:/`` and then uses the address's
 #: host and repository instead of ``--repo``. Ordinary paths
 #: (``notes/pr.md``, ``docs/pull/x``) have no ``/pull/<digits>`` segment.
+#: gh percent-decodes a selector before matching, so the check also runs on
+#: the decoded argument (``pu%6cl/5``, ``pull/%35``).
 REPOSITORY_ADDRESS = re.compile(r"[^/\s]+/[^/\s]+/(pull|pulls|issues|discussions)/\d")
 
 
@@ -163,7 +166,7 @@ def _argument_error(arg: str) -> str | None:
     >>> [_argument_error(a) is None for a in ["42", "--squash", "-w", "-Rx/y"]]
     [True, True, True, False]
     """
-    if REPOSITORY_ADDRESS.search(arg):
+    if REPOSITORY_ADDRESS.search(arg) or REPOSITORY_ADDRESS.search(unquote(arg)):
         return (
             "looks like a repository address; refer to pull requests and issues "
             "by numbers, not web addresses"
