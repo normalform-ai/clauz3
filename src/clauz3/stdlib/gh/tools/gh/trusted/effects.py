@@ -73,13 +73,91 @@ def is_builtin_command(command: str) -> bool:
     ]
 
 
-@clauz3.requires(
-    lambda command, action, args, repo: (
-        not (
-            (command == "issue" and action == "transfer")
-            or (command == "label" and action == "clone")
+def is_canonical_action(command: str, action: str) -> bool:
+    """Whether ``action`` is gh's canonical name rather than an action alias.
+
+    gh 2.101 accepts these aliases (from ``gh help reference``): ``ls`` for
+    ``list``, ``new`` for ``create``, ``co`` for ``pr checkout``, ``remove``
+    for ``secret``/``variable delete``, ``show`` and ``add`` for ``skill
+    preview``/``install``. Refusing them keeps one name per action, so
+    ``never_actions(["delete"])`` cannot be bypassed with ``remove``.
+    """
+    return action not in ["ls", "new", "co", "remove", "show"] and not (
+        command == "skill" and action == "add"
+    )
+
+
+def reaches_second_repository(command: str, action: str) -> bool:
+    """Whether the action takes a second repository as an ordinary argument."""
+    return (command == "issue" and action == "transfer") or (
+        command == "label" and action == "clone"
+    )
+
+
+def has_no_scope_flags(args: list[str]) -> bool:
+    """Whether ``args`` has none of the exact flags that widen scope past --repo.
+
+    ``--org``/``-o``, ``--user``/``-u``, ``--owner`` and its ``--repo-owner``,
+    ``--source-owner`` and ``--target-owner`` variants, ``--repos``,
+    ``--hostname``, ``--source`` and ``--branch-repo`` point a command at
+    other accounts, organizations, hosts or repositories, and an
+    agent-supplied ``--repo``/``-R`` would add to or compete with the one
+    the effect appends. A bare ``--`` would turn that appended ``--repo``
+    into an ordinary argument. ``-o`` and ``-u`` are also short forms of
+    ``repo read-file --output``, ``repo clone --upstream-remote-name`` and
+    ``repo set-default --unset``; those stay available by their long names.
+    """
+    return (
+        "--org" not in args
+        and "-o" not in args
+        and "--user" not in args
+        and "-u" not in args
+        and "--repos" not in args
+        and "--owner" not in args
+        and "--repo-owner" not in args
+        and "--source-owner" not in args
+        and "--target-owner" not in args
+        and "--hostname" not in args
+        and "--source" not in args
+        and "--branch-repo" not in args
+        and "--repo" not in args
+        and "-R" not in args
+        and "--" not in args
+    )
+
+
+def _argument_error(arg: str) -> str | None:
+    """Why ``arg`` is refused, or ``None``; also catches spellings a
+    precondition cannot see (``-Rother/repo``, ``-wR``, ``--org=x``, URLs).
+
+    >>> [_argument_error(a) is None for a in ["42", "--squash", "-w", "-Rx/y"]]
+    [True, True, True, False]
+    """
+    if "://" in arg or "github.com" in arg.lower():
+        return (
+            "looks like a web address; refer to pull requests and issues by "
+            "numbers, not web addresses"
         )
-    ),
+    if arg.startswith("--") and "=" in arg:
+        return "must be passed as separate arguments (--flag value), not --flag=value"
+    if not has_no_scope_flags([arg]):
+        return "widens the command past its --repo repository"
+    short = arg[1:] if arg.startswith("-") and not arg.startswith("--") else ""
+    if "o" in short or "u" in short or "R" in short:
+        return "contains -o, -u or -R, which widen the command past --repo"
+    return None
+
+
+@clauz3.requires(
+    lambda command, action, args, repo: has_no_scope_flags(args),
+    message="args must not widen the command past its --repo repository",
+)
+@clauz3.requires(
+    lambda command, action, args, repo: is_canonical_action(command, action),
+    message="action must be gh's canonical name, not an alias such as ls or remove",
+)
+@clauz3.requires(
+    lambda command, action, args, repo: not reaches_second_repository(command, action),
     message="issue transfer and label clone reach a second repository",
 )
 @clauz3.requires(
@@ -101,34 +179,44 @@ def gh(command: str, action: str, args: list[str], repo: str) -> str:
     shell. ``repo`` is always supplied as ``--repo`` so every call is scoped to
     a single repository, which ``only_repo`` / ``only_owner`` can then pin.
 
-    ``command`` must be one of gh's built-in commands (``is_builtin_command``,
-    a precondition), so aliases and extensions are refused. ``issue transfer``
-    and ``label clone`` are refused too (a precondition): they take a second
-    repository as an ordinary argument, past ``--repo``.
+    Refused, as preconditions and again in the body (Deal's runtime checks
+    are optional, so the body never relies on them):
 
-    Refer to pull requests and issues by number, not by web address: gh
-    resolves a URL against the URL's own repository, ignoring ``--repo``. Any
-    argument containing ``://`` or ``github.com`` (in any letter case) raises
-    ``ValueError`` before gh runs, so ``only_repo`` / ``only_owner`` hold.
-    Put text that must contain a link in a file and pass ``--body-file``.
+    - a ``command`` that is not built in (``is_builtin_command``): aliases and
+      extensions;
+    - an action alias (``is_canonical_action``): use ``list``, not ``ls``;
+      ``delete``, not ``remove``;
+    - ``issue transfer`` and ``label clone``, which take a second repository
+      as an ordinary argument;
+    - flags that widen the command past ``--repo`` (``has_no_scope_flags``),
+      an agent-supplied ``--repo``/``-R``, and a bare ``--``.
 
-    Long flags must be passed as separate arguments (``["--body", "text"]``):
-    any argument that starts with ``--`` and contains ``=`` raises
-    ``ValueError`` before gh runs. This keeps one spelling per flag, so a
-    contract such as ``no_admin_override`` can check for ``"--admin"`` by
-    exact membership without ``--admin=true`` slipping past it.
+    Refused only when the program runs (the prover cannot check them, so an
+    earlier call in the same program may already have run):
+
+    - web addresses: gh resolves a URL against the URL's own repository,
+      ignoring ``--repo``, so any argument containing ``://`` or
+      ``github.com`` (any letter case) is refused. Refer to pull requests and
+      issues by number; put text with links in a file and pass
+      ``--body-file``;
+    - ``--flag=value``: pass long flags as separate arguments
+      (``["--body", "text"]``), so ``no_admin_override`` can check for
+      ``"--admin"`` by exact membership without ``--admin=true`` slipping
+      past it (gh accepts no flag abbreviations);
+    - short-option groups containing ``o``, ``u`` or ``R`` (``-Rother/repo``).
     """
+    if not (len(command) > 0 and len(action) > 0 and len(repo) > 0):
+        raise ValueError("command, action, and repo must be non-empty")
+    if not is_builtin_command(command):
+        raise ValueError(f"gh command {command!r} is not a built-in gh command")
+    if reaches_second_repository(command, action):
+        raise ValueError("issue transfer and label clone reach a second repository")
+    if not is_canonical_action(command, action):
+        raise ValueError(f"gh action {action!r} is an alias; use its canonical name")
     for arg in args:
-        if "://" in arg or "github.com" in arg.lower():
-            raise ValueError(
-                f"gh argument {arg!r} looks like a web address; refer to pull "
-                "requests and issues by numbers, not web addresses"
-            )
-        if arg.startswith("--") and "=" in arg:
-            raise ValueError(
-                f"gh flag {arg!r} must be passed as separate arguments "
-                "(--flag value), not --flag=value"
-            )
+        reason = _argument_error(arg)
+        if reason is not None:
+            raise ValueError(f"gh argument {arg!r} is refused: it {reason}")
     completed = subprocess.run(  # noqa: S603
         ["gh", command, action, *args, "--repo", repo],
         capture_output=True,

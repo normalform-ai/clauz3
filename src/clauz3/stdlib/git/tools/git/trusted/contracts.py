@@ -59,18 +59,21 @@ def no_git() -> ContractSpec:
 
 @contract(
     description=(
-        "Git commands can only look at the repository (status, log, diff, show, "
-        "rev-parse, ls-files, ls-tree, blame, describe, shortlog, cat-file); "
-        "nothing is changed or pushed."
+        "Git commands are limited to inspection commands (status, log, diff, "
+        "show, rev-parse, ls-files, ls-tree, blame, describe, shortlog, "
+        "cat-file); nothing is committed, no history is changed and nothing is "
+        "pushed, though these commands may read files outside the repository."
     )
 )
 def read_only() -> ContractSpec:
     """Guarantee git commands only look at the repository and nothing is pushed.
 
     Pins each subcommand of the ``git`` effect to ``READ_ONLY_SUBCOMMANDS``.
-    None of these writes the working tree, index, refs or settings; the
-    ``git`` effect refuses ``--output``, the one option among them that
-    writes a file. Pushes use the separate ``git_push`` effect, so this also
+    None of these writes the working tree, refs or settings (``status`` may
+    refresh the index's file-stat cache); the ``git`` effect refuses
+    ``--output``, the one option among them that writes a file. ``diff
+    --no-index`` and ``blame --contents`` can read files outside the
+    repository. Pushes use the separate ``git_push`` effect, so this also
     stacks ``no_push()``.
     """
     return ConjunctionSpec(
@@ -95,7 +98,8 @@ def only_subcommands(allowlist: list[str]) -> ContractSpec:
 @contract(
     description=(
         "None of these git commands are run: {blocklist}; pushes are covered "
-        "separately."
+        "separately. A git command told to run another program (for example "
+        "rebase --exec) is not covered."
     )
 )
 def never_subcommands(blocklist: list[str]) -> ContractSpec:
@@ -111,7 +115,9 @@ def never_subcommands(blocklist: list[str]) -> ContractSpec:
 @contract(
     description=(
         "Git commands, including pushes, run only in folders whose path starts "
-        "with {root}."
+        "with {root}. Other folders named in a command (such as where a clone "
+        "or new worktree goes) are not checked, and neither is a git command "
+        "told to run another program (for example rebase --exec)."
     )
 )
 def only_in(root: str) -> ContractSpec:
@@ -138,16 +144,18 @@ def runs_at_most(count: int) -> ContractSpec:
 @contract(
     description=(
         "Nothing is pushed with git. A git command told to run another program "
-        "(for example rebase --exec) is not covered; read_only rules that out."
+        "(for example rebase --exec) is not covered; limiting git to inspection "
+        "commands rules that out."
     )
 )
 def no_push() -> ContractSpec:
     """Guarantee the program pushes nothing with git.
 
     Forbids ``git_push``. The general ``git`` effect refuses ``push`` and
-    every other pushing command or alias, but commands that run arbitrary
-    programs (``rebase --exec``, ``submodule foreach``, ``bisect run``, hooks
-    enabled by ``config``) can still push; ``read_only()`` excludes them.
+    every other pushing command or alias, but commands that can be told to
+    run arbitrary programs (``rebase --exec``, ``submodule foreach``,
+    ``bisect run``, ``fetch --upload-pack``, hooks enabled by ``config``)
+    can still push; ``read_only()`` excludes them.
     """
     return Push.empty()
 

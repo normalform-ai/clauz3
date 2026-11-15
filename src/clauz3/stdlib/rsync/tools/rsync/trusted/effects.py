@@ -31,9 +31,12 @@ DEFAULT_TIMEOUT_SECONDS = 600
 #: runs another program:
 #:
 #: - delete: ``--del`` / ``--delete*``, ``--remove-source-files`` and its old
-#:   name ``--remove-sent-files``;
+#:   name ``--remove-sent-files``, and ``--force``, which deletes non-empty
+#:   destination directories that a file replaces;
 #: - write elsewhere: ``--backup-dir``, ``--log-file``, ``--write-batch``,
-#:   ``--only-write-batch``, ``--partial-dir``, ``--temp-dir``;
+#:   ``--only-write-batch``, ``--partial-dir``, ``--temp-dir``, and
+#:   ``--keep-dirlinks``, which follows symlinked directories in the
+#:   destination;
 #: - read elsewhere: ``--compare-dest``, ``--copy-dest``, ``--link-dest``,
 #:   ``--files-from``, ``--read-batch``, ``--early-input``;
 #: - run programs or steer the remote side: ``--rsh``, ``--rsync-path``,
@@ -45,12 +48,14 @@ REFUSED_LONG_OPTIONS = [
     "--delete",
     "--remove-source-files",
     "--remove-sent-files",
+    "--force",
     "--backup-dir",
     "--log-file",
     "--write-batch",
     "--only-write-batch",
     "--partial-dir",
     "--temp-dir",
+    "--keep-dirlinks",
     "--compare-dest",
     "--copy-dest",
     "--link-dest",
@@ -70,9 +75,49 @@ REFUSED_LONG_OPTIONS = [
 SAFE_LONG_OPTIONS = ["--backup", "--partial"]
 
 #: Short options refused anywhere in a short-option group such as ``-avz``:
-#: ``-e`` (remote shell program), ``-T`` (temporary directory) and ``-M``
-#: (option passed to the remote rsync).
-REFUSED_SHORT_OPTIONS = "eTM"
+#: ``-e`` (remote shell program), ``-T`` (temporary directory), ``-M``
+#: (option passed to the remote rsync) and ``-K`` (``--keep-dirlinks``).
+REFUSED_SHORT_OPTIONS = "eTMK"
+
+
+def has_no_refused_option_names(args: list[str]) -> bool:
+    """Whether ``args`` has none of the refused options spelled exactly.
+
+    The precondition form of the body's check: exact names only, because the
+    prover cannot match prefixes inside a list. Abbreviations, ``=value``
+    forms and short-option groups are refused by the body when the program
+    runs.
+    """
+    return (
+        "--del" not in args
+        and "--delete" not in args
+        and "--remove-source-files" not in args
+        and "--remove-sent-files" not in args
+        and "--force" not in args
+        and "--backup-dir" not in args
+        and "--log-file" not in args
+        and "--write-batch" not in args
+        and "--only-write-batch" not in args
+        and "--partial-dir" not in args
+        and "--temp-dir" not in args
+        and "--keep-dirlinks" not in args
+        and "--compare-dest" not in args
+        and "--copy-dest" not in args
+        and "--link-dest" not in args
+        and "--files-from" not in args
+        and "--read-batch" not in args
+        and "--early-input" not in args
+        and "--rsh" not in args
+        and "--rsync-path" not in args
+        and "--remote-option" not in args
+        and "--daemon" not in args
+        and "--server" not in args
+        and "--sender" not in args
+        and "-e" not in args
+        and "-T" not in args
+        and "-M" not in args
+        and "-K" not in args
+    )
 
 
 def _refused(arg: str) -> bool:
@@ -94,6 +139,10 @@ def _refused(arg: str) -> bool:
     return False
 
 
+@clauz3.requires(
+    lambda src, dest, delete, args: has_no_refused_option_names(args),
+    message="args must not delete, write or read elsewhere, or run programs",
+)
 @clauz3.requires(
     lambda src, dest, delete, args: (
         has_no_parent_segments(src) and has_no_parent_segments(dest)
@@ -118,12 +167,20 @@ def rsync(src: str, dest: str, delete: bool, args: list[str]) -> str:
     ``args`` may not contain an option that deletes, writes outside ``dest``,
     reads other than from the named sources, or runs another program (see
     ``REFUSED_LONG_OPTIONS`` and ``REFUSED_SHORT_OPTIONS``); one raises
-    ``ValueError`` before rsync runs. Ordinary short-option groups such as
+    ``ValueError`` before rsync runs. Exact spellings are also preconditions
+    the prover checks; abbreviations, ``=value`` forms and short-option
+    groups are refused only when the program runs, possibly after earlier
+    calls. Preconditions are checked again in the body, because Deal's
+    runtime checks are optional. Ordinary short-option groups such as
     ``-avz`` are fine. A short-option group whose attached value contains
     ``e``, ``T`` or ``M`` (``-f"merge rules"``) is refused too; pass such values
     with the long option (``--filter``). A plain path in ``args`` is an extra
     source, which ``only_src_under`` does not check.
     """
+    if not (len(src) > 0 and len(dest) > 0):
+        raise ValueError("src and dest must be non-empty")
+    if not (has_no_parent_segments(src) and has_no_parent_segments(dest)):
+        raise ValueError("src and dest must not contain parent-directory segments")
     for arg in args:
         if _refused(arg):
             raise ValueError(f"rsync option {arg!r} is refused")

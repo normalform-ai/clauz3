@@ -72,7 +72,9 @@ def only_src_under(root: str) -> ContractSpec:
     A literal prefix check on ``src``. The ``rsync`` effect refuses options
     that read from elsewhere (``--files-from``, ``--link-dest``, ...), but a
     plain path in ``args`` precedes ``src`` on the command line and is an
-    additional, unchecked source.
+    additional, unchecked source. ``-L``/``--copy-links`` and
+    ``--copy-unsafe-links`` follow symlinks in the source, so they can read
+    files outside ``root``.
     """
     return Rsync.all(lambda e: e.src.startswith(root))
 

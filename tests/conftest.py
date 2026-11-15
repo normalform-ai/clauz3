@@ -215,3 +215,17 @@ def _is_test_authored_file(file: str | None) -> bool:
         return False
     resolved = pathlib.Path(file).resolve()
     return not any(resolved.is_relative_to(root) for root in _KEEP_UNDER)
+
+
+@pytest.fixture
+def deal_disabled() -> Iterator[None]:
+    """Turn off Deal's runtime contracts, as in production, for one test.
+
+    Trusted effects at external boundaries must refuse unsafe calls in their
+    own bodies rather than rely on Deal's optional precondition checks.
+    """
+    import deal
+
+    deal.disable(warn=False)
+    yield
+    deal.reset()

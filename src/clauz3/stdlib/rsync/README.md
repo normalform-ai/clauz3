@@ -32,14 +32,19 @@ Import with `from tools.rsync.trusted.effects import rsync`:
   `src` to `dest` and return stdout. `delete` adds `--delete`. Precondition:
   `src` and `dest` non-empty. Arguments are passed as an explicit vector, so
   no field is interpreted by a shell. `args` may not contain options that
-  delete (`--delete*`, `--remove-source-files`), write outside `dest`
-  (`--backup-dir`, `--log-file`, `--temp-dir`/`-T`, `--partial-dir`,
-  `--write-batch`), read from elsewhere (`--files-from`, `--link-dest`,
-  `--compare-dest`, `--copy-dest`, `--read-batch`), or run another program
-  (`-e`/`--rsh`, `--rsync-path`, `-M`/`--remote-option`); see
-  `REFUSED_LONG_OPTIONS` in `effects.py`. These raise `ValueError` before
-  rsync runs, including abbreviations such as `--remove-sou`. Short-option
-  groups like `-avz` are fine.
+  delete (`--delete*`, `--remove-source-files`, `--force`), write outside
+  `dest` (`--backup-dir`, `--log-file`, `--temp-dir`/`-T`, `--partial-dir`,
+  `--write-batch`, `--keep-dirlinks`/`-K`), read from elsewhere
+  (`--files-from`, `--link-dest`, `--compare-dest`, `--copy-dest`,
+  `--read-batch`), or run another program (`-e`/`--rsh`, `--rsync-path`,
+  `-M`/`--remote-option`); see `REFUSED_LONG_OPTIONS` in `effects.py`.
+  Short-option groups like `-avz` are fine.
+
+The exact spellings above are preconditions, checked by the prover and again
+by the effect body. Abbreviations (`--remove-sou`), `--option=value` forms and
+short-option groups containing a refused letter (`-avK`) are refused **only
+when the program runs**: the prover cannot see them, so a program refused this
+way may already have run its earlier calls.
 
 ## Contracts
 

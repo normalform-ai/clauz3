@@ -1,6 +1,7 @@
 """The gh trusted boundary accepts one spelling per long flag."""
 
 import importlib.util
+import shutil
 import subprocess
 from collections.abc import Callable
 from pathlib import Path
@@ -114,3 +115,97 @@ def test_gh_refuses_actions_that_reach_a_second_repository(
     monkeypatch.setattr(subprocess, "run", forbidden)
     with pytest.raises(deal.PreContractError, match="second repository"):
         gh_effect(command, action, args, "cmungall/agent-deal")
+
+
+@pytest.fixture
+def no_gh_subprocess(monkeypatch: pytest.MonkeyPatch) -> None:
+    def forbidden(*args: object, **kwargs: object) -> None:
+        pytest.fail("a refused gh call reached the subprocess")
+
+    monkeypatch.setattr(subprocess, "run", forbidden)
+
+
+@pytest.mark.usefixtures("no_gh_subprocess")
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["--org", "someorg"],
+        ["-o", "someorg"],
+        ["-osomeorg"],
+        ["--user", "someone"],
+        ["-u", "someone"],
+        ["--repos", "a,b"],
+        ["--owner", "someone"],
+        ["--hostname", "ghe.example.com"],
+        ["--source", "other"],
+        ["--repo", "other/repo"],
+        ["-R", "other/repo"],
+        ["-Rother/repo"],
+        ["-wR", "other/repo"],
+        ["--branch-repo", "other/repo"],
+        ["--repo-owner", "someone"],
+        ["--source-owner", "someone"],
+        ["--target-owner", "someone"],
+        ["--"],
+    ],
+)
+def test_gh_refuses_flags_that_widen_scope_past_repo(
+    gh_effect: GhEffect, args: list[str]
+) -> None:
+    with pytest.raises((ValueError, deal.PreContractError)):
+        gh_effect("secret", "list", args, "cmungall/agent-deal")
+
+
+@pytest.mark.usefixtures("no_gh_subprocess")
+@pytest.mark.parametrize(
+    "command,action",
+    [
+        ("secret", "remove"),
+        ("variable", "remove"),
+        ("pr", "ls"),
+        ("pr", "co"),
+        ("issue", "new"),
+        ("skill", "add"),
+        ("skill", "show"),
+    ],
+)
+def test_gh_refuses_action_aliases(
+    gh_effect: GhEffect, command: str, action: str
+) -> None:
+    with pytest.raises(deal.PreContractError, match="canonical"):
+        gh_effect(command, action, [], "cmungall/agent-deal")
+
+
+@pytest.mark.usefixtures("no_gh_subprocess", "deal_disabled")
+@pytest.mark.parametrize(
+    "command,action,args",
+    [
+        ("co", "view", []),
+        ("issue", "transfer", ["7", "other/repo"]),
+        ("label", "clone", ["other/repo"]),
+        ("secret", "remove", ["TOKEN"]),
+        ("secret", "list", ["--org", "someorg"]),
+        ("pr", "merge", ["42", "--admin=true"]),
+        ("pr", "view", ["https://github.com/other/repo/pull/1"]),
+    ],
+)
+def test_gh_body_refuses_without_deal(
+    gh_effect: GhEffect, command: str, action: str, args: list[str]
+) -> None:
+    with pytest.raises(ValueError):
+        gh_effect(command, action, args, "cmungall/agent-deal")
+
+
+def test_gh_itself_rejects_abbreviated_admin(tmp_path: Path) -> None:
+    """gh (cobra/pflag) accepts no flag abbreviations, so --adm is not --admin."""
+    if shutil.which("gh") is None:
+        pytest.skip("gh is not installed")
+    completed = subprocess.run(
+        ["gh", "pr", "merge", "1", "--adm", "--repo", "octocat/Hello-World"],
+        capture_output=True,
+        text=True,
+        cwd=tmp_path,
+        check=False,
+    )
+    assert completed.returncode != 0
+    assert "unknown flag: --adm" in completed.stderr

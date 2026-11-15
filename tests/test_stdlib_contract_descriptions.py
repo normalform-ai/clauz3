@@ -10,6 +10,7 @@ with sample arguments so a broken template fails here rather than at approval.
 import importlib
 import inspect
 import re
+import sys
 from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType
@@ -53,12 +54,26 @@ SAMPLES: dict[str, object] = {
 }
 
 
+def _forget_layers() -> None:
+    for name in [n for n in sys.modules if n == "tools" or n.startswith("tools.")]:
+        del sys.modules[name]
+
+
 def _load(path: Path, monkeypatch: pytest.MonkeyPatch) -> ModuleType:
-    """Import a library's contracts module from its own source root."""
+    """Import a library's contracts module from its own source root.
+
+    Every library (and examples such as gh-triage) uses the ``tools`` package
+    name, so previously imported layers are forgotten first and the root is
+    removed again afterwards; the module object stays usable.
+    """
     root = next(parent for parent in path.parents if parent.name == "tools").parent
-    monkeypatch.syspath_prepend(str(root))
     relative = path.relative_to(root).with_suffix("")
-    return importlib.import_module(".".join(relative.parts))
+    _forget_layers()
+    with monkeypatch.context() as scoped:
+        scoped.syspath_prepend(str(root))
+        module = importlib.import_module(".".join(relative.parts))
+    _forget_layers()
+    return module
 
 
 def _contracts(module: ModuleType) -> dict[str, Callable[..., object]]:

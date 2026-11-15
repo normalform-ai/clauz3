@@ -61,8 +61,15 @@ def rsync_effect(monkeypatch: pytest.MonkeyPatch) -> RsyncEffect:
         ["--daemon"],
         ["--server"],
         ["--sender"],
+        ["--force"],
+        ["--for"],
+        ["--keep-dirlinks"],
+        ["--keep-d"],
+        ["-K"],
+        ["-avK"],
     ],
 )
+@pytest.mark.usefixtures("deal_disabled")
 def test_rsync_refuses_unsafe_options_before_subprocess(
     rsync_effect: RsyncEffect, monkeypatch: pytest.MonkeyPatch, args: list[str]
 ) -> None:
@@ -99,3 +106,31 @@ def test_rsync_passes_safe_options(
     monkeypatch.setattr(subprocess, "run", record)
     assert rsync_effect("/repo/build/", "/backup/build/", False, args) == "ok"
     assert calls == [["rsync", *args, "/repo/build/", "/backup/build/"]]
+
+
+@pytest.mark.usefixtures("deal_disabled")
+def test_rsync_body_refuses_without_deal(
+    rsync_effect: RsyncEffect, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def forbidden(*args: object, **kwargs: object) -> None:
+        pytest.fail("a refused rsync call reached the subprocess")
+
+    monkeypatch.setattr(subprocess, "run", forbidden)
+    with pytest.raises(ValueError):
+        rsync_effect("", "/backup/build/", False, ["-a"])
+
+
+def test_precondition_names_every_refused_option(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.syspath_prepend(str(RSYNC_ROOT))
+    spec = importlib.util.spec_from_file_location(
+        "rsync_effects_names", RSYNC_ROOT / "tools/rsync/trusted/effects.py"
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    names = [*module.REFUSED_LONG_OPTIONS, "--del"]
+    names += [f"-{letter}" for letter in module.REFUSED_SHORT_OPTIONS]
+    for name in names:
+        assert not module.has_no_refused_option_names([name]), name

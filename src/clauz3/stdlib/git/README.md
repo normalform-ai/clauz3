@@ -29,13 +29,23 @@ Import with `from tools.git.trusted.effects import git, git_push`:
 
 - `git(subcommand: str, args: list[str], cwd: str) -> str` — run
   `git <subcommand> <args...>` in `cwd` and return its stdout. Preconditions:
-  `subcommand` and `cwd` non-empty; `subcommand` is a built-in git command
-  (`is_builtin_subcommand`), which leaves out `push` and every other pushing
-  command, so pushes always go through `git_push`. Aliases and third-party
-  `git-*` commands are refused. An argument starting with `--output` raises
-  `ValueError` (it would make `diff`/`log`/`show` write a file).
+  `subcommand` and `cwd` non-empty; `subcommand` is an allowed built-in git
+  command (`is_builtin_subcommand`). That leaves out `push` and every other
+  command that pushes or publishes (`send-pack`, `send-email`, `imap-send`,
+  ...), so pushes always go through `git_push`; commands built to run other
+  programs or git commands (`for-each-repo`, `filter-branch`, `difftool`,
+  `mergetool`, `merge-index`, `hook`, `maintenance`); and synonyms (`stage`,
+  `annotate`, `pickaxe`, `init-db`, `fsck-objects`). Aliases and third-party
+  `git-*` commands are refused.
 - `git_push(remote: str, branch: str, cwd: str) -> str` — push `branch` to
-  `remote` from the repo at `cwd`. Precondition: all three non-empty.
+  `remote` from the repo at `cwd`. Preconditions: all three non-empty;
+  `remote` and `branch` do not start with `-`.
+
+Preconditions are checked by the prover and again by the effect bodies when
+the program runs. One check happens **only when the program runs**: an
+argument starting with `--output` (which makes `diff`/`log`/`show` write a
+file) raises `ValueError`. The prover cannot see it, so a program refused this
+way may already have run its earlier calls.
 
 ## Contracts
 

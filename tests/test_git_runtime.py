@@ -66,3 +66,56 @@ def test_git_runs_inspection_commands(
     monkeypatch.setattr(subprocess, "run", record)
     assert git_effects.git("log", ["--oneline", "-5"], "/repo") == "ok"
     assert calls == [["git", "-C", "/repo", "log", "--oneline", "-5"]]
+
+
+@pytest.mark.usefixtures("no_subprocess")
+@pytest.mark.parametrize(
+    "subcommand,args",
+    [
+        ("for-each-repo", ["--config", "x.repo", "push", "origin", "main"]),
+        ("filter-branch", ["--tree-filter", "true"]),
+        ("send-email", ["HEAD~1"]),
+        ("imap-send", []),
+        ("difftool", ["-x", "sh"]),
+        ("mergetool", []),
+        ("merge-index", ["sh", "-a"]),
+        ("hook", ["run", "pre-commit"]),
+        ("maintenance", ["start"]),
+        ("stage", ["-A"]),
+        ("annotate", ["file"]),
+        ("pickaxe", ["file"]),
+        ("init-db", []),
+        ("fsck-objects", []),
+    ],
+)
+def test_git_refuses_commands_that_run_programs_publish_or_alias(
+    git_effects: ModuleType, subcommand: str, args: list[str]
+) -> None:
+    with pytest.raises(deal.PreContractError, match="built-in"):
+        git_effects.git(subcommand, args, "/repo")
+
+
+@pytest.mark.usefixtures("no_subprocess", "deal_disabled")
+@pytest.mark.parametrize(
+    "subcommand,args",
+    [
+        ("push", ["origin", "main"]),
+        ("for-each-repo", ["--config", "x.repo", "push"]),
+        ("lol", []),
+        ("diff", ["--output=/tmp/out"]),
+    ],
+)
+def test_git_body_refuses_without_deal(
+    git_effects: ModuleType, subcommand: str, args: list[str]
+) -> None:
+    with pytest.raises(ValueError):
+        git_effects.git(subcommand, args, "/repo")
+
+
+@pytest.mark.usefixtures("no_subprocess")
+@pytest.mark.parametrize("remote,branch", [("origin", "--mirror"), ("--force", "main")])
+def test_git_push_refuses_options_as_remote_or_branch(
+    git_effects: ModuleType, remote: str, branch: str
+) -> None:
+    with pytest.raises(deal.PreContractError, match="start with"):
+        git_effects.git_push(remote, branch, "/repo")

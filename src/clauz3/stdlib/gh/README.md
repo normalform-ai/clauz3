@@ -36,16 +36,29 @@ Import with `from tools.gh.trusted.effects import gh`:
   `gh <command> <action> <args...> --repo <repo>` and return its stdout.
   Preconditions: `command`, `action`, and `repo` non-empty; `command` is one
   of gh's built-in commands (`is_builtin_command`), so aliases and extensions
-  are refused; `issue transfer` and `label clone` are refused because they
-  reach a second repository.
-  Refer to pull requests and issues by number, not URL: gh resolves a URL
-  against its own repository, ignoring `--repo`, so any argument containing
-  `://` or `github.com` raises `ValueError`. Put text containing links in a
-  file and pass `--body-file`.
-  Pass long flags as separate arguments (`["--body", "text"]`, not
-  `["--body=text"]`): any argument starting with `--` that contains `=` raises
-  `ValueError` before gh runs, so each flag has one spelling a contract can
-  check.
+  are refused; action aliases are refused (`is_canonical_action`: write
+  `list`, not `ls`; `delete`, not `remove`); `issue transfer` and `label clone`
+  are refused because they reach a second repository; and `args` may not
+  contain flags that widen the command past `--repo` (`has_no_scope_flags`:
+  `--org`/`-o`, `--user`/`-u`, `--owner` and its variants, `--repos`,
+  `--hostname`, `--source`, `--branch-repo`, an agent-supplied `--repo`/`-R`,
+  or a bare `--`). `-o` and `-u` are also short forms of a few harmless flags
+  (`repo read-file --output`, `repo clone --upstream-remote-name`,
+  `repo set-default --unset`); use their long names.
+
+Preconditions are checked by the prover and again by the effect body when the
+program runs. These checks happen **only when the program runs** (the prover
+cannot see them, so a program refused this way may already have run its
+earlier calls):
+
+- Web addresses: refer to pull requests and issues by number, not URL. gh
+  resolves a URL against its own repository, ignoring `--repo`, so any
+  argument containing `://` or `github.com` raises `ValueError`. Put text
+  containing links in a file and pass `--body-file`.
+- `--flag=value`: pass long flags as separate arguments (`["--body", "text"]`),
+  so each flag has one spelling a contract can check. gh accepts no flag
+  abbreviations, so `--adm` is not `--admin`.
+- Short-option groups containing `o`, `u` or `R`, such as `-Rother/repo`.
 
 ## Contracts
 
