@@ -509,6 +509,7 @@
       controls();
     };
     ws.onmessage = (event) => {
+      if (ws !== socket) return;
       const nearBottom =
         window.innerHeight + window.scrollY >= document.body.scrollHeight - 180;
       display(JSON.parse(event.data));
@@ -545,6 +546,8 @@
   $("take-over").addEventListener("click", () => {
     clearTimeout(retry);
     $("take-over").hidden = true;
+    // Close a pending retry so only the takeover socket can attach.
+    if (socket && socket.readyState < 2) socket.close();
     connect(true);
   });
   $("composer").addEventListener("submit", (event) => {

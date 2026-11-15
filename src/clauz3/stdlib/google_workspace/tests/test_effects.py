@@ -190,6 +190,61 @@ class EmailEffectsTests(unittest.TestCase):
         ):
             self.assertEqual(effects.search_messages("from:nobody", 5), [])
 
+    def test_search_with_null_result_returns_empty_list(self) -> None:
+        completed = subprocess.CompletedProcess([], 0, stdout="null\n", stderr="")
+        with patch(
+            "tools.google_workspace.gmail.trusted.effects.subprocess.run",
+            return_value=completed,
+        ):
+            self.assertEqual(effects.search_messages("from:nobody", 5), [])
+
+    def test_search_with_unexpected_result_shape_fails(self) -> None:
+        completed = subprocess.CompletedProcess([], 0, stdout='{"id": "m1"}', stderr="")
+        with (
+            patch(
+                "tools.google_workspace.gmail.trusted.effects.subprocess.run",
+                return_value=completed,
+            ),
+            self.assertRaises(ValueError),
+        ):
+            effects.search_messages("from:alice", 5)
+
+    def test_search_null_fields_become_empty_strings(self) -> None:
+        stdout = json.dumps(
+            [
+                {
+                    "id": "m1",
+                    "threadId": "t1",
+                    "date": None,
+                    "from": None,
+                    "subject": None,
+                    "labels": None,
+                    "body": None,
+                }
+            ]
+        )
+        completed = subprocess.CompletedProcess([], 0, stdout=stdout, stderr="")
+        with patch(
+            "tools.google_workspace.gmail.trusted.effects.subprocess.run",
+            return_value=completed,
+        ):
+            messages = effects.search_messages("from:alice", 1)
+        self.assertEqual(
+            messages,
+            [
+                Message(
+                    id="m1",
+                    thread_id="t1",
+                    date="",
+                    sender="",
+                    sender_address="",
+                    subject="",
+                    labels="",
+                    body="",
+                )
+            ],
+        )
+
     def test_invalid_search_arguments_do_not_execute(self) -> None:
         for query, max_results in (("", 1), ("is:unread", 0), ("is:unread", 51)):
             with (

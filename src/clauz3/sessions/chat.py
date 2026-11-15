@@ -835,6 +835,8 @@ def install_chat(
     workspaces = Workspaces(store.path.parent)
     leases = ExitStack()
     switching = False
+    # True while a tab's New/Select is closing one conversation for the next.
+    replacing = False
     # The one browser tab attached to the conversation; another tab may take over.
     attached_tab: WebSocket | None = None
     manager = (
@@ -1225,7 +1227,8 @@ def install_chat(
 
     @app.websocket("/api/chat/acp")
     async def socket(websocket: WebSocket) -> None:
-        nonlocal conversation, config, store, manager, leases, switching, attached_tab
+        nonlocal conversation, config, store, manager, leases
+        nonlocal switching, replacing, attached_tab
         if not authorized(websocket, mutation=True):
             # Accept only to deliver the close code; never send workspace data.
             await websocket.accept()
@@ -1233,13 +1236,20 @@ def install_chat(
             return
         previous = attached_tab
         if previous is not None:
-            if websocket.query_params.get("takeover") != "1":
+            # A switch in flight rebinds the attached tab, so a takeover waits.
+            if websocket.query_params.get("takeover") != "1" or switching or replacing:
                 await websocket.accept()
                 await websocket.close(code=1013, reason="Workspace open in another tab")
                 return
             # The displaced tab offers its own "Use here" rather than reconnecting.
-            if previous.client_state is WebSocketState.CONNECTED:
-                await previous.close(code=4001, reason="Opened in another tab")
+            if (
+                previous.client_state is WebSocketState.CONNECTED
+                and previous.application_state is WebSocketState.CONNECTED
+            ):
+                # A concurrent takeover or dead transport may already have closed
+                # the peer socket; that tab is displaced either way.
+                with suppress(RuntimeError, WebSocketDisconnect):
+                    await previous.close(code=4001, reason="Opened in another tab")
         await websocket.accept()
         attached_tab = websocket
         queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=256)
@@ -1289,26 +1299,33 @@ def install_chat(
             identifier: str | None,
             configure: Callable[[dict[str, Any] | None], ChatConfig],
         ) -> None:
-            nonlocal conversation, startup
-            await conversation.close()
-            # Load after closing so the record includes the final saved state.
-            saved = store.load(identifier) if identifier else None
-            Path(config.status_file).unlink(missing_ok=True)
-            while not queue.empty():
-                queue.get_nowait()
-            conversation = Conversation(
-                configure(saved).model_copy(update={"prompt": None}), store, saved
-            )
-            app.state.conversation = conversation
-            if attached_tab is websocket:
-                conversation.subscriber = queue
-            await websocket.send_json(
-                {
-                    "method": "clauz3/restore",
-                    "params": {"history": conversation.history, **conversation.state()},
-                }
-            )
-            startup = start()
+            nonlocal conversation, startup, replacing
+            replacing = True
+            try:
+                await conversation.close()
+                # Load after closing so the record includes the final saved state.
+                saved = store.load(identifier) if identifier else None
+                Path(config.status_file).unlink(missing_ok=True)
+                while not queue.empty():
+                    queue.get_nowait()
+                conversation = Conversation(
+                    configure(saved).model_copy(update={"prompt": None}), store, saved
+                )
+                app.state.conversation = conversation
+                if attached_tab is websocket:
+                    conversation.subscriber = queue
+                await websocket.send_json(
+                    {
+                        "method": "clauz3/restore",
+                        "params": {
+                            "history": conversation.history,
+                            **conversation.state(),
+                        },
+                    }
+                )
+                startup = start()
+            finally:
+                replacing = False
 
         async def send() -> None:
             while True:
