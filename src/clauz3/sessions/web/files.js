@@ -54,11 +54,7 @@
       });
       if (!response.ok) {
         const result = await response.json();
-        throw new Error(
-          response.status === 401
-            ? "Sign in using the private link in your terminal."
-            : result.detail || "Unable to read this path.",
-        );
+        throw new Error(result.detail || "Unable to read this path.");
       }
       const result = await response.json();
       if (current.signal.aborted) return;

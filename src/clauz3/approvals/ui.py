@@ -49,7 +49,8 @@ SCRIPT = r"""
     try {
       const response = await fetch('/ui/rows', {cache: 'no-store'});
       if (!response.ok) throw new Error(response.status === 401 ?
-        'Approver session expired. Open the private login link from your terminal.' :
+        'This tab is signed out, usually because the clauz3 server restarted. ' +
+        'Run `clauz3 login-url` and open the link it prints.' :
         'Cannot refresh requests. Retrying…');
       const template = document.createElement('template');
       template.innerHTML = await response.text();
@@ -96,7 +97,8 @@ SCRIPT = r"""
           feedback: card.querySelector('textarea').value})
       });
       if (!response.ok) throw new Error(response.status === 401 ?
-        'Approver session expired. Reopen the private login link.' :
+        'This tab is signed out, usually because the clauz3 server restarted. ' +
+        'Run `clauz3 login-url` and open the link it prints.' :
         `Decision was not saved (${response.status}). Please retry.`);
       result.textContent = 'Decision saved.';
       announcement.textContent = `${button.textContent.trim()}: decision saved.`;

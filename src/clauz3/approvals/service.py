@@ -38,6 +38,7 @@ from clauz3.approvals.decisions import (
     parse_decision,
 )
 from clauz3.approvals.descriptions import render_guarantees
+from clauz3.approvals.login_links import remove_login_url, save_login_url
 from clauz3.approvals.policy import (
     ApprovalPolicy,
     auto_approval_response,
@@ -176,6 +177,7 @@ def create_approval_app(
             "copy.js",
             "menus.js",
             "history.js",
+            "signed-out.js",
             "logo.svg",
             "favicon.svg",
         }:
@@ -752,11 +754,15 @@ def _same_secret(given: str, expected: str) -> bool:
 def _approver_login_required() -> HTMLResponse:
     return HTMLResponse(
         _page(
-            "approver sign-in required",
+            "sign-in required",
             """
-            <p>This approval console needs the approver credential. Open the
-            <code>/ui/login?key=...</code> URL that <code>clauz3
-            approval-service</code> printed in the operator's terminal.</p>
+            <p>This tab is not signed in. This usually happens after the
+            clauz3 server restarts, which changes its private sign-in
+            link.</p>
+            <p>Run <code>clauz3 login-url</code> in a terminal on this computer
+            and open the link it prints, or find the
+            <code>/ui/login?key=...</code> link where the server was
+            started.</p>
             """,
         ),
         status_code=401,
@@ -1243,10 +1249,14 @@ def serve_approval_service(
     if auth_token:
         print(f"CLAUZ3_APPROVAL_TOKEN={auth_token}", flush=True)
     approver_token = decision_token if decision_token is not None else auth_token
-    if approver_token:
-        print(
-            f"approver UI (keep private): "
-            f"http://{host}:{port}/ui/login?key={approver_token}",
-            flush=True,
-        )
-    uvicorn.run(app, host=host, port=port)
+    if not approver_token:
+        uvicorn.run(app, host=host, port=port)
+        return
+    login_url = f"http://{host}:{port}/ui/login?key={approver_token}"
+    save_login_url(login_url)
+    print(f"approver UI (keep private): {login_url}")
+    print("Run `clauz3 login-url` to print this link again.", flush=True)
+    try:
+        uvicorn.run(app, host=host, port=port)
+    finally:
+        remove_login_url(login_url)

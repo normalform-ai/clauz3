@@ -122,6 +122,55 @@ def test_authentication_and_origin(client: TestClient) -> None:
     assert client.get("/ui/assets/chat.py").status_code == 404
 
 
+def test_restart_signs_out_an_open_tab(config: ChatConfig) -> None:
+    """A cookie from an earlier server start yields one signed-out state."""
+    from clauz3.approvals.service import APPROVER_SESSION_COOKIE
+
+    first = create_approval_app(
+        auth_token="submit", decision_token="decide", chat_config=config
+    )
+    with TestClient(
+        first, base_url="http://127.0.0.1", client=("127.0.0.1", 12345)
+    ) as client:
+        login(client)
+        page = client.get("/ui").text
+        # The signed-out handler loads before any script that makes requests.
+        assert page.index("/ui/assets/signed-out.js") < page.index(
+            "/ui/assets/workspace.js"
+        )
+        script = client.get("/ui/assets/signed-out.js")
+        assert script.status_code == 200
+        assert script.headers["content-type"].startswith("text/javascript")
+        assert "This tab is signed out" in script.text
+        assert "clauz3 login-url" in script.text
+        assert "status === 401" in script.text and "code === 1008" in script.text
+        stale = client.cookies[APPROVER_SESSION_COOKIE]
+    restarted = create_approval_app(
+        auth_token="submit", decision_token="new-key", chat_config=config
+    )
+    with TestClient(
+        restarted, base_url="http://127.0.0.1", client=("127.0.0.1", 12345)
+    ) as tab:
+        tab.cookies.set(APPROVER_SESSION_COOKIE, stale)
+        for path in ("/ui/rows", "/api/chat/conversations", "/api/workspaces"):
+            assert tab.get(path).status_code == 401
+        signed_out = tab.get("/ui")
+        assert signed_out.status_code == 401
+        assert "This tab is not signed in" in signed_out.text
+        assert "server restarts" in signed_out.text
+        assert "clauz3 login-url" in signed_out.text
+        assert "new-key" not in signed_out.text
+        with (
+            pytest.raises(WebSocketDisconnect) as closed,
+            tab.websocket_connect(
+                "ws://127.0.0.1/api/chat/acp",
+                headers={"Origin": "http://127.0.0.1"},
+            ) as rejected,
+        ):
+            rejected.receive_json()
+        assert closed.value.code == 1008
+
+
 @pytest.mark.parametrize("name", ["logo.svg", "favicon.svg"])
 def test_brand_assets_match_docs(client: TestClient, name: str) -> None:
     """The UI serves the same logo files as the docs site."""

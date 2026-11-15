@@ -164,6 +164,22 @@ def _build_parser() -> argparse.ArgumentParser:
     resume.add_argument("--port", type=int, default=0)
     resume.add_argument("--prompt")
     resume.set_defaults(handler=_resume)
+    login_url = subparsers.add_parser(
+        "login-url",
+        help="print the private sign-in link of a running clauz3 server",
+        description=(
+            "Print the private approver sign-in link of a running `clauz3 ui`, "
+            "`clauz3 start` or `clauz3 approval-service`. Each server start "
+            "changes the link and signs out tabs opened before it. Treat the "
+            "link like a password."
+        ),
+    )
+    login_url.add_argument(
+        "--port",
+        type=int,
+        help="server port (default: the most recently started running server)",
+    )
+    login_url.set_defaults(handler=_login_url)
 
     prove = subparsers.add_parser(
         "prove",
@@ -581,6 +597,17 @@ def _resume(args: argparse.Namespace) -> int:
     except (StartError, OSError, ValueError, ApprovalPolicyError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+
+
+def _login_url(args: argparse.Namespace) -> int:
+    from clauz3.approvals.login_links import LoginLinkError, login_url
+
+    try:
+        print(login_url(args.port))
+    except LoginLinkError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    return 0
 
 
 def _run(args: argparse.Namespace) -> int:

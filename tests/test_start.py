@@ -566,6 +566,47 @@ def test_browser_failure_still_launches(
     assert "Open the approver URL" in capsys.readouterr().err
 
 
+def test_launch_saves_private_login_link_until_it_stops(
+    project: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import stat
+
+    from clauz3.approvals.login_links import login_links_dir
+
+    fake_agent(tmp_path, monkeypatch, "import sys\nsys.exit(0)\n")
+    saved: list[tuple[str, str, str, int, int]] = []
+
+    def opened(url: str) -> bool:
+        # The browser opens only after the link is saved for `clauz3 login-url`.
+        startup = capsys.readouterr().err
+        assert main(["login-url"]) == 0
+        port = url.split(":")[2].split("/")[0]
+        path = login_links_dir() / f"{port}.url"
+        saved.append(
+            (
+                url,
+                startup,
+                capsys.readouterr().out.strip(),
+                stat.S_IMODE(path.stat().st_mode),
+                stat.S_IMODE(path.parent.stat().st_mode),
+            )
+        )
+        return True
+
+    monkeypatch.setattr("clauz3.sessions.launcher.webbrowser.open", opened)
+    assert main(["start", "claude"]) == 0
+    [(url, startup, printed, file_mode, directory_mode)] = saved
+    assert printed == url
+    assert (file_mode, directory_mode) == (0o600, 0o700)
+    assert list(login_links_dir().iterdir()) == []
+    assert startup.count(url) == 1
+    assert "Run `clauz3 login-url` to print the current link" in startup
+    assert url not in capsys.readouterr().err
+
+
 def test_default_session_accepts_browser_approval(
     project: Path,
     tmp_path: Path,

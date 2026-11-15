@@ -46,7 +46,7 @@ and requests for more information.
 
 The page refreshes as requests arrive and decisions change. Unchanged cards
 retain typed notes, keyboard focus and expanded details. Connection and
-expired-login errors are shown in the page; a failed decision leaves the note
+signed-out errors are shown in the page, pointing to `clauz3 login-url`; a failed decision leaves the note
 available to retry. These tabs show the current service session; **Profile and
 history** shows persistent history for ordinary `clauz3 start` sessions.
 
@@ -193,6 +193,12 @@ to the decision endpoint instead.
 
 Open the browser UI through the printed sign-in URL. Under `--no-auth` the UI
 is open at `http://127.0.0.1:8765/`.
+
+The service also saves the sign-in URL in a user-only file while it runs, so
+`clauz3 login-url --port 8765` prints it again. Browser sessions do not
+survive a restart, and the approver token changes too unless
+`CLAUZ3_APPROVAL_DECISION_TOKEN` is set. Tabs left open across a restart say
+they are signed out and point to `clauz3 login-url`.
 
 ## Authorize a layer for automatic decisions
 
