@@ -60,6 +60,18 @@ decision credential. The agent environment strips approval credentials; its
 MCP configuration includes only submission credentials and the verification
 key. No secrets are placed in the page or chat event history by the host.
 
+The launcher prints the private sign-in link and saves it, mode 0600, as
+`login/<port>.url` in the user-wide clauz3 store for `clauz3 login-url`. Every
+start mints a new approver key, so a tab left open across a restart holds a
+stale session cookie. `web/signed-out.js` loads before the other scripts and
+wraps `fetch`: the first 401 from any request, or a chat socket closed with
+1008, replaces the whole page (that request, and any later one, never settles,
+so no script's error handling writes to the removed elements) with one message saying the tab is signed out,
+usually after a restart, and to run `clauz3 login-url`. The stale conversation
+and its approval cards are removed rather than left looking usable; 403 means a
+refused request, not a lost sign-in, so it does not sign the tab out. The
+server's sign-in page uses the same wording.
+
 The host performs ACP initialization and session creation, reconstructing all
 session parameters itself. The browser submits text prompts and controls Stop
 and New conversation. ACP updates remain protocol-shaped; `clauz3/user`,

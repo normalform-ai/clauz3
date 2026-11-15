@@ -8,7 +8,7 @@ authoritative output from your installed version.
 ## `clauz3`
 
 ```
-clauz3 [--version] {ui,start,resume,prove,run,tools,libraries,mock-approval-service,approval-service,approval-keygen,policy-check,install,test,lint,config} ...
+clauz3 [--version] {ui,start,resume,login-url,prove,run,tools,libraries,mock-approval-service,approval-service,approval-keygen,policy-check,install,test,lint,config} ...
 ```
 
 Static contract proofs for agent-authored Python.
@@ -145,6 +145,11 @@ Library setup happens in the browser; an empty folder or `--setup` opens
 `--policy`, `--model`, `--prompt`, `--port`, `--unrestricted`, and `--no-browser`. The last flag
 prints the private login URL instead of opening it. The server binds only to
 `127.0.0.1`. Press Ctrl-C in the terminal to stop it.
+
+Each start creates a new sign-in key, so browser tabs opened before a restart
+are signed out: they replace the conversation with a message saying so, and
+pending approvals cannot be decided from them. Run
+[`clauz3 login-url`](#clauz3-login-url) to print the current link, then open it.
 
 The workspace shows streaming answers, tool input/output, plans, and action
 cards with actual runner phases. Each approval card includes guarantees,
@@ -407,7 +412,8 @@ Non-secret session metadata lives under the user-wide clauz3 store's `sessions/`
 folder (see `install --global` below). It records the conversation ID, project,
 model, debug mode, policy and skill-directory selection, plus content hashes.
 Approval credentials, private login URLs and skill-document contents are not
-stored there. Claude retains its conversation using its normal session storage.
+stored there; the current login URL of each running server is kept only in the
+`login/` folder described under [`clauz3 login-url`](#clauz3-login-url). Claude retains its conversation using its normal session storage.
 
 On both start and resume, trusted roots must stay inside the project. The
 selection fingerprint reads all Python files under `tools/`, sources under
@@ -432,6 +438,39 @@ history** link lets the operator inspect rules and include or exclude past
 human decisions. See [remembered decisions](../how-to/approval-service.md#remember-decisions-across-sessions)
 for matching rules and limitations. Explicit `--policy` sessions currently use
 that policy alone and retain in-memory history.
+
+## `clauz3 login-url`
+
+```bash
+clauz3 login-url [--port PORT]
+```
+
+Print the private approver sign-in link of a running `clauz3 ui`,
+`clauz3 start`, `clauz3 resume` or `clauz3 approval-service`. Use it when a
+browser tab says it is signed out, usually after the server restarted, or when
+the server was started by an agent or in the background and its terminal output
+is hard to find. Without `--port` it prints the link of the most recently
+started server that is still listening.
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `--port PORT` | most recent server | Print the link of the server on this port. |
+
+Each server writes its link to `login/<port>.url` in the user-wide clauz3 store
+(`$CLAUZ3_HOME`, default `~/.local/share/clauz3`) once it has bound its port,
+replacing any link from an earlier start on the same port, and removes it when
+it stops. A server that cannot bind a busy port leaves the running server's
+link alone. The directory is mode `0700` and each file mode `0600`, so only
+your user account can read them; nothing is written to the project. Saving is
+best-effort: if the store cannot be written, the server prints one warning
+(without the link) and keeps running, and the link is only in its terminal
+output. The command only reads these files and asks the server's
+unauthenticated `/health` endpoint, without the key, whether a clauz3 server
+still answers on that port. It exits with status `2` and an error when no saved
+link belongs to a running server. Treat the printed link like a password.
+
+Browser sessions and the sign-in key are not kept across restarts, so a
+restart always signs out open tabs.
 
 ## `clauz3 libraries`
 

@@ -233,9 +233,7 @@
         return;
       }
       if (!response.ok)
-        throw new Error(
-          "Could not load approvals. Reopen your private login link if the session expired.",
-        );
+        throw new Error("Could not load approvals.");
       snapshot = await response.json();
       render();
       $("profile-result").textContent = "";

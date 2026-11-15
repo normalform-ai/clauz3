@@ -39,7 +39,7 @@
   async function load() {
     try {
       const response = await fetch("/api/workspaces", { cache: "no-store" });
-      if (!response.ok) throw new Error("Could not load workspaces. Reopen the private login link if needed.");
+      if (!response.ok) throw new Error("Could not load workspaces.");
       snapshot = await response.json();
       $("workspace-picker").hidden = !snapshot.enabled;
       $("tutorial-help").hidden = !snapshot.tutorial;

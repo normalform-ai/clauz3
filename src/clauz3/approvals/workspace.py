@@ -27,6 +27,7 @@ def profile_page() -> str:
 Approval profile &amp; history</a></nav>
 <div class="sidebar-bottom">Proof before execution</div></aside>
 <main>{component}</main>
+<script src="/ui/assets/signed-out.js" defer></script>
 <script src="/ui/approval-assets/guarantees.js" defer></script>
 <script src="/ui/approval-assets/profile.js" defer></script>
 </body></html>"""

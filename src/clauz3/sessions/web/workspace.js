@@ -43,6 +43,8 @@
     return node;
   };
   function notice(value) {
+    // A signed-out tab has replaced the page; there is no notice to update.
+    if (clauz3SignedOut.active) return;
     $("notice").textContent = value;
     $("notice").hidden = !value;
   }
@@ -441,14 +443,12 @@
     }
   }
   async function pollApprovals() {
-    if (pollBusy || document.hidden) return;
+    if (pollBusy || document.hidden || clauz3SignedOut.active) return;
     pollBusy = true;
     try {
       const response = await fetch("/ui/rows", { cache: "no-store" });
-      if (!response.ok)
-        throw new Error(
-          "Cannot load approvals. Reopen the private terminal link if your login expired.",
-        );
+      // A 401 replaces the page with the signed-out message and never returns.
+      if (!response.ok) throw new Error("Cannot load approvals. Retrying…");
       const template = document.createElement("template");
       template.innerHTML = await response.text();
       for (const card of template.content.querySelectorAll(".request-card"))
@@ -523,8 +523,8 @@
       if (ws !== socket) return;
       connected = false;
       controls();
-      if (event.code === 1008) {
-        notice("Open the private login link from your terminal to sign in.");
+      if (clauz3SignedOut.close(event.code)) {
+        clauz3SignedOut.enter();
         return;
       }
       clearTimeout(retry);
@@ -722,7 +722,7 @@
     }
   });
   async function refreshHistory() {
-    if (historyBusy) return;
+    if (historyBusy || clauz3SignedOut.active) return;
     historyBusy = true;
     try {
       const response = await fetch("/api/chat/conversations", {
