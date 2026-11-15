@@ -28,9 +28,10 @@ Symbolic links, hard links and case-insensitive filesystems are not modelled.
 contents with ``never_write_under``. Parent directories that ``write_file``,
 ``touch`` and ``copy`` create on the way are not ``Create`` events; they lie on
 the path of the ``Write`` that created them. Likewise ``edit_file`` writes a
-temporary ``.NAME.*.tmp`` sibling and renames it over ``path``; that sibling
+temporary ``NAME.*.tmp`` sibling and renames it over ``path``; that sibling
 is not an event, so exact-file contracts such as ``only_writes_files`` do not
-list it.
+list it. Its path starts with the edited file's path, so a prefix contract
+that admits ``path`` admits it too.
 
 An ``edit_file`` call is a ``Read`` of ``path`` and a ``WriteText`` of ``new``
 to ``path``, so ``must_not_write`` and ``write_length_at_most`` check only the
@@ -386,10 +387,11 @@ def only_writes_files(files: list[FilePath]) -> ContractSpec:
     make_dir is refused too. An empty list permits no modifications. Parent
     directories implicitly created by write_file, append_file or touch are
     allowed and are not separate write events, nor is the temporary
-    ``.NAME.*.tmp`` sibling edit_file writes and renames over the listed
-    path. Bare and leading ./ spellings are equivalent. Paths are lexical:
-    existence, file type and symlink or hard-link targets are not checked.
-    Reads are not restricted by this contract.
+    ``NAME.*.tmp`` sibling edit_file writes and renames over the listed path
+    (its path starts with the listed path). Bare and leading ./ spellings are
+    equivalent. Paths are lexical: existence, file type and symlink or
+    hard-link targets are not checked. Reads are not restricted by this
+    contract.
     """
     if type(files) is not list or any(type(path) is not FilePath for path in files):
         raise TypeError("files must be a list of FilePath literals")

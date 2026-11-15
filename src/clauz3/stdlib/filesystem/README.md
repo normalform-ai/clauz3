@@ -149,7 +149,10 @@ is allowed.
   files are honoured only at or below `path`: a `.gitignore` above `path`
   (including global and repository excludes) is not read, so a
   repository-root `.gitignore` applies when searching `.` but not when
-  searching a subdirectory of it; use `glob` to narrow a search instead.
+  searching a subdirectory of it, while a `.gitignore` at or below `path`
+  applies whenever `path` is inside a git repository, wherever its root is.
+  Outside a git repository only `.ignore` and `.rgignore` files apply. Use
+  `glob` to narrow a search instead.
   Needs `rg` on the PATH. Which matches are returned when `max_results` is
   reached is unspecified. Any ripgrep error, including a missing `path` or
   one unreadable file, raises and returns no partial results, unless
@@ -169,9 +172,12 @@ is allowed.
   Line endings and permission bits are preserved. The write goes through a
   temporary file in the same directory, renamed over `path`, so it needs
   write permission on the directory as well as the file; a process killed
-  mid-write can leave a stray `.NAME.*.tmp` sibling behind. Like the parent
+  mid-write can leave a stray `NAME.*.tmp` sibling behind. Like the parent
   directories `write_file` creates, that temporary sibling is not an event,
-  so exact-file contracts such as `only_writes_files` do not list it. A
+  so exact-file contracts such as `only_writes_files` do not list it. Its
+  path starts with the edited file's path (`a.py` gives
+  `a.py.<random>.tmp`), so any path-prefix contract that admits the file
+  admits the sibling too. A
   read-only file raises `PermissionError` rather than being rewritten.
 - `make_dir(path)`, `touch(path)`: create a directory (with parents) or an
   empty file.
@@ -210,7 +216,7 @@ replaces every non-overlapping occurrence left to right. `edit_file` refuses
 to rewrite a read-only file (`PermissionError`), and otherwise writes through
 a temporary file in the same directory before renaming it over `path`, so it
 needs write permission on that directory too, and a process killed mid-edit
-can leave a stray `.NAME.*.tmp` sibling behind. A search is a recursive read
+can leave a stray `NAME.*.tmp` sibling behind. A search is a recursive read
 of its `path`, so `never_read_under` refuses a search of any parent of the
 forbidden directory (a `glob` does not narrow what contracts see, and hidden
 directories are searched when `glob` matches them), and `only_reads_files`

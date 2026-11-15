@@ -1,6 +1,7 @@
 """search_files runs ripgrep and returns bounded, typed matches."""
 
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -13,6 +14,13 @@ import deal
 import pytest
 
 Search = Callable[[str, str, str, int], list[Any]]
+
+
+@pytest.fixture(autouse=True)
+def require_ripgrep() -> None:
+    """Fail loudly, never skip: rg is a declared requirement and CI has it."""
+    if shutil.which("rg") is None:
+        pytest.fail("ripgrep (rg) is required for these tests; install it")
 
 
 @pytest.fixture
@@ -73,6 +81,35 @@ def test_ignore_files_apply_only_at_or_below_path(
     assert not [p for p in paths if p.endswith("src/gen.py")]
 
 
+def test_gitignore_inside_path_applies_when_the_repository_root_is_above(
+    search_files: Search, tree: Path
+) -> None:
+    # The git repository is rooted at ``tree``, above the searched "src", yet
+    # .gitignore files at and below "src" are still honoured.
+    (tree / "src/.gitignore").write_text("skipped.py\n")
+    (tree / "src/skipped.py").write_text("TODO skipped\n")
+    (tree / "src/sub").mkdir()
+    (tree / "src/sub/.gitignore").write_text("deep.py\n")
+    (tree / "src/sub/deep.py").write_text("TODO deep\n")
+    (tree / "src/sub/kept.py").write_text("TODO kept\n")
+    paths = {m.path for m in search_files("TODO", "src", "", 20)}
+    assert paths == {"src/app.py", "src/notes.txt", "src/sub/kept.py"}
+
+
+def test_gitignore_outside_a_git_repository_is_not_honoured(
+    search_files: Search, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Outside a git repository only .ignore and .rgignore files apply.
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src/.gitignore").write_text("git.py\n")
+    (tmp_path / "src/.ignore").write_text("plain.py\n")
+    (tmp_path / "src/git.py").write_text("TODO git\n")
+    (tmp_path / "src/plain.py").write_text("TODO plain\n")
+    monkeypatch.chdir(tmp_path)
+    paths = {m.path for m in search_files("TODO", "src", "", 20)}
+    assert paths == {"src/git.py"}
+
+
 def test_stops_at_max_results(search_files: Search, tree: Path) -> None:
     assert len(search_files("TODO", "src", "", 1)) == 1
 
@@ -125,6 +162,21 @@ def test_hidden_files_skipped_unless_glob_matches_them(
         ("src/.env", 1, "TODO hidden file"),
         ("src/.secret/key", 1, "TODO hidden directory"),
     ]
+
+
+@pytest.mark.usefixtures("deal_disabled")
+@pytest.mark.parametrize("path", ["../secrets", "src/../secrets", "src//x", ""])
+def test_body_refuses_unplain_paths_before_running_rg(
+    search_files: Search, tree: Path, monkeypatch: pytest.MonkeyPatch, path: str
+) -> None:
+    # The body re-checks the path itself rather than rely on deal's optional
+    # runtime precondition checks.
+    def no_subprocess(*args: object, **kwargs: object) -> None:
+        raise AssertionError("rg must not be started")
+
+    monkeypatch.setattr(subprocess, "Popen", no_subprocess)
+    with pytest.raises(ValueError, match="search_files requires"):
+        search_files("TODO", path, "", 10)
 
 
 def test_missing_path_raises(search_files: Search, tree: Path) -> None:

@@ -1,5 +1,6 @@
 """edit_file replaces exact text in place and never half-writes a file."""
 
+import fnmatch
 import os
 import stat
 from collections.abc import Callable
@@ -104,3 +105,59 @@ def test_preconditions_reject_empty_or_unchanged_text(
     target.write_text("same\n")
     with pytest.raises(deal.PreContractError):
         edit_file(str(target), old, new)
+
+
+def test_failed_rename_propagates_and_leaves_no_temporary(
+    edit_file: Edit, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "a.py"
+    target.write_text("x = 1\n")
+
+    def refuse(src: str, dst: object) -> None:
+        raise OSError("rename refused")
+
+    monkeypatch.setattr(os, "replace", refuse)
+    with pytest.raises(OSError, match="rename refused"):
+        edit_file(str(target), "x = 1", "x = 2")
+    assert target.read_text() == "x = 1\n"
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["a.py"]
+
+
+def test_temporary_sibling_name_starts_with_the_edited_path(
+    edit_file: Edit, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The temporary must share the edited path as a prefix (no leading dot),
+    # so every prefix contract that admits ``path`` also admits it.
+    target = tmp_path / "a.py"
+    target.write_text("x = 1\n")
+    sources: list[str] = []
+    real_replace = os.replace
+
+    def record(src: str, dst: str) -> None:
+        sources.append(os.fspath(src))
+        real_replace(src, dst)
+
+    monkeypatch.setattr(os, "replace", record)
+    edit_file(str(target), "x = 1", "x = 2")
+    [source] = sources
+    assert Path(source).parent == tmp_path
+    assert fnmatch.fnmatchcase(Path(source).name, "a.py.*.tmp")
+    assert source.startswith(str(target) + ".")
+    assert target.read_text() == "x = 2\n"
+
+
+def test_symlink_is_replaced_and_its_target_left_alone(
+    edit_file: Edit, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "target.txt").write_text("DEBUG = True\n")
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src/link").symlink_to(outside / "target.txt")
+    monkeypatch.chdir(tmp_path)
+    edit_file("src/link", "True", "False")
+    assert (outside / "target.txt").read_text() == "DEBUG = True\n"
+    link = tmp_path / "src/link"
+    assert not link.is_symlink()
+    assert link.is_file()
+    assert link.read_text() == "DEBUG = False\n"

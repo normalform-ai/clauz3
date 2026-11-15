@@ -235,30 +235,38 @@ def search_files(pattern: str, path: str, glob: str, max_results: int) -> list[M
     ``Match`` with the file path, one-based line number and line text.
 
     ripgrep's defaults apply: ``.gitignore``d (inside a git repository) and
-    binary files are skipped, hidden files and directories are skipped
-    unless ``glob`` matches them (``glob="*"`` matches every name, so it
-    searches hidden files too, and ``".*"`` searches only hidden files),
-    and a symlink encountered under ``path`` is not followed -- but a
-    symlink given as ``path`` itself is followed. The user's own ripgrep
-    configuration (``RIPGREP_CONFIG_PATH`` and the rest) is ignored, so
-    these defaults cannot be changed from outside the call. Ignore files
-    are honoured only at or below ``path``: a ``.gitignore`` above ``path``
-    (including the global and repository excludes) is not read, so a
-    repository-root ``.gitignore`` applies when searching ``.`` but not
-    when searching a subdirectory of it; use ``glob`` to narrow a search
-    instead. No matches returns ``[]``. ripgrep searches files in parallel,
-    so which matches are returned when
-    ``max_results`` is reached is unspecified. Any ripgrep error -- an
-    invalid pattern, a missing ``path``, or a single unreadable file under
-    it -- raises ``subprocess.CalledProcessError`` with no partial results,
-    unless ``max_results`` is reached first, in which case the matches found
-    so far are returned and no error is raised. A search that takes longer
-    than two minutes (``DEFAULT_TIMEOUT_SECONDS``) is killed and raises
-    ``subprocess.TimeoutExpired``, also with no partial results. Contracts
-    see a recursive read of ``path``.
+    binary files are skipped, hidden files and directories are skipped unless
+    ``glob`` matches them (``glob="*"`` matches every name, so it searches
+    hidden files too, and ``".*"`` searches only hidden files), and a symlink
+    encountered under ``path`` is not followed -- but a symlink given as
+    ``path`` itself is followed. The user's own ripgrep configuration
+    (``RIPGREP_CONFIG_PATH`` and the rest) is ignored, so these defaults
+    cannot be changed from outside the call. Ignore files are honoured only at
+    or below ``path``: a ``.gitignore`` above ``path`` (including the global
+    and repository excludes) is not read, so a repository-root ``.gitignore``
+    applies when searching ``.`` but not when searching a subdirectory of it,
+    while a ``.gitignore`` at or below ``path`` applies whenever ``path`` is
+    inside a git repository, wherever its root is. Outside a git repository
+    only ``.ignore`` and ``.rgignore`` files apply. Use ``glob`` to narrow a
+    search instead. No matches returns ``[]``. ripgrep searches files in
+    parallel, so which matches are returned when ``max_results`` is reached is
+    unspecified. Any ripgrep error -- an invalid pattern, a missing ``path``,
+    or a single unreadable file under it -- raises
+    ``subprocess.CalledProcessError`` with no partial results, unless
+    ``max_results`` is reached first, in which case the matches found so far
+    are returned and no error is raised. A search that takes longer than two
+    minutes (``DEFAULT_TIMEOUT_SECONDS``) is killed and raises
+    ``subprocess.TimeoutExpired``, also with no partial results. Contracts see
+    a recursive read of ``path``.
     """
-    # No separate body check is needed: ``-e``, ``--`` and the ``./`` prefix
-    # stop option injection, and the plain-path precondition is proved first.
+    # Do not rely on Deal's optional runtime checks at this external boundary:
+    # ``-e``, ``--`` and the ``./`` prefix stop option injection, but not a
+    # ``..`` that would walk out of the path the proof saw.
+    if not path or "\0" in path or not is_plain_path(path):
+        raise ValueError(
+            "search_files requires a non-empty path without .., . or empty "
+            "segments, backslashes or NUL"
+        )
     # The prefix is stripped again from reported paths.
     prefixed = not (path == "." or os.path.isabs(path) or path.startswith("./"))
     root = "./" + path if prefixed else path
@@ -407,17 +415,18 @@ def edit_file(path: str, old: str, new: str, replace_all: bool = False) -> None:
     The new contents are written to a temporary file in the same directory
     and then renamed over ``path``, so this needs write permission on the
     directory as well as the file, and a process killed between the write
-    and the rename can leave a stray ``.NAME.*.tmp`` sibling behind; the
+    and the rename can leave a stray ``NAME.*.tmp`` sibling behind; the
     rename itself is atomic, so ``path`` is never left half-written.
 
     Contracts see a read of ``path`` and a text write of ``new`` to ``path``.
     ``must_not_write`` and ``write_length_at_most`` therefore check only the
-    inserted text, not the resulting file. The temporary sibling is not
-    seen: like the parent directories ``write_file`` creates, it is not
-    listed by exact-file contracts such as ``only_writes_files``, though it
-    sits in the same directory as ``path``. A symlink at ``path`` is replaced
-    by a regular file holding the new contents (the link's target is not
-    changed), as are hard links; ownership is not preserved.
+    inserted text, not the resulting file. The temporary sibling is not seen:
+    like the parent directories ``write_file`` creates, it is not listed by
+    exact-file contracts such as ``only_writes_files``. Its path starts with
+    ``path`` itself (``a.py`` gives ``a.py.<random>.tmp``), so any path-prefix
+    contract that admits ``path`` admits it too. A symlink at ``path`` is
+    replaced by a regular file holding the new contents (the link's target is
+    not changed), as are hard links; ownership is not preserved.
     """
     target = Path(path)
     with target.open(encoding="utf-8", newline="") as stream:
@@ -435,7 +444,7 @@ def edit_file(path: str, old: str, new: str, replace_all: bool = False) -> None:
     updated = text.replace(old, new) if replace_all else text.replace(old, new, 1)
     mode = target.stat().st_mode
     descriptor, temporary = tempfile.mkstemp(
-        dir=target.parent, prefix=f".{target.name}.", suffix=".tmp"
+        dir=target.parent, prefix=f"{target.name}.", suffix=".tmp"
     )
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8", newline="") as stream:

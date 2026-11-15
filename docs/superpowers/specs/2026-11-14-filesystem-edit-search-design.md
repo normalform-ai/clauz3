@@ -31,7 +31,9 @@ def edit_file(path: str, old: str, new: str, replace_all: bool = False) -> None
 - The file must already exist; `edit_file` never creates one.
 - Line endings and encoding are preserved: read and write with `newline=""`.
   The write goes to a temporary file in the same directory, then `os.replace`,
-  so a failure never leaves a half-written file. The file's permission bits
+  so a failure never leaves a half-written file. The temporary is named
+  `NAME.<random>.tmp` (no leading dot), so its path starts with the edited
+  path and every path-prefix contract that admits the file admits it too. The file's permission bits
   are kept.
 - Path preconditions match the other effects (`is_plain_path`, non-empty).
 - Returns `None`, like `write_file`.
@@ -77,7 +79,10 @@ def search_files(pattern: str, path: str, glob: str, max_results: int) -> list[M
   this version. Ignore files are honoured only at or below `path`: a
   `.gitignore` above `path`, the global `core.excludesFile`, and
   `.git/info/exclude` are not read, so a repository-root `.gitignore` applies
-  when searching `.` but not when searching a subdirectory of it; narrow with
+  when searching `.` but not when searching a subdirectory of it. A
+  `.gitignore` at or below `path` applies whenever `path` is inside a git
+  repository, wherever its root is (checked with rg 14.1.0 and 15.1.0);
+  outside a repository only `.ignore` and `.rgignore` apply. Narrow with
   `glob` instead.
 - Invocation: `rg --no-config --no-ignore-parent --no-ignore-global
   --no-ignore-exclude --json -e PATTERN [--glob GLOB] -- ROOT`, with an
