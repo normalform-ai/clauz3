@@ -66,7 +66,7 @@ branch and that only the named account is touched; the user approves the
 
 Projects split into two layers:
 
-- **Trusted roots** such as `tools/email/trusted/`: small audited modules
+- **Trusted roots** such as `cz3tools/email/trusted/`: small audited modules
   containing side-effecting functions and reusable domain contracts. The prover
   trusts their signatures, `@clauz3.trusted` effect declarations,
   `@clauz3.requires(...)` preconditions, and `@contract` helper definitions.

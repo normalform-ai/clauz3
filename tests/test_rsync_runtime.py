@@ -19,7 +19,7 @@ def rsync_effect(monkeypatch: pytest.MonkeyPatch) -> RsyncEffect:
     """The bundled rsync effect, loaded by path to run its body."""
     monkeypatch.syspath_prepend(str(RSYNC_ROOT))
     spec = importlib.util.spec_from_file_location(
-        "rsync_effects", RSYNC_ROOT / "tools/rsync/trusted/effects.py"
+        "rsync_effects", RSYNC_ROOT / "cz3tools/rsync/trusted/effects.py"
     )
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -129,7 +129,7 @@ def test_precondition_names_every_refused_option(
 ) -> None:
     monkeypatch.syspath_prepend(str(RSYNC_ROOT))
     spec = importlib.util.spec_from_file_location(
-        "rsync_effects_names", RSYNC_ROOT / "tools/rsync/trusted/effects.py"
+        "rsync_effects_names", RSYNC_ROOT / "cz3tools/rsync/trusted/effects.py"
     )
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)

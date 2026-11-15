@@ -1,6 +1,6 @@
 # ruff: noqa: F821
-from tools.bank.trusted import contracts as bank
-from tools.bank.trusted.effects import balance, withdraw
+from cz3tools.bank.trusted import contracts as bank
+from cz3tools.bank.trusted.effects import balance, withdraw
 
 import clauz3
 

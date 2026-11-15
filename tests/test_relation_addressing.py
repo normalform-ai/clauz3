@@ -485,7 +485,7 @@ def test_one_layer_reached_twice_is_not_a_collision(
 ) -> None:
     """Roots repeat and nest, and a second visit to one file is not two effects.
 
-    ``--trusted-root tools --trusted-root tools/email/trusted`` is a reasonable
+    ``--trusted-root tools --trusted-root cz3tools/email/trusted`` is a reasonable
     thing to write; refusing it named the same ``effects.py`` on both sides of
     the collision and asked the author to rename one of them.
     """

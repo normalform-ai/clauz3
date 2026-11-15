@@ -52,7 +52,7 @@ A complete library has this shape:
 ```
 <library>/
 ├── clauz3.yaml            # optional kind: package; shared prerequisites
-├── tools/<domain>/
+├── cz3tools/<domain>/
 │   ├── clauz3.yaml        # library-owned human description and requirements
 │   ├── README.md          # optional installed human-facing guide
 │   └── trusted/
@@ -65,14 +65,14 @@ A complete library has this shape:
 └── AGENTS.md              # consumer-facing guide
 ```
 
-`clauz3 install` copies the entire `tools/<domain>/` directory, including its
+`clauz3 install` copies the entire `cz3tools/<domain>/` directory, including its
 manifest and documentation. Only `trusted/` is a trusted Python boundary.
 Repository-level tests and guides remain in the source repository.
 
 ## Library description and user setup
 
 Put `clauz3.yaml` beside `trusted/`, one manifest per domain. Its `name` must
-match the domain path below `tools/`. Write for a person deciding whether to
+match the domain path below `cz3tools/`. Write for a person deciding whether to
 enable the library: `summary` supplies the library card, and `description`
 explains its capabilities and limits. The registry contains source locations
 only; do not duplicate descriptions there.
@@ -81,7 +81,7 @@ When domains share prerequisites, optionally put `clauz3.yaml` at the source
 root with `schema_version: 1`, `kind: package`, `name`, `title`, and
 `requirements`. An optional `documentation` URL can point to shared setup.
 Keep domain descriptions, dependencies, and effect-specific permissions in
-`tools/<domain>/clauz3.yaml`. The package manifest neither lists domains nor
+`cz3tools/<domain>/clauz3.yaml`. The package manifest neither lists domains nor
 changes imports or trust. All domains in a package must have their own manifest.
 
 The installer copies shared metadata into a generated `.clauz3-package.yaml`
@@ -164,11 +164,11 @@ A bundled source need not have the same name as its domains. For example,
 `stdlib:google_workspace` installs the package at
 `src/clauz3/stdlib/google_workspace/`, whose shared `clauz3.yaml` owns the
 **Google Workspace** title, gog setup, and account selection. Gmail lives at
-`tools/google_workspace/gmail/`; its manifest name is `google_workspace/gmail`
+`cz3tools/google_workspace/gmail/`; its manifest name is `google_workspace/gmail`
 and its title is **Gmail**. Python imports use
-`tools.google_workspace.gmail.trusted`.
+`cz3tools.google_workspace.gmail.trusted`.
 
-Add future services as siblings (`tools/google_workspace/sheets/`, for example),
+Add future services as siblings (`cz3tools/google_workspace/sheets/`, for example),
 each with its own `trusted/` and `clauz3.yaml`. Discovery derives the domain list
 from the trusted roots; do not duplicate it in the registry or package manifest.
 Keep service contracts independent, and don't declare sibling services as
@@ -254,7 +254,7 @@ recorded effect facts.
 from clauz3.spec import ContractSpec, contract, effect
 from clauz3.spec import no_guarantees as core_no_guarantees
 
-from tools.email.trusted.effects import send_email
+from cz3tools.email.trusted.effects import send_email
 
 Email = effect(send_email)
 
@@ -310,7 +310,7 @@ For example, these declarations could belong to a filesystem layer's
 
 ```python
 from clauz3.spec import effect
-from tools.filesystem.trusted.effects import append_file, write_file
+from cz3tools.filesystem.trusted.effects import append_file, write_file
 
 WriteFile = effect(write_file)                # one effect
 WriteText = effect(write_file, append_file)   # both text-writing effects
@@ -320,7 +320,7 @@ Any = effect()                                # every trusted call
 When several tools act on the same resource, declare the events each performs
 with `@performs` and state contracts over the events instead, so a new tool is
 covered without changing the contract. Another library can import
-`tools.filesystem.trusted.events.Write` and declare it with `@performs`; the
+`cz3tools.filesystem.trusted.events.Write` and declare it with `@performs`; the
 filesystem contracts then cover that library's declared writes too. Declare
 `stdlib:filesystem` as a dependency and select both trusted roots. Import the
 actual event class, rather than redefining one with the same name. See
@@ -459,7 +459,7 @@ Add a `tests/Justfile` so `clauz3 test gh:org/repo` can run your suite:
 ```just
 clauz3 := env_var_or_default("CLAUZ3", "uv run clauz3")
 
-trusted := "../tools/<domain>/trusted"
+trusted := "../cz3tools/<domain>/trusted"
 effects := trusted + "/effects.py"
 prove := clauz3 + " prove --trusted-root " + trusted + " --import-root .."
 
@@ -541,12 +541,12 @@ For working examples in increasing order of complexity:
 - All `_pass.py` cases prove cleanly.
 - All `_fail.py` cases are correctly rejected (non-zero exit from
   `clauz3 prove`).
-- `clauz3 lint tools/<domain>/trusted/effects.py` is clean.
+- `clauz3 lint cz3tools/<domain>/trusted/effects.py` is clean.
 - Every identifier parameter either raises on no-match at run time
   (covered by a runtime smoke test), or its quiet semantics are
   documented so guarantees over it read as intent-only.
 - `README.md` shows the install command and the headline contracts.
-- `tools/<domain>/clauz3.yaml` validates against the manifest schema and describes
+- `cz3tools/<domain>/clauz3.yaml` validates against the manifest schema and describes
   human-facing capabilities, runtime prerequisites, and any user-managed setup.
 - An optional root package manifest contains only shared setup; installation
   produces no missing-manifest warnings, and generated snapshots are not authored

@@ -28,7 +28,7 @@ from clauz3.prover import _trusted_layer_context
 
 ROOT = Path(__file__).resolve().parents[1]
 EMAIL_ROOT = ROOT / "examples/email"
-EMAIL_TRUSTED = EMAIL_ROOT / "tools/email/trusted"
+EMAIL_TRUSTED = EMAIL_ROOT / "cz3tools/email/trusted"
 
 
 def _policy(**kwargs: Any) -> ImportPolicy:
@@ -193,14 +193,14 @@ def test_raise_reports_the_exception_name() -> None:
     [
         (
             "assert-message",
-            "from tools.email.trusted.effects import send_email\n"
+            "from cz3tools.email.trusted.effects import send_email\n"
             "\n"
             "def main() -> None:\n"
             "    assert 1 == 2, send_email('eve@example.com', 'exfil')\n",
         ),
         (
             "raise-operand",
-            "from tools.email.trusted.effects import send_email\n"
+            "from cz3tools.email.trusted.effects import send_email\n"
             "\n"
             "def main() -> None:\n"
             "    raise ValueError(send_email('eve@example.com', 'exfil'))\n",
@@ -257,7 +257,7 @@ def test_step_budget_bounds_execution() -> None:
 
 
 SEND_PLAN = (
-    "from tools.email.trusted.effects import send_email\n"
+    "from cz3tools.email.trusted.effects import send_email\n"
     "\n"
     "import clauz3\n"
     "\n"
@@ -276,10 +276,10 @@ def test_trusted_call_reaches_cpython_and_is_recorded() -> None:
 
     outcome = run(SEND_PLAN, dispatch=dispatch)
     assert seen == [
-        ("tools.email.trusted.effects.send_email", ("bob@example.com", "hello"))
+        ("cz3tools.email.trusted.effects.send_email", ("bob@example.com", "hello"))
     ]
     assert outcome.effects == (
-        ("tools.email.trusted.effects.send_email", ("bob@example.com", "hello"), {}),
+        ("cz3tools.email.trusted.effects.send_email", ("bob@example.com", "hello"), {}),
     )
 
 
@@ -318,7 +318,7 @@ def test_disallowed_import_is_refused() -> None:
 def test_module_level_effect_cannot_run() -> None:
     with pytest.raises(UnsupportedNode, match="outside the proved function"):
         run(
-            "from tools.email.trusted.effects import send_email\n"
+            "from cz3tools.email.trusted.effects import send_email\n"
             "\n"
             "send_email('eve@example.com', 'exfil')\n"
             "\n"
@@ -330,7 +330,7 @@ def test_module_level_effect_cannot_run() -> None:
 def test_non_guarantee_decorator_is_refused_and_never_evaluated() -> None:
     with pytest.raises(UnsupportedNode, match="decorator"):
         run(
-            "from tools.email.trusted.effects import send_email\n"
+            "from cz3tools.email.trusted.effects import send_email\n"
             "\n"
             "@send_email\n"
             "def main() -> None:\n"
@@ -383,7 +383,7 @@ def test_rebinding_the_target_by_assignment_is_refused() -> None:
             "def main() -> None:\n"
             "    pass\n"
             "\n"
-            "from tools.email.trusted.effects import send_email as main\n",
+            "from cz3tools.email.trusted.effects import send_email as main\n",
         ),
         (
             "row-class",
@@ -431,7 +431,7 @@ def test_missing_target_is_named_clearly() -> None:
     [
         (
             "assign",
-            "from tools.email.trusted.effects import send_email\n"
+            "from cz3tools.email.trusted.effects import send_email\n"
             "\n"
             "SENT = send_email('eve@example.com', 'exfil')\n"
             "\n"
@@ -440,7 +440,7 @@ def test_missing_target_is_named_clearly() -> None:
         ),
         (
             "annassign",
-            "from tools.email.trusted.effects import send_email\n"
+            "from cz3tools.email.trusted.effects import send_email\n"
             "\n"
             "SENT: object = send_email('eve@example.com', 'exfil')\n"
             "\n"
@@ -449,7 +449,7 @@ def test_missing_target_is_named_clearly() -> None:
         ),
         (
             "default",
-            "from tools.email.trusted.effects import send_email\n"
+            "from cz3tools.email.trusted.effects import send_email\n"
             "\n"
             "def helper(x=send_email('eve@example.com', 'exfil')):\n"
             "    return x\n"
@@ -459,7 +459,7 @@ def test_missing_target_is_named_clearly() -> None:
         ),
         (
             "helper-call",
-            "from tools.email.trusted.effects import send_email\n"
+            "from cz3tools.email.trusted.effects import send_email\n"
             "\n"
             "def helper():\n"
             "    send_email('eve@example.com', 'exfil')\n"
@@ -476,7 +476,7 @@ def test_missing_target_is_named_clearly() -> None:
             # effect was *silently discarded* rather than refused -- the one
             # outcome this design says it cannot tolerate.
             "module-lambda-default",
-            "from tools.email.trusted.effects import send_email\n"
+            "from cz3tools.email.trusted.effects import send_email\n"
             "\n"
             "F = lambda x=send_email('eve@example.com', 'exfil'): x\n"
             "\n"
@@ -485,7 +485,7 @@ def test_missing_target_is_named_clearly() -> None:
         ),
         (
             "nested-lambda-default",
-            "from tools.email.trusted.effects import send_email\n"
+            "from cz3tools.email.trusted.effects import send_email\n"
             "\n"
             "def main() -> None:\n"
             "    f = lambda x=send_email('eve@example.com', 'exfil'): x\n"
@@ -516,7 +516,7 @@ def test_module_level_effects_never_fire(label: str, source: str) -> None:
     [
         (
             "subscript-target",
-            "from tools.email.trusted.effects import send_email\n"
+            "from cz3tools.email.trusted.effects import send_email\n"
             "\n"
             "CFG = {}\n"
             "CFG[send_email('eve@example.com', 'exfil')] = 1\n"
@@ -526,7 +526,7 @@ def test_module_level_effects_never_fire(label: str, source: str) -> None:
         ),
         (
             "subscript-target-annassign",
-            "from tools.email.trusted.effects import send_email\n"
+            "from cz3tools.email.trusted.effects import send_email\n"
             "\n"
             "CFG = {}\n"
             "CFG[send_email('eve@example.com', 'exfil')]: int = 1\n"
@@ -536,7 +536,7 @@ def test_module_level_effects_never_fire(label: str, source: str) -> None:
         ),
         (
             "subscript-inside-tuple-target",
-            "from tools.email.trusted.effects import send_email\n"
+            "from cz3tools.email.trusted.effects import send_email\n"
             "\n"
             "CFG = {}\n"
             "A, CFG[send_email('eve@example.com', 'exfil')] = 1, 2\n"
@@ -571,7 +571,7 @@ def test_module_level_assignment_targets_never_fire_effects(
 def test_target_node_does_not_fire_module_level_effects() -> None:
     """``target_node`` runs module level too, so it inherits the same gate."""
     source = (
-        "from tools.email.trusted.effects import send_email\n"
+        "from cz3tools.email.trusted.effects import send_email\n"
         "\n"
         "CFG = {}\n"
         "CFG[send_email('eve@example.com', 'exfil')] = 1\n"
@@ -620,16 +620,16 @@ def test_dotted_unaliased_import_is_refused_by_name() -> None:
     program ``imports_policy.validate_imports`` accepts.
     """
     with pytest.raises(UnsupportedNode, match="not in the proved subset"):
-        run("import tools.email.trusted.effects\n\ndef main() -> None:\n    pass\n")
+        run("import cz3tools.email.trusted.effects\n\ndef main() -> None:\n    pass\n")
     outcome = run(
-        "import tools.email.trusted.effects as effects\n"
+        "import cz3tools.email.trusted.effects as effects\n"
         "\n"
         "def main() -> None:\n"
         "    effects.send_email('bob@example.com', 'hi')\n",
         dispatch=lambda q, f, a, k: None,
     )
     assert [effect[0] for effect in outcome.effects] == [
-        "tools.email.trusted.effects.send_email",
+        "cz3tools.email.trusted.effects.send_email",
     ]
 
 
@@ -701,7 +701,7 @@ def test_row_fields_are_marshalled_outbound() -> None:
     with pytest.raises(TrustedBoundaryError, match="cannot pass LambdaFunction"):
         run(
             "import clauz3\n"
-            "from tools.email.trusted.effects import send_email\n"
+            "from cz3tools.email.trusted.effects import send_email\n"
             "\n"
             "class R(clauz3.Row):\n"
             "    x: int\n"
@@ -898,7 +898,7 @@ def test_refused_augmented_assignment_evaluates_no_operand() -> None:
         fired.append(qualname)
 
     source = (
-        "from tools.email.trusted.effects import send_email\n"
+        "from cz3tools.email.trusted.effects import send_email\n"
         "\n"
         "def main() -> None:\n"
         "    xs = []\n"
@@ -1079,7 +1079,7 @@ def test_row_mediated_cycles_are_refused() -> None:
     with pytest.raises(TrustedBoundaryError, match="cyclic"):
         run(
             "import clauz3\n"
-            "from tools.email.trusted.effects import send_email\n"
+            "from cz3tools.email.trusted.effects import send_email\n"
             "\n"
             "class R(clauz3.Row):\n"
             "    x: int\n"
@@ -1097,7 +1097,7 @@ def test_containers_inside_rows_cross_the_boundary_copied() -> None:
     """The copy invariant has to hold through a Row, not just beside one."""
     outcome = run(
         "import clauz3\n"
-        "from tools.email.trusted.effects import send_email\n"
+        "from cz3tools.email.trusted.effects import send_email\n"
         "\n"
         "class R(clauz3.Row):\n"
         "    x: int\n"
@@ -1173,7 +1173,7 @@ def test_frozenset_subclass_crosses_the_boundary_as_a_frozenset() -> None:
         pass
 
     outcome = run(
-        "from tools.email.trusted.effects import send_email\n"
+        "from cz3tools.email.trusted.effects import send_email\n"
         "def main():\n    return send_email('bob@example.com', 'x')\n",
         dispatch=lambda q, f, a, k: Frozen({1, 2}),
     )
@@ -1189,7 +1189,7 @@ def test_step_budget_exhaustion_names_the_effects_already_performed() -> None:
     partial run from a refused one.
     """
     source = (
-        "from tools.email.trusted.effects import send_email\n"
+        "from cz3tools.email.trusted.effects import send_email\n"
         "\n"
         "def main() -> None:\n"
         "    send_email('bob@example.com', 'one')\n"
@@ -1200,7 +1200,7 @@ def test_step_budget_exhaustion_names_the_effects_already_performed() -> None:
         run(source, dispatch=lambda q, f, a, k: None, step_budget=60)
     message = str(excinfo.value)
     assert "exceeded step budget of 60" in message
-    assert "tools.email.trusted.effects.send_email" in message
+    assert "cz3tools.email.trusted.effects.send_email" in message
 
 
 def test_step_budget_exhaustion_says_so_when_nothing_fired() -> None:
@@ -1214,7 +1214,7 @@ def test_step_budget_exhaustion_says_so_when_nothing_fired() -> None:
 def _trusted_layer(tmp_path: Path, body: str) -> tuple[Path, Path]:
     """A minimal trusted layer under its own import root."""
     root = tmp_path / "proj"
-    trusted = root / "tools/demo/trusted"
+    trusted = root / "cz3tools/demo/trusted"
     trusted.mkdir(parents=True)
     # Ancestors outside the trusted root are inert namespace packages.
     (trusted / "__init__.py").write_text("")
@@ -1226,7 +1226,9 @@ def _run_against(root: Path, trusted: Path, source: str, **kwargs: Any) -> Outco
     import sys
 
     saved = {
-        k: v for k, v in sys.modules.items() if k == "tools" or k.startswith("tools.")
+        k: v
+        for k, v in sys.modules.items()
+        if k in ("cz3tools", "tools") or k.startswith(("cz3tools.", "tools."))
     }
     for name in saved:
         del sys.modules[name]
@@ -1241,7 +1243,9 @@ def _run_against(root: Path, trusted: Path, source: str, **kwargs: Any) -> Outco
         )
     finally:
         for name in list(sys.modules):
-            if name == "tools" or name.startswith("tools."):
+            if name in ("cz3tools", "tools") or name.startswith(
+                ("cz3tools.", "tools.")
+            ):
                 del sys.modules[name]
         sys.modules.update(saved)
 
@@ -1274,8 +1278,8 @@ def test_trusted_layer_container_constants_are_exposed(tmp_path: Path) -> None:
     outcome = _run_against(
         root,
         trusted,
-        "from tools.demo.trusted import effects\n"
-        "from tools.demo.trusted.effects import ship\n"
+        "from cz3tools.demo.trusted import effects\n"
+        "from cz3tools.demo.trusted.effects import ship\n"
         "\n"
         "def main() -> None:\n"
         "    if 'bob@example.com' in effects.ALLOWED:\n"
@@ -1283,7 +1287,7 @@ def test_trusted_layer_container_constants_are_exposed(tmp_path: Path) -> None:
         trusted_dispatch=lambda q, f, a, k: None,
     )
     assert [name for name, _a, _k in outcome.effects] == [
-        "tools.demo.trusted.effects.ship"
+        "cz3tools.demo.trusted.effects.ship"
     ]
 
 
@@ -1303,7 +1307,7 @@ def test_a_container_holding_a_live_object_is_still_refused(tmp_path: Path) -> N
         _run_against(
             root,
             trusted,
-            "from tools.demo.trusted import effects\n"
+            "from cz3tools.demo.trusted import effects\n"
             "\n"
             "def main():\n    return effects.LEAK\n",
         )
@@ -1325,7 +1329,7 @@ def test_unreadable_layer_source_exposes_no_constants(tmp_path: Path) -> None:
         "SECRET = 'token'\n\n\ndef ship(msg: str) -> None:\n    return None\n",
     )
     source = (
-        "from tools.demo.trusted import effects\n"
+        "from cz3tools.demo.trusted import effects\n"
         "\n"
         "def main():\n"
         "    return effects.SECRET\n"
@@ -1410,7 +1414,7 @@ def test_unsupported_parameter_forms_stay_subset_refusals(source: str) -> None:
 
 
 _SENDS_THEN_FAILS = (
-    "from tools.email.trusted.effects import send_email\n"
+    "from cz3tools.email.trusted.effects import send_email\n"
     "def main():\n"
     "    send_email('bob@example.com', 'hi')\n"
     "    raise ValueError('after the send')\n"
@@ -1430,7 +1434,7 @@ def test_effect_log_keeps_what_fired_when_the_run_raises() -> None:
             effect_log=log,
         )
     assert log == [
-        ("tools.email.trusted.effects.send_email", ("bob@example.com", "hi"), {}),
+        ("cz3tools.email.trusted.effects.send_email", ("bob@example.com", "hi"), {}),
     ]
 
 

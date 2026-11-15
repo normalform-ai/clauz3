@@ -1,5 +1,5 @@
 # ruff: noqa: F821
-from tools.email.trusted import contracts as emails
+from cz3tools.email.trusted import contracts as emails
 
 import clauz3
 

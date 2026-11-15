@@ -1,4 +1,4 @@
-"""Org-namespaced ``tools/<org>/<domain>/trusted`` layers (agent-deal#41).
+"""Org-namespaced ``cz3tools/<org>/<domain>/trusted`` layers (agent-deal#41).
 
 ``clauz3 install`` copies nested domains, so every command that discovers
 trusted roots by default must find them by the same rule, and must not let a
@@ -29,12 +29,12 @@ from clauz3.libraries.layout import (
 from clauz3.runner import discover_trusted_roots
 
 ROOT = Path(__file__).resolve().parents[1]
-EMAIL_LAYER = ROOT / "examples/email/tools/email"
+EMAIL_LAYER = ROOT / "examples/email/cz3tools/email"
 
 NESTED_SOURCE = """
 import clauz3
-from tools.acme.email.trusted import contracts as emails
-from tools.acme.email.trusted.effects import send_email
+from cz3tools.acme.email.trusted import contracts as emails
+from cz3tools.acme.email.trusted.effects import send_email
 
 
 @clauz3.guarantee(emails.only(["bob@example.com"]))
@@ -53,12 +53,14 @@ def write_effect(trusted: Path, name: str) -> Path:
 
 
 def nest_email_layer(tools: Path) -> Path:
-    """Copy the email example to ``tools/acme/email`` with its imports renamed."""
+    """Copy the email example to ``cz3tools/acme/email`` with its imports renamed."""
     domain = tools / "acme/email"
     shutil.copytree(EMAIL_LAYER, domain, ignore=shutil.ignore_patterns("__pycache__"))
     for path in domain.rglob("*.py"):
         path.write_text(
-            path.read_text().replace("tools.email.trusted", "tools.acme.email.trusted")
+            path.read_text().replace(
+                "cz3tools.email.trusted", "cz3tools.acme.email.trusted"
+            )
         )
     return domain / "trusted"
 
@@ -76,7 +78,7 @@ def test_layout_doctests() -> None:
 
 
 def test_flat_and_nested_domains_are_discovered(tmp_path: Path) -> None:
-    tools = tmp_path / "tools"
+    tools = tmp_path / "cz3tools"
     flat = write_effect(tools / "lims/trusted", "pipette")
     nested = write_effect(tools / "acme/lims/trusted", "acme_pipette")
 
@@ -97,7 +99,7 @@ def test_flat_and_nested_domains_are_discovered(tmp_path: Path) -> None:
 def test_unusable_domain_is_skipped_with_a_warning(
     tmp_path: Path, domain: str, reason: str
 ) -> None:
-    tools = tmp_path / "tools"
+    tools = tmp_path / "cz3tools"
     good = write_effect(tools / "email/trusted", "send")
     write_effect(tools / domain / "trusted", "other")
 
@@ -108,7 +110,7 @@ def test_unusable_domain_is_skipped_with_a_warning(
 
 
 def test_trusted_dir_inside_an_accepted_root_is_part_of_it(tmp_path: Path) -> None:
-    tools = tmp_path / "tools"
+    tools = tmp_path / "cz3tools"
     outer = write_effect(tools / "acme/trusted", "outer")
     write_effect(outer / "trusted", "inner")
     write_effect(outer / "sub/trusted", "deeper")
@@ -117,7 +119,7 @@ def test_trusted_dir_inside_an_accepted_root_is_part_of_it(tmp_path: Path) -> No
 
 
 def test_symlinked_domain_is_excluded(tmp_path: Path) -> None:
-    tools = tmp_path / "tools"
+    tools = tmp_path / "cz3tools"
     real = write_effect(tools / "email/trusted", "send")
     outside = write_effect(tmp_path / "outside/lims/trusted", "pipette")
     (tools / "acme").mkdir()
@@ -129,10 +131,10 @@ def test_symlinked_domain_is_excluded(tmp_path: Path) -> None:
 
 
 def test_bare_tools_trusted_is_not_a_domain(tmp_path: Path) -> None:
-    write_effect(tmp_path / "tools/trusted", "send")
+    write_effect(tmp_path / "cz3tools/trusted", "send")
 
     with pytest.warns(SkippedLayerWarning, match="needs a domain directory"):
-        assert trusted_dirs(tmp_path / "tools") == []
+        assert trusted_dirs(tmp_path / "cz3tools") == []
 
 
 def test_install_uses_the_same_rule(tmp_path: Path) -> None:
@@ -145,7 +147,7 @@ def test_install_uses_the_same_rule(tmp_path: Path) -> None:
         result = install_layer(source, into=tmp_path / "dest")
 
     assert result.domains == ["acme/lims"]
-    assert not (tmp_path / "dest/.clauz3/tools/acme-labs").exists()
+    assert not (tmp_path / "dest/.clauz3/cz3tools/acme-labs").exists()
 
 
 def test_install_of_only_unimportable_domains_fails(tmp_path: Path) -> None:
@@ -167,8 +169,8 @@ def test_tools_listing_distinguishes_flat_and_nested(
     Each shown path is the import path below ``tools``, so an agent cannot
     mistake ``tools.acme.lims`` for ``tools.lims``.
     """
-    write_effect(tmp_path / "tools/lims/trusted", "pipette")
-    write_effect(tmp_path / ".clauz3/tools/acme/lims/trusted", "pipette")
+    write_effect(tmp_path / "cz3tools/lims/trusted", "pipette")
+    write_effect(tmp_path / ".clauz3/cz3tools/acme/lims/trusted", "pipette")
 
     assert (
         main(["tools", "--import-roots", str(tmp_path / ".clauz3"), str(tmp_path)]) == 0
@@ -187,7 +189,7 @@ def test_run_discovers_an_installed_nested_domain(
     capsys: CaptureFixture[str],
     approval_keys: None,
 ) -> None:
-    nest_email_layer(tmp_path / ".clauz3/tools")
+    nest_email_layer(tmp_path / ".clauz3/cz3tools")
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys, "stdin", io.StringIO(NESTED_SOURCE))
 
@@ -197,7 +199,7 @@ def test_run_discovers_an_installed_nested_domain(
 
     assert len(server.requests) == 1
     assert server.requests[0]["trusted_roots"] == [
-        str(tmp_path / ".clauz3/tools/acme/email/trusted")
+        str(tmp_path / ".clauz3/cz3tools/acme/email/trusted")
     ]
     assert "main: proved!" in capsys.readouterr().out
 
@@ -208,8 +210,8 @@ def test_unimportable_sibling_does_not_abort_run(
     capsys: CaptureFixture[str],
     approval_keys: None,
 ) -> None:
-    nest_email_layer(tmp_path / ".clauz3/tools")
-    write_effect(tmp_path / ".clauz3/tools/acme-labs/lims/trusted", "pipette")
+    nest_email_layer(tmp_path / ".clauz3/cz3tools")
+    write_effect(tmp_path / ".clauz3/cz3tools/acme-labs/lims/trusted", "pipette")
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys, "stdin", io.StringIO(NESTED_SOURCE))
 
@@ -227,7 +229,7 @@ def test_unimportable_sibling_does_not_abort_run(
 def test_policy_check_discovers_a_nested_domain(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: CaptureFixture[str]
 ) -> None:
-    nest_email_layer(tmp_path / ".clauz3/tools")
+    nest_email_layer(tmp_path / ".clauz3/cz3tools")
     program = tmp_path / "plan.py"
     program.write_text(NESTED_SOURCE)
     policy = tmp_path / "approval-policy.json"
@@ -235,7 +237,7 @@ def test_policy_check_discovers_a_nested_domain(
         json.dumps(
             {
                 "version": 1,
-                "imports": {"pol": "tools.acme.email.trusted.contracts"},
+                "imports": {"pol": "cz3tools.acme.email.trusted.contracts"},
                 "rules": [
                     {
                         "name": "bob-only",
@@ -254,7 +256,7 @@ def test_policy_check_discovers_a_nested_domain(
 
 
 def test_expand_import_roots_finds_nested_install(tmp_path: Path) -> None:
-    trusted = nest_email_layer(tmp_path / ".clauz3/tools")
+    trusted = nest_email_layer(tmp_path / ".clauz3/cz3tools")
 
     assert discover_trusted_roots(import_roots=expand_import_roots([tmp_path])) == [
         trusted

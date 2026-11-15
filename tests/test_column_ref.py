@@ -10,7 +10,7 @@ from clauz3._vendor.deal_solver import Conclusion
 from clauz3.prover import prove_path
 
 EXAMPLE = Path(__file__).parent.parent / "examples" / "email-from-db"
-DB_TRUSTED = EXAMPLE / "tools" / "db" / "trusted"
+DB_TRUSTED = EXAMPLE / "cz3tools" / "db" / "trusted"
 
 
 def _conclusions(case_name: str) -> list[Conclusion]:

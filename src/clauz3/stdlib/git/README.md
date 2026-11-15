@@ -17,15 +17,15 @@ extra commands.
 clauz3 install stdlib:git
 ```
 
-This copies `tools/git/` into your project. Then prove a program against it:
+This copies `cz3tools/git/` into your project. Then prove a program against it:
 
 ```bash
-clauz3 prove --trusted-root tools/git/trusted plan.py
+clauz3 prove --trusted-root cz3tools/git/trusted plan.py
 ```
 
 ## Effects
 
-Import with `from tools.git.trusted.effects import git, git_push`:
+Import with `from cz3tools.git.trusted.effects import git, git_push`:
 
 - `git(subcommand: str, args: list[str], cwd: str) -> str` — run
   `git <subcommand> <args...>` in `cwd` and return its stdout. Preconditions:
@@ -56,7 +56,7 @@ way may already have run its earlier calls.
 
 ## Contracts
 
-Import with `from tools.git.trusted import contracts as git_rules`:
+Import with `from cz3tools.git.trusted import contracts as git_rules`:
 
 - `git_rules.no_guarantees()` — explicit null contract.
 - `git_rules.no_git()` — the program runs no local git subcommands (does not by
@@ -85,8 +85,8 @@ policies; `only_in` is a path-prefix policy compiled to `str.startswith`.
 
 ```python
 import clauz3
-from tools.git.trusted import contracts as git_rules
-from tools.git.trusted.effects import git, git_push
+from cz3tools.git.trusted import contracts as git_rules
+from cz3tools.git.trusted.effects import git, git_push
 
 
 @clauz3.guarantee(git_rules.never_subcommands(["reset", "clean"]))

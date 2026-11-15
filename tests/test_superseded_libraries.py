@@ -24,7 +24,7 @@ OLD = ["coreutils", "editor", "find", "grep", "text"]
 def _old_copy(project: Path, domain: str) -> Path:
     """A leftover project copy whose effect collides with filesystem's."""
 
-    trusted = project / ".clauz3/tools" / domain / "trusted"
+    trusted = project / ".clauz3/cz3tools" / domain / "trusted"
     trusted.mkdir(parents=True)
     (trusted / "effects.py").write_text(
         "import clauz3\n@clauz3.trusted\ndef remove(path: str) -> None:\n    pass\n"
@@ -37,16 +37,16 @@ def test_install_refuses_beside_a_superseded_copy(tmp_path: Path, domain: str) -
     _old_copy(tmp_path, domain)
     with pytest.raises(InstallError, match=f"now provides the tools of {domain}"):
         install_library("stdlib:filesystem", into=tmp_path, force=True)
-    assert not (tmp_path / ".clauz3/tools/filesystem").exists()
+    assert not (tmp_path / ".clauz3/cz3tools/filesystem").exists()
 
 
 def test_install_proceeds_once_the_old_copy_is_removed(tmp_path: Path) -> None:
     _old_copy(tmp_path, "find")
     with pytest.raises(InstallError):
         install_library("stdlib:filesystem", into=tmp_path)
-    shutil.rmtree(tmp_path / ".clauz3/tools/find")
+    shutil.rmtree(tmp_path / ".clauz3/cz3tools/find")
     install_library("stdlib:filesystem", into=tmp_path)
-    assert (tmp_path / ".clauz3/tools/filesystem/trusted/events.py").is_file()
+    assert (tmp_path / ".clauz3/cz3tools/filesystem/trusted/events.py").is_file()
 
 
 def test_workspace_review_refuses_beside_a_superseded_copy(
@@ -63,7 +63,7 @@ def test_workspace_review_refuses_beside_a_superseded_copy(
 def test_the_duplicate_effect_refusal_says_how_to_migrate(tmp_path: Path) -> None:
     old = _old_copy(tmp_path, "coreutils")
     install_library("stdlib:filesystem", into=tmp_path / "fresh")
-    new = tmp_path / "fresh/.clauz3/tools/filesystem/trusted"
+    new = tmp_path / "fresh/.clauz3/cz3tools/filesystem/trusted"
     source = "def main() -> None:\n    pass\n"
     with pytest.raises(ProverConfigError) as refused:
         prove_text(

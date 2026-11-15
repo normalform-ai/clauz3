@@ -13,6 +13,8 @@ from jsonschema import Draft202012Validator, ValidationError
 from yaml.nodes import MappingNode
 from yaml.tokens import AliasToken
 
+from clauz3.libraries.layout import TOOLS_PACKAGES
+
 MANIFEST = "clauz3.yaml"
 PACKAGE_SNAPSHOT = ".clauz3-package.yaml"
 MAX_METADATA_BYTES = 128_000
@@ -197,8 +199,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("paths", nargs="*", type=Path)
     args = parser.parse_args()
+    stdlib_root = Path(str(files("clauz3") / "stdlib"))
     paths = args.paths or sorted(
-        Path(str(files("clauz3") / "stdlib")).glob("*/tools/**/clauz3.yaml")
+        p for pkg in TOOLS_PACKAGES for p in stdlib_root.glob(f"*/{pkg}/**/clauz3.yaml")
     )
     schema_root = files("clauz3") / "schemas"
     digest = sha256((schema_root / "library.linkml.yaml").read_bytes()).hexdigest()
@@ -212,7 +215,7 @@ def main() -> None:
         if load_yaml(_read(path) or "", str(path)).get("kind") == "package":
             read_package(path)
             continue
-        tools_root = next((p for p in path.parents if p.name == "tools"), None)
+        tools_root = next((p for p in path.parents if p.name in TOOLS_PACKAGES), None)
         domain = (
             str(path.parent.relative_to(tools_root)) if tools_root else path.parent.name
         )

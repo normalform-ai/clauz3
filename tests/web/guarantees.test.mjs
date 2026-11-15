@@ -19,7 +19,7 @@ test("resolved identity leads, with original expression and source in expandable
   const expression = "rules.at_most(1)";
   const identity = {
     title: "Mock email", library: "email", mock: "mock",
-    call: "email.at_most(count=1)", symbol: "tools.email.trusted.contracts.at_most",
+    call: "email.at_most(count=1)", symbol: "cz3tools.email.trusted.contracts.at_most",
     source_file: "/library/<script>/contracts.py", source_line: 12,
     source_code: 'def at_most(count):\n    """<script>inert</script>"""',
     source_sha256: "abc123", layer_sha256: "def456", origin: "stdlib:email",

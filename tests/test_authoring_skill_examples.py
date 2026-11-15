@@ -30,7 +30,7 @@ def materialize(tmp_path: Path, reference: str) -> tuple[Path, str, list[Path]]:
         if not label.startswith("tools/"):
             entry = code
     assert entry
-    return project, entry, [project / "tools/bio/trusted"]
+    return project, entry, [project / "cz3tools/bio/trusted"]
 
 
 @pytest.mark.parametrize(
@@ -68,7 +68,7 @@ def test_shared_filesystem_event_example(
     monkeypatch.setenv("CLAUZ3_HOME", str(tmp_path / "home"))
     project, source, roots = materialize(tmp_path, "shared-filesystem-events.md")
     install_library("stdlib:filesystem", into=project)
-    roots.append(project / ".clauz3/tools/filesystem/trusted")
+    roots.append(project / ".clauz3/cz3tools/filesystem/trusted")
     if change == "destination":
         source = source.replace(
             'convert_alignment("input.sam", "output.bam")',

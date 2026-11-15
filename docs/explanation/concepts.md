@@ -58,8 +58,8 @@ guarantees to `main`:
 
 ```python
 import clauz3
-from tools.email.trusted import contracts as emails
-from tools.email.trusted.effects import send_email
+from cz3tools.email.trusted import contracts as emails
+from cz3tools.email.trusted.effects import send_email
 
 
 @clauz3.guarantee(emails.only(["bob@example.com"]))
@@ -75,7 +75,7 @@ believed until the prover discharges it.
 
 The TLE authors and certifies the **trusted layer** — the small, audited layer
 the prover is allowed to assume. This is the role behind the modules under
-`tools/<domain>/trusted/`. It can be a human or done agentically, but it is the
+`cz3tools/<domain>/trusted/`. It can be a human or done agentically, but it is the
 security-critical role: if this layer is wrong, the proof is wrong.
 
 They author two halves.
@@ -99,7 +99,7 @@ into claims worth consenting to.
 
 ```python
 from clauz3.spec import ContractSpec, contract, effect
-from tools.email.trusted.effects import send_email
+from cz3tools.email.trusted.effects import send_email
 
 Email = effect(send_email)
 

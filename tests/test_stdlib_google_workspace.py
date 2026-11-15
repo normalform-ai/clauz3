@@ -45,7 +45,7 @@ def test_email_is_bundled_with_setup_and_documentation(tmp_path: Path) -> None:
         "stdlib:google_workspace", into=tmp_path, generate_skills=True
     )
     assert all(not result.warnings for result in results)
-    root = tmp_path / ".clauz3/tools/google_workspace/gmail"
+    root = tmp_path / ".clauz3/cz3tools/google_workspace/gmail"
     api = "\n".join(snapshot_catalogue(tmp_path, [root / "trusted"])["api"])
     assert "Effect: create_draft(" in api
     assert "Effect: send_email(" in api
@@ -59,12 +59,12 @@ def test_selected_email_does_not_block_filesystem_program(tmp_path: Path) -> Non
     for source in ("stdlib:google_workspace", "stdlib:filesystem"):
         install_library(source, into=tmp_path)
     roots = [
-        tmp_path / f".clauz3/tools/{domain}/trusted"
+        tmp_path / f".clauz3/cz3tools/{domain}/trusted"
         for domain in ("google_workspace/gmail", "filesystem")
     ]
     source = """import clauz3
-from tools.filesystem.trusted.effects import read_file
-from tools.filesystem.trusted import contracts as fs
+from cz3tools.filesystem.trusted.effects import read_file
+from cz3tools.filesystem.trusted import contracts as fs
 
 @clauz3.guarantee(fs.read_only())
 @clauz3.guarantee(fs.only_reads_files([clauz3.FilePath("tmp/emails.csv")]))
@@ -82,7 +82,7 @@ def test_migration_backs_up_old_email_and_requires_explicit_selection(
     tmp_path: Path,
 ) -> None:
     project = tmp_path / "project"
-    old_root = project / ".clauz3/tools/email"
+    old_root = project / ".clauz3/cz3tools/email"
     (old_root / "trusted").mkdir(parents=True)
     old = "# Existing operator email library\n"
     (old_root / "trusted/effects.py").write_text(old)
@@ -91,7 +91,7 @@ def test_migration_backs_up_old_email_and_requires_explicit_selection(
     )
     with pytest.raises(InstallError, match="stdlib:google_workspace now provides"):
         install_library("stdlib:google_workspace", into=project, force=True)
-    assert not (project / ".clauz3/tools/google_workspace").exists()
+    assert not (project / ".clauz3/cz3tools/google_workspace").exists()
     manager = WorkspaceLibraries(project, tmp_path / "state", ["email"])
     try:
         with pytest.raises(ValueError, match="stdlib:google_workspace now provides"):
@@ -106,7 +106,7 @@ def test_migration_backs_up_old_email_and_requires_explicit_selection(
         assert review["domains"] == ["google_workspace/gmail"]
         assert not review["warnings"]
         manager.apply(review["id"], [])
-        root = project / ".clauz3/tools/google_workspace/gmail"
+        root = project / ".clauz3/cz3tools/google_workspace/gmail"
         assert (
             json.loads((root / ".clauz3-origin.json").read_text())["source"]
             == "stdlib:google_workspace"
@@ -133,7 +133,7 @@ def test_bundle_discovers_services_without_enabling_siblings(
     (bundled / "library_registry.yaml").write_text(
         "sources: [stdlib:google_workspace]\n"
     )
-    service = bundle / "tools/google_workspace/sheets"
+    service = bundle / "cz3tools/google_workspace/sheets"
     (service / "trusted").mkdir(parents=True)
     (service / "trusted/effects.py").write_text(
         "# Test service, no executable effects\n"
@@ -154,6 +154,6 @@ def test_bundle_discovers_services_without_enabling_siblings(
     assert manager.selected == []
     assert manager.select(["google_workspace/gmail"]) == ["google_workspace/gmail"]
     assert manager.roots(manager.selected) == [
-        project / ".clauz3/tools/google_workspace/gmail/trusted"
+        project / ".clauz3/cz3tools/google_workspace/gmail/trusted"
     ]
     assert manager.select(["google_workspace/sheets"]) == ["google_workspace/sheets"]

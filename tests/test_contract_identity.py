@@ -24,14 +24,14 @@ def test_selected_identity_survives_aliases_without_description_templates(
     snapshots = []
     for number, alias in enumerate(("rules", "anything")):
         project = tmp_path / str(number)
-        shutil.copytree(ROOT / "examples/email/tools", project / "tools")
-        root = project / "tools/email/trusted"
+        shutil.copytree(ROOT / "examples/email/cz3tools", project / "cz3tools")
+        root = project / "cz3tools/email/trusted"
         contracts = root / "contracts.py"
         # Same namespace in two installations, with different reviewed code.
         contracts.write_text(contracts.read_text() + f"\n# installation {number}\n")
         source = f"""import clauz3
-from tools.email.trusted import contracts as {alias}
-from tools.email.trusted.effects import send_email
+from cz3tools.email.trusted import contracts as {alias}
+from cz3tools.email.trusted.effects import send_email
 
 @clauz3.guarantee({alias}.at_most(1))
 def main() -> None:
@@ -48,7 +48,7 @@ def main() -> None:
                 sources=layer.profile_source_identity(),
             )
         identity = identities[f"{alias}.at_most(1)"]
-        assert identity["symbol"] == "tools.email.trusted.contracts.at_most"
+        assert identity["symbol"] == "cz3tools.email.trusted.contracts.at_most"
         assert identity["call"] == "email.at_most(count=1)"
         assert identity["source_file"] == str(contracts)
         assert identity["source_sha256"] == sha256(contracts.read_bytes()).hexdigest()
@@ -63,9 +63,9 @@ def main() -> None:
 
 
 def test_nested_library_namespace_manifest_and_recorded_origin(tmp_path: Path) -> None:
-    domain = tmp_path / "tools/google_workspace/gmail"
+    domain = tmp_path / "cz3tools/google_workspace/gmail"
     shutil.copytree(
-        ROOT / "src/clauz3/stdlib/google_workspace/tools/google_workspace/gmail",
+        ROOT / "src/clauz3/stdlib/google_workspace/cz3tools/google_workspace/gmail",
         domain,
     )
     (domain / ".clauz3-origin.json").write_text(
@@ -73,7 +73,7 @@ def test_nested_library_namespace_manifest_and_recorded_origin(tmp_path: Path) -
     )
     root = domain / "trusted"
     source = """import clauz3
-from tools.google_workspace.gmail.trusted.contracts import no_emails as safe
+from cz3tools.google_workspace.gmail.trusted.contracts import no_emails as safe
 
 @clauz3.guarantee(safe())
 def main() -> None:
@@ -95,7 +95,8 @@ def main() -> None:
     assert identity["origin"] == "stdlib:google_workspace"
     assert identity["revision"] == "test-revision"
     assert (
-        identity["symbol"] == "tools.google_workspace.gmail.trusted.contracts.no_emails"
+        identity["symbol"]
+        == "cz3tools.google_workspace.gmail.trusted.contracts.no_emails"
     )
 
 
@@ -134,7 +135,7 @@ def test_html_identity_and_source_are_escaped_and_description_falls_back() -> No
             "contract_identities": {
                 expression: {
                     "call": "email.at_most(count=1)",
-                    "symbol": "tools.email.trusted.contracts.at_most",
+                    "symbol": "cz3tools.email.trusted.contracts.at_most",
                     "title": "<script>Title</script>",
                     "source_file": "/x/<script>.py",
                     "source_code": 'def at_most(count):\n    "<script>"',
@@ -147,7 +148,9 @@ def test_html_identity_and_source_are_escaped_and_description_falls_back() -> No
     assert "&lt;script&gt;" in page
     assert '<p class="contract-description">Summary.</p>' in page
     assert page.index("email.at_most(count=1)") < page.index("Summary.")
-    assert page.index("tools.email.trusted.contracts.at_most") < page.index("<details")
+    assert page.index("cz3tools.email.trusted.contracts.at_most") < page.index(
+        "<details"
+    )
     assert page.index("<details") < page.index("rules.at_most(1)")
     assert "Full scope." in page
 

@@ -24,12 +24,12 @@ from clauz3.imports_policy import ImportPolicy
 
 ROOT = Path(__file__).resolve().parents[1]
 EMAIL_ROOT = ROOT / "examples/email"
-TRUSTED_ROOT = EMAIL_ROOT / "tools/email/trusted"
+TRUSTED_ROOT = EMAIL_ROOT / "cz3tools/email/trusted"
 APPROVED_LAYERS = (ApprovedLayer((TRUSTED_ROOT,), (EMAIL_ROOT,)),)
 
 _POLICY_DATA = {
     "version": 1,
-    "imports": {"pol": "tools.email.trusted.contracts"},
+    "imports": {"pol": "cz3tools.email.trusted.contracts"},
     "rules": [
         {
             "name": "deny-blocked-recipients",
@@ -77,7 +77,7 @@ def _request(program: str) -> dict[str, object]:
 
 def _program(body: str) -> str:
     return (
-        "from tools.email.trusted.effects import send_email\n"
+        "from cz3tools.email.trusted.effects import send_email\n"
         "def main() -> None:\n" + body
     )
 
@@ -96,7 +96,7 @@ def test_module_level_effect_cannot_be_auto_approved(
     decision to a human.
     """
     program = (
-        "from tools.email.trusted.effects import send_email\n"
+        "from cz3tools.email.trusted.effects import send_email\n"
         "SENT = send_email('ceo@example.com', 'exfil')\n"
         "def main() -> None:\n"
         "    send_email('bob@example.com', 'hi')\n"
@@ -267,7 +267,7 @@ def test_load_approval_policy_from_file(tmp_path: Path) -> None:
         "deny-blocked-recipients",
         "auto-pass-internal",
     ]
-    assert policy.imports == (("pol", "tools.email.trusted.contracts"),)
+    assert policy.imports == (("pol", "cz3tools.email.trusted.contracts"),)
 
 
 def test_load_missing_policy_raises(tmp_path: Path) -> None:
@@ -309,7 +309,7 @@ def test_malformed_clause_expression_rejected() -> None:
     with pytest.raises(ApprovalPolicyError):
         approval_policy_from_dict(
             {
-                "imports": {"pol": "tools.email.trusted.contracts"},
+                "imports": {"pol": "cz3tools.email.trusted.contracts"},
                 "rules": [
                     {
                         "name": "x",

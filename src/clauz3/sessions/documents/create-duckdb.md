@@ -9,8 +9,8 @@ place, so report the run result before claiming success or retrying.
 
 ```python
 import clauz3
-from tools.db.trusted import contracts as db
-from tools.db.trusted.effects import create_table, insert_row
+from cz3tools.db.trusted import contracts as db
+from cz3tools.db.trusted.effects import create_table, insert_row
 
 class Transaction(clauz3.Row):
     id: int

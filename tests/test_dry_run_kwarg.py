@@ -54,7 +54,7 @@ def dry_run_only() -> ContractSpec:
 
 def _setup_layer(tmp_path: Path) -> tuple[Path, Path]:
     """Write a minimal trusted layer with a dry_run kwarg into tmp_path."""
-    trusted = tmp_path / "tools" / "sender" / "trusted"
+    trusted = tmp_path / "cz3tools" / "sender" / "trusted"
     trusted.mkdir(parents=True)
     (trusted / "effects.py").write_text(_EFFECTS_SRC)
     (trusted / "contracts.py").write_text(_CONTRACTS_SRC)
@@ -66,8 +66,8 @@ def _write_case(tmp_path: Path, name: str, body: str) -> Path:
     case.write_text(
         "# ruff: noqa: F821\n"
         "import clauz3\n"
-        "from tools.sender.trusted import contracts as snd\n"
-        "from tools.sender.trusted.effects import send\n"
+        "from cz3tools.sender.trusted import contracts as snd\n"
+        "from cz3tools.sender.trusted.effects import send\n"
         "\n"
         "@clauz3.guarantee(snd.dry_run_only())\n"
         "def main() -> None:\n"

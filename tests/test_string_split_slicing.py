@@ -16,7 +16,7 @@ from clauz3.prover import prove_text
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "src/clauz3/stdlib/web_fetch"
-TRUSTED = WEB / "tools/web_fetch/trusted"
+TRUSTED = WEB / "cz3tools/web_fetch/trusted"
 
 
 def check(source: str, expected: Conclusion = Conclusion.OK) -> None:
@@ -228,8 +228,8 @@ def test_split_lists_are_independent_but_alias_mutations_are_refused() -> None:
 def web_program(body: str) -> str:
     return (
         "import clauz3\n"
-        "from tools.web_fetch.trusted import contracts as web\n"
-        "from tools.web_fetch.trusted.effects import fetch_url, post_url\n"
+        "from cz3tools.web_fetch.trusted import contracts as web\n"
+        "from cz3tools.web_fetch.trusted.effects import fetch_url, post_url\n"
         '@clauz3.guarantee(web.only_fetch_under("https://example.org/"))\n'
         "@clauz3.guarantee(web.https_only())\n"
         "@clauz3.guarantee(web.fetches_at_most(1))\n"

@@ -217,6 +217,41 @@ def astroid_layer(image: _Image) -> Iterator[None]:
             environment[modname] = result
             return result
 
+        if component.name != component.resolved_name:
+            head = modname.partition(".")[0]
+            for import_root in image.import_roots:
+                candidate = import_root / head
+                if (
+                    candidate.exists()
+                    or candidate.is_symlink()
+                    or (import_root / f"{head}.py").exists()
+                    or (import_root / f"{head}.py").is_symlink()
+                ) and not any(
+                    root.is_relative_to(candidate.resolve()) for root in image.roots
+                ):
+                    raise AstroidImportError(
+                        f"No selected source for shadowed module {modname!r}"
+                    )
+            if component.kind == "file" and (
+                component.origin is None
+                or not any(
+                    component.origin.is_relative_to(root) for root in image.roots
+                )
+            ):
+                raise AstroidImportError(
+                    f"No selected trusted source for module {modname!r}"
+                )
+            if component.kind == "namespace" and not all(
+                any(
+                    loc.is_relative_to(root) or root.is_relative_to(loc)
+                    for root in image.roots
+                )
+                for loc in (component.locations or ())
+            ):
+                raise AstroidImportError(
+                    f"No selected trusted source for namespace {modname!r}"
+                )
+
         image.remember_plan(plan)
         if component.kind == "namespace":
             module = state.modules.get(modname)
@@ -232,27 +267,39 @@ def astroid_layer(image: _Image) -> Iterator[None]:
             raise AstroidLayerError(
                 f"local module {modname!r} has no supported Python source file"
             )
+        canonical = component.resolved_name
         image.remember_source(modname, path)
-        if modname in building:
-            module = manager.astroid_cache.get(modname)
+        if canonical in building or modname in building:
+            module = manager.astroid_cache.get(canonical) or manager.astroid_cache.get(
+                modname
+            )
             if type(module) is astroid.Module and _module_file(module) == path:
                 return module
             raise AstroidLayerError(f"unresolved circular source import {modname!r}")
-        module = state.modules.get(modname) if use_cache else None
+        module = (
+            (state.modules.get(canonical) or state.modules.get(modname))
+            if use_cache
+            else None
+        )
         if module is None:
             # Ignore an ambient AST even when its filename matches: the image
             # has not yet established when that AST's source was read.
             manager.astroid_cache.pop(modname, None)
+            manager.astroid_cache.pop(canonical, None)
+            building.add(canonical)
             building.add(modname)
             try:
-                module = AstroidBuilder(manager).file_build(str(path), modname)
+                module = AstroidBuilder(manager).file_build(str(path), canonical)
             finally:
-                building.remove(modname)
+                building.discard(canonical)
+                building.discard(modname)
         if _module_file(module) != path:
             raise AstroidLayerError(
                 f"Astroid module {modname!r} did not resolve to selected source {path}"
             )
+        state.modules[canonical] = module
         state.modules[modname] = module
+        manager.astroid_cache[canonical] = module
         manager.astroid_cache[modname] = module
         return module
 

@@ -4,7 +4,7 @@ from importlib.resources import files
 from importlib.resources.abc import Traversable
 from pathlib import Path
 
-from clauz3.libraries.layout import domain_path
+from clauz3.libraries.layout import TOOLS_PACKAGE, domain_path
 from clauz3.sessions.skills import SkillDocument
 
 AUTHORING_ID = "builtin:clauz3-authoring"
@@ -38,7 +38,7 @@ def _matches(cwd: Path, roots: list[Path], domain: str) -> bool:
     root = domain_path(cwd, domain) / "trusted"
     if root.resolve() not in {path.resolve() for path in roots}:
         return False
-    reference = files("clauz3") / "stdlib" / domain / "tools" / domain / "trusted"
+    reference = files("clauz3") / "stdlib" / domain / TOOLS_PACKAGE / domain / "trusted"
     expected = _bundled_sources(reference)
     actual = {}
     for path in root.rglob("*.py"):

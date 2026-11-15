@@ -1,5 +1,5 @@
 # ruff: noqa: F821
-from tools.web_fetch.trusted import contracts as web
+from cz3tools.web_fetch.trusted import contracts as web
 
 import clauz3
 

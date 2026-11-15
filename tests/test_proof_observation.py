@@ -125,7 +125,7 @@ def main() -> None:
 def test_observation_retains_query_schema_length_and_loop_binders() -> None:
     result = prove_path(
         DB / "cases/newsletter_pass.py",
-        trusted_roots=[DB / "tools/db/trusted"],
+        trusted_roots=[DB / "cz3tools/db/trusted"],
         import_roots=[DB],
         capture_observations=True,
     )[0]
@@ -165,7 +165,7 @@ def main() -> None:
 """
     result = prove_text(
         source,
-        trusted_roots=[DB / "tools/db/trusted"],
+        trusted_roots=[DB / "cz3tools/db/trusted"],
         import_paths=[DB],
         capture_observations=True,
     )[0]
@@ -196,7 +196,7 @@ from tools.email.trusted.effects import send_email
 def main() -> None:
     send_email("bob@example.com", "hi")
 """,
-        trusted_roots=[EMAIL / "tools/email/trusted"],
+        trusted_roots=[EMAIL / "cz3tools/email/trusted"],
         import_paths=[EMAIL],
         capture_observations=True,
     )[0]

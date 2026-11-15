@@ -15,7 +15,7 @@ from clauz3.prover import AgentTheorem, ProofResult, ProverConfigError, prove_te
 
 ROOT = Path(__file__).resolve().parents[1]
 FILESYSTEM_ROOT = ROOT / "src/clauz3/stdlib/filesystem"
-TRUSTED_ROOT = FILESYSTEM_ROOT / "tools/filesystem/trusted"
+TRUSTED_ROOT = FILESYSTEM_ROOT / "cz3tools/filesystem/trusted"
 
 
 def _prove(source: str) -> ProofResult:
@@ -32,11 +32,11 @@ def _prove(source: str) -> ProofResult:
     ("contract_import", "contract_call"),
     [
         (
-            "from tools.filesystem.trusted.contracts import read_only",
+            "from cz3tools.filesystem.trusted.contracts import read_only",
             "read_only()",
         ),
         (
-            "from tools.filesystem.trusted.contracts import read_only as ro",
+            "from cz3tools.filesystem.trusted.contracts import read_only as ro",
             "ro()",
         ),
     ],
@@ -48,7 +48,7 @@ def test_bare_contract_import_rejects_write(
     result = _prove(f"""\
 import clauz3
 {contract_import}
-from tools.filesystem.trusted.effects import write_file
+from cz3tools.filesystem.trusted.effects import write_file
 
 @clauz3.guarantee({contract_call})
 def main() -> None:
@@ -61,8 +61,8 @@ def main() -> None:
 def test_bare_contract_import_accepts_compliant_program() -> None:
     result = _prove("""\
 import clauz3
-from tools.filesystem.trusted.contracts import read_only
-from tools.filesystem.trusted.effects import read_file
+from cz3tools.filesystem.trusted.contracts import read_only
+from cz3tools.filesystem.trusted.effects import read_file
 
 @clauz3.guarantee(read_only())
 def main() -> None:
@@ -75,8 +75,8 @@ def main() -> None:
 def test_bare_contract_import_passes_arguments_to_registered_solver() -> None:
     result = _prove("""\
 import clauz3
-from tools.filesystem.trusted.contracts import only_write_under
-from tools.filesystem.trusted.effects import write_file
+from cz3tools.filesystem.trusted.contracts import only_write_under
+from cz3tools.filesystem.trusted.effects import write_file
 
 @clauz3.guarantee(only_write_under("/sandbox"))
 def main() -> None:
@@ -91,7 +91,7 @@ def test_bare_contract_import_rejects_guarantee_false_over_no_facts() -> None:
     # refute an impossible bound, even with no effect call to expose a bad model.
     result = _prove("""\
 import clauz3
-from tools.filesystem.trusted.contracts import writes_at_most
+from cz3tools.filesystem.trusted.contracts import writes_at_most
 
 @clauz3.guarantee(writes_at_most(-1))
 def main() -> None:
@@ -173,8 +173,8 @@ def test_bare_contract_registry_deletion_cannot_prove_forbidden_write(
     during_proof: bool,
 ) -> None:
     monkeypatch.syspath_prepend(str(FILESYSTEM_ROOT))
-    importlib.import_module("tools.filesystem.trusted.contracts")
-    registry_key = "tools.filesystem.trusted.contracts.read_only"
+    importlib.import_module("cz3tools.filesystem.trusted.contracts")
+    registry_key = "cz3tools.filesystem.trusted.contracts.read_only"
     if during_proof:
         original_prove = AgentTheorem.prove
 
@@ -191,8 +191,8 @@ def test_bare_contract_registry_deletion_cannot_prove_forbidden_write(
 
     result = _prove("""\
 import clauz3
-from tools.filesystem.trusted.contracts import read_only
-from tools.filesystem.trusted.effects import write_file
+from cz3tools.filesystem.trusted.contracts import read_only
+from cz3tools.filesystem.trusted.effects import write_file
 
 @clauz3.guarantee(read_only())
 def main() -> None:
@@ -206,7 +206,7 @@ def main() -> None:
     assert result.proof.conclusion == Conclusion.PARTIAL
     assert isinstance(result.proof.error, UnsupportedError)
     assert str(result.proof.error) == (
-        "no definition for tools.filesystem.trusted.contracts.read_only"
+        "no definition for cz3tools.filesystem.trusted.contracts.read_only"
     )
 
 
@@ -224,7 +224,7 @@ def test_configured_contract_registry_miss_refuses_inlining(
     declaration: str,
     decorator: str,
 ) -> None:
-    trusted_root = tmp_path / "tools/described/trusted"
+    trusted_root = tmp_path / "cz3tools/described/trusted"
     trusted_root.mkdir(parents=True)
     (trusted_root / "contracts.py").write_text(
         f"{declaration}\n"
@@ -235,7 +235,7 @@ def test_configured_contract_registry_miss_refuses_inlining(
     )
     source = """\
 import clauz3
-from tools.described.trusted.contracts import unrestricted
+from cz3tools.described.trusted.contracts import unrestricted
 
 @clauz3.guarantee(unrestricted())
 def main() -> None:
@@ -246,7 +246,7 @@ def main() -> None:
     assert len(control) == 1
     assert control[0].proof.conclusion is Conclusion.OK
 
-    registry_key = "tools.described.trusted.contracts.unrestricted"
+    registry_key = "cz3tools.described.trusted.contracts.unrestricted"
     original_prove = AgentTheorem.prove
 
     def prove_without_model(theorem: AgentTheorem) -> Proof:

@@ -418,7 +418,7 @@ stored there; the current login URL of each running server is kept only in the
 `login/` folder described under [`clauz3 login-url`](#clauz3-login-url). Claude retains its conversation using its normal session storage.
 
 On both start and resume, trusted roots must stay inside the project. The
-selection fingerprint reads all Python files under `tools/`, sources under
+selection fingerprint reads all Python files under `cz3tools/`, sources under
 trusted roots, and their package initializers. Unreadable files, dangling Python
 symlinks, or Python symlinks pointing outside the project abort startup, even
 when they are outside an individual trusted root. Remove or fix these files
@@ -596,12 +596,12 @@ Useful for confirming that a trusted layer is discoverable and that its
 `@contract` helpers register as expected.
 
 Without `--trusted-root`, `tools` (like `run`, `policy-check` and `start`)
-discovers every `tools/<domain>/trusted` and `tools/<org>/<domain>/trusted`
+discovers every `cz3tools/<domain>/trusted` and `cz3tools/<org>/<domain>/trusted`
 below each import root, by the same rule `install` uses; see
 [Publishing trusted layers](../how-to/publish-layers.md#repository-layout).
-Each item is shown by its path below `tools/`, which is its import path:
+Each item is shown by its path below `cz3tools/`, which is its import path:
 `effect acme/lims/trusted/effects.py:pipette(plate)` is importable from
-`tools.acme.lims.trusted.effects`.
+`cz3tools.acme.lims.trusted.effects`.
 
 ## `clauz3 approval-service`
 
@@ -683,7 +683,7 @@ clauz3 mock-approval-service --config CONFIG [--host HOST] [--port PORT]
 
 ## `clauz3 install`
 
-Copy a trusted `tools/` layer into a project's `.clauz3/tools/` (or the
+Copy a trusted `cz3tools/` layer into a project's `.clauz3/cz3tools/` (or the
 user-wide store with `--global`).
 
 ```
@@ -692,7 +692,7 @@ clauz3 install [--into PATH | -g/--global] [--skills] [--force] SOURCE
 
 | Option | Description |
 | --- | --- |
-| `SOURCE` | `stdlib:<name>`, `global:<domain>`, git source, local project containing `tools/`, or a `tools/` folder directly. |
+| `SOURCE` | `stdlib:<name>`, `global:<domain>`, git source, local project containing `cz3tools/`, or a `cz3tools/` folder directly. |
 | `--into` | Destination project root (defaults to the current directory). |
 | `-g`, `--global` | Store the library for later selection into projects. Mutually exclusive with `--into`. |
 | `--skills` | Also generate `.clauz3/skills/<domain>/SKILL.md` (or `skills/<domain>/` in the user-wide store) for each installed domain. |
@@ -702,7 +702,7 @@ The CLI also installs the dependencies a library declares. It preserves dependen
 even with `--force`; that flag applies to the requested library. Runtime packages
 and executables (for example DuckDB or `gh`) must be provisioned separately.
 
-Descriptions and setup come from `tools/<domain>/clauz3.yaml`. An optional
+Descriptions and setup come from `cz3tools/<domain>/clauz3.yaml`. An optional
 source-root `clauz3.yaml` (`kind: package`) supplies shared requirements, copied
 into an installed `.clauz3-package.yaml` snapshot beside each domain manifest.
 Tests and root-level documentation stay in the source tree.
@@ -723,7 +723,7 @@ clauz3 install global:filesystem
 ```
 
 The last command copies the selected library and its declared dependencies into
-the current project's `.clauz3/tools/` directory. It does not create symlinks or add
+the current project's `.clauz3/cz3tools/` directory. It does not create symlinks or add
 global directories to import/trusted roots. Subsequent global updates do not
 change existing project copies. Global libraries also appear in the startup
 chooser under individual selection. Private repositories still require access
@@ -733,13 +733,13 @@ The default store is `$XDG_DATA_HOME/clauz3` (or `~/.local/share/clauz3` when
 unset). Set `CLAUZ3_HOME` to override the store root. Each copied domain can be
 selected as `global:<domain>`; other domains in the store are not copied.
 
-Installed libraries are imported as `tools.<domain>.trusted` from the
+Installed libraries are imported as `cz3tools.<domain>.trusted` from the
 project's `.clauz3/` directory. When no `--import-root` is given, commands use
 the working directory with its `.clauz3/` ahead of it, whether or not
 `.clauz3/` exists yet, so installing a first library does not change an active
 session's authorized layer. Explicit `--import-root` values are used exactly as
 given. Layers the project authors itself
-may stay in a top-level `tools/`.
+may stay in a top-level `cz3tools/`.
 
 See [Install trusted layers](../how-to/install-layers.md) for the recommended
 workflow.

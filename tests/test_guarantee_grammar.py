@@ -21,14 +21,14 @@ from clauz3.prover import AgentTheorem, ProofResult, ProverConfigError, prove_te
 
 ROOT = Path(__file__).resolve().parents[1]
 EMAIL_ROOT = ROOT / "examples/email"
-EMAIL_TRUSTED = EMAIL_ROOT / "tools/email/trusted"
+EMAIL_TRUSTED = EMAIL_ROOT / "cz3tools/email/trusted"
 LOOP_FIXTURES = Path(__file__).resolve().parent / "fixtures/loop_email"
 LOOP_TRUSTED = LOOP_FIXTURES / "qtrusted"
 
 PREAMBLE = """\
 import clauz3
-from tools.email.trusted import contracts as emails
-from tools.email.trusted.effects import send_email
+from cz3tools.email.trusted import contracts as emails
+from cz3tools.email.trusted.effects import send_email
 """
 
 
@@ -58,8 +58,8 @@ def _prove(source: str) -> ProofResult:
 VACUOUS_GUARANTEES = [
     pytest.param("emails.only", "", "is not a contract call", id="uncalled-helper"),
     pytest.param(
-        "tools.email.trusted.contracts.only",
-        "import tools.email.trusted.contracts",
+        "cz3tools.email.trusted.contracts.only",
+        "import cz3tools.email.trusted.contracts",
         "is not a contract call",
         id="uncalled-qualified-helper",
     ),
@@ -140,18 +140,18 @@ def test_prove_accepts_a_registered_contract_over_literals(guarantee: str) -> No
     ("contract_import", "call"),
     [
         pytest.param(
-            "from tools.email.trusted.contracts import none",
+            "from cz3tools.email.trusted.contracts import none",
             "none()",
             id="bare-import",
         ),
         pytest.param(
-            "from tools.email.trusted.contracts import none as nothing",
+            "from cz3tools.email.trusted.contracts import none as nothing",
             "nothing()",
             id="aliased-import",
         ),
         pytest.param(
-            "import tools.email.trusted.contracts",
-            "tools.email.trusted.contracts.none()",
+            "import cz3tools.email.trusted.contracts",
+            "cz3tools.email.trusted.contracts.none()",
             id="fully-qualified",
         ),
     ],
@@ -164,7 +164,7 @@ def test_callee_is_resolved_through_import_aliases(
     source = f"""\
 import clauz3
 {contract_import}
-from tools.email.trusted.effects import send_email
+from cz3tools.email.trusted.effects import send_email
 
 @clauz3.guarantee({call})
 def main() -> None:

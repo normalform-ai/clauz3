@@ -5,21 +5,21 @@
 `src/clauz3/` contains the CLI, prover, contract-spec DSL, and vendored
 `deal_solver` code under `_vendor/`. Tests live in `tests/`. Worked examples
 live in `examples/<domain>/`: each has `cases/` for agent-authored proof
-fixtures and `tools/<domain>/trusted/` for trusted effects and contracts.
+fixtures and `cz3tools/<domain>/trusted/` for trusted effects and contracts.
 Design notes are in `docs/` and `docs/todos/`. CI is defined in
 `.github/workflows/main.yaml`.
 
 Session launch, lifecycle, MCP bridge, and selected skill documents live in
 `sessions/`; approval clients, authority, policy, receipts, service, and UI live
 in `approvals/`; library discovery, installation, and setup live in `libraries/`.
-`clauz3 install` copies libraries into a project's `.clauz3/tools/`, which is
+`clauz3 install` copies libraries into a project's `.clauz3/cz3tools/`, which is
 added as an import root ahead of the project (`libraries/layout.py`); examples,
-library sources and the stdlib keep the authored `tools/` layout.
+library sources and the stdlib keep the authored `cz3tools/` layout.
 Use these subpackages for new internal imports. The small top-level `approval*`
 modules preserve existing embedding imports; `clauz3.libraries` re-exports its
 discovery API. Keep the root `clauz3` contract API stable.
 
-Domain metadata lives in `tools/<domain>/clauz3.yaml`; an optional source-root
+Domain metadata lives in `cz3tools/<domain>/clauz3.yaml`; an optional source-root
 `clauz3.yaml` (`kind: package`) owns shared prerequisites. Installation snapshots
 shared metadata into `.clauz3-package.yaml` beside each installed domain; do not
 author that generated file. Legacy sources with no manifests install with a
@@ -29,7 +29,7 @@ warning. Declared packages require all domain manifests. See
 Google Workspace integrations are maintained in this repository's stdlib,
 not in the separate assistant repository. The Google Workspace bundle
 lives in `src/clauz3/stdlib/google_workspace/` and installs as
-`stdlib:google_workspace`, with service imports under `tools.google_workspace.gmail.trusted`. Add future services as sibling
+`stdlib:google_workspace`, with service imports under `cz3tools.google_workspace.gmail.trusted`. Add future services as sibling
 domains, keeping contracts and conversation selection service-specific.
 The separate gws CLI is not implemented yet.
 
@@ -61,7 +61,7 @@ documented in `docs/development/workspace-ui.md`.
   subset of `just test`. CI runs only this for pull requests that touch
   nothing but `src/clauz3/{sessions,approvals}/web/` and `tests/web/`;
   prose-only PRs run `just docs`.
-- `uv run clauz3 prove --trusted-root tools/email/trusted cases/only_bob_pass.py`
+- `uv run clauz3 prove --trusted-root cz3tools/email/trusted cases/only_bob_pass.py`
   from an example directory: prove one entry file against a trusted root.
 
 ## Coding Style & Naming Conventions
@@ -70,7 +70,7 @@ Use Python 3.11+ syntax and 4-space indentation. Ruff enforces linting,
 formatting, import order, and selected modernization rules. Mypy runs in strict
 mode for `src`, `tests`, and `examples`; `_vendor` is excluded for now. Keep
 public package imports as `clauz3`, not the repository name. Trusted example
-modules should use `tools/<domain>/trusted/{effects.py,contracts.py}`.
+modules should use `cz3tools/<domain>/trusted/{effects.py,contracts.py}`.
 
 ## Testing Guidelines
 

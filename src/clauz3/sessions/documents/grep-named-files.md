@@ -7,8 +7,8 @@ that file. Adapt the literal paths and pattern to the actual request.
 
 ```python
 import clauz3
-from tools.filesystem.trusted import contracts as fs
-from tools.filesystem.trusted.effects import grep
+from cz3tools.filesystem.trusted import contracts as fs
+from cz3tools.filesystem.trusted.effects import grep
 
 @clauz3.guarantee(fs.only_reads_files([
     clauz3.FilePath("./data/input.txt"),

@@ -12,13 +12,13 @@ effects.
 The trusted effect is a stub function decorated with `@clauz3.trusted`.
 Its `@clauz3.requires(...)` precondition is an obligation at every call site.
 
-{{ include_file("examples/email/tools/email/trusted/effects.py") }}
+{{ include_file("examples/email/cz3tools/email/trusted/effects.py") }}
 
 The contract module defines the domain vocabulary on top of the
 `effect(send_email)` relation, passing the imported trusted function directly.
 The string form `effect("send_email")` also names this effect.
 
-{{ include_file("examples/email/tools/email/trusted/contracts.py") }}
+{{ include_file("examples/email/cz3tools/email/trusted/contracts.py") }}
 
 ## A passing case
 
@@ -59,7 +59,7 @@ remove preconditions. The prover still rejects a call whose address lacks
 trusted function is called directly without a proof:
 
 ```pycon
->>> from tools.email.trusted.effects import send_email
+>>> from cz3tools.email.trusted.effects import send_email
 >>> send_email("bob@example.com", "hi")        # precondition holds: runs
 >>> send_email("not-an-email", "hi")           # precondition violated
 PreContractError: addr must contain "@" (where addr='not-an-email', msg='hi')

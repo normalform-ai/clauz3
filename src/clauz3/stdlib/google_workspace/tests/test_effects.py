@@ -11,8 +11,8 @@ from unittest.mock import patch
 import deal
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from tools.google_workspace.gmail.trusted import effects  # noqa: E402
-from tools.google_workspace.gmail.trusted.schemas import Message  # noqa: E402
+from cz3tools.google_workspace.gmail.trusted import effects  # noqa: E402
+from cz3tools.google_workspace.gmail.trusted.schemas import Message  # noqa: E402
 
 
 class EmailEffectsTests(unittest.TestCase):
@@ -20,7 +20,9 @@ class EmailEffectsTests(unittest.TestCase):
         body = "--looks-like-a-flag\nquotes ' \" and $(not-a-command)"
         with (
             patch.dict(os.environ, {"CLAUZ3_EMAIL_BACKEND": "gog"}),
-            patch("tools.google_workspace.gmail.trusted.effects.subprocess.run") as run,
+            patch(
+                "cz3tools.google_workspace.gmail.trusted.effects.subprocess.run"
+            ) as run,
         ):
             effects.create_draft("alice@example.com", "--subject", body)
         run.assert_called_once_with(
@@ -40,7 +42,9 @@ class EmailEffectsTests(unittest.TestCase):
     def test_default_backend_creates_a_draft(self) -> None:
         with (
             patch.dict(os.environ, {}, clear=True),
-            patch("tools.google_workspace.gmail.trusted.effects.subprocess.run") as run,
+            patch(
+                "cz3tools.google_workspace.gmail.trusted.effects.subprocess.run"
+            ) as run,
         ):
             effects.create_draft("alice@example.com", "hello", "hi")
         self.assertEqual(
@@ -53,7 +57,7 @@ class EmailEffectsTests(unittest.TestCase):
                 self.subTest(backend=backend),
                 patch.dict(os.environ, {"CLAUZ3_EMAIL_BACKEND": backend}),
                 patch(
-                    "tools.google_workspace.gmail.trusted.effects.subprocess.run"
+                    "cz3tools.google_workspace.gmail.trusted.effects.subprocess.run"
                 ) as run,
                 self.assertRaisesRegex(ValueError, "create_draft requires"),
             ):
@@ -65,7 +69,7 @@ class EmailEffectsTests(unittest.TestCase):
         with (
             patch.dict(os.environ, {"CLAUZ3_EMAIL_BACKEND": "gog"}),
             patch(
-                "tools.google_workspace.gmail.trusted.effects.subprocess.run",
+                "cz3tools.google_workspace.gmail.trusted.effects.subprocess.run",
                 side_effect=failure,
             ) as run,
             self.assertRaises(subprocess.CalledProcessError) as raised,
@@ -79,7 +83,7 @@ class EmailEffectsTests(unittest.TestCase):
             with (
                 self.subTest(to=to, subject=subject),
                 patch(
-                    "tools.google_workspace.gmail.trusted.effects.subprocess.run"
+                    "cz3tools.google_workspace.gmail.trusted.effects.subprocess.run"
                 ) as run,
                 self.assertRaises(deal.PreContractError),
             ):
@@ -88,7 +92,7 @@ class EmailEffectsTests(unittest.TestCase):
 
     def test_send_preview_does_not_create_a_draft_or_send(self) -> None:
         with patch(
-            "tools.google_workspace.gmail.trusted.effects.subprocess.run"
+            "cz3tools.google_workspace.gmail.trusted.effects.subprocess.run"
         ) as run:
             effects.send_email("alice@example.com", "hello", "hi")
             effects.send_email("alice@example.com", "hello", "hi", dry_run=True)
@@ -100,7 +104,7 @@ class EmailEffectsTests(unittest.TestCase):
                 with (
                     self.subTest(to=to, subject=subject, dry_run=dry_run),
                     patch(
-                        "tools.google_workspace.gmail.trusted.effects.subprocess.run"
+                        "cz3tools.google_workspace.gmail.trusted.effects.subprocess.run"
                     ) as run,
                     self.assertRaises(deal.PreContractError),
                 ):
@@ -110,7 +114,9 @@ class EmailEffectsTests(unittest.TestCase):
     def test_sending_is_still_a_separate_command(self) -> None:
         with (
             patch.dict(os.environ, {"CLAUZ3_EMAIL_BACKEND": "gog"}),
-            patch("tools.google_workspace.gmail.trusted.effects.subprocess.run") as run,
+            patch(
+                "cz3tools.google_workspace.gmail.trusted.effects.subprocess.run"
+            ) as run,
         ):
             effects.send_email("alice@example.com", "hello", "hi", dry_run=False)
         run.assert_called_once_with(
@@ -144,7 +150,7 @@ class EmailEffectsTests(unittest.TestCase):
         )
         completed = subprocess.CompletedProcess([], 0, stdout=stdout, stderr="")
         with patch(
-            "tools.google_workspace.gmail.trusted.effects.subprocess.run",
+            "cz3tools.google_workspace.gmail.trusted.effects.subprocess.run",
             return_value=completed,
         ) as run:
             messages = effects.search_messages("-in:spam from:alice", 1)
@@ -185,7 +191,7 @@ class EmailEffectsTests(unittest.TestCase):
     def test_search_with_no_matches_returns_empty_list(self) -> None:
         completed = subprocess.CompletedProcess([], 0, stdout="[]\n", stderr="")
         with patch(
-            "tools.google_workspace.gmail.trusted.effects.subprocess.run",
+            "cz3tools.google_workspace.gmail.trusted.effects.subprocess.run",
             return_value=completed,
         ):
             self.assertEqual(effects.search_messages("from:nobody", 5), [])
@@ -193,7 +199,7 @@ class EmailEffectsTests(unittest.TestCase):
     def test_search_with_null_result_returns_empty_list(self) -> None:
         completed = subprocess.CompletedProcess([], 0, stdout="null\n", stderr="")
         with patch(
-            "tools.google_workspace.gmail.trusted.effects.subprocess.run",
+            "cz3tools.google_workspace.gmail.trusted.effects.subprocess.run",
             return_value=completed,
         ):
             self.assertEqual(effects.search_messages("from:nobody", 5), [])
@@ -202,7 +208,7 @@ class EmailEffectsTests(unittest.TestCase):
         completed = subprocess.CompletedProcess([], 0, stdout='{"id": "m1"}', stderr="")
         with (
             patch(
-                "tools.google_workspace.gmail.trusted.effects.subprocess.run",
+                "cz3tools.google_workspace.gmail.trusted.effects.subprocess.run",
                 return_value=completed,
             ),
             self.assertRaises(ValueError),
@@ -225,7 +231,7 @@ class EmailEffectsTests(unittest.TestCase):
         )
         completed = subprocess.CompletedProcess([], 0, stdout=stdout, stderr="")
         with patch(
-            "tools.google_workspace.gmail.trusted.effects.subprocess.run",
+            "cz3tools.google_workspace.gmail.trusted.effects.subprocess.run",
             return_value=completed,
         ):
             messages = effects.search_messages("from:alice", 1)
@@ -250,7 +256,7 @@ class EmailEffectsTests(unittest.TestCase):
             with (
                 self.subTest(query=query, max_results=max_results),
                 patch(
-                    "tools.google_workspace.gmail.trusted.effects.subprocess.run"
+                    "cz3tools.google_workspace.gmail.trusted.effects.subprocess.run"
                 ) as run,
                 self.assertRaises(deal.PreContractError),
             ):

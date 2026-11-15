@@ -17,7 +17,7 @@ from clauz3.prover import ProofResult, prove_text
 
 ROOT = Path(__file__).resolve().parents[1]
 EMAIL_ROOT = ROOT / "examples/email"
-EMAIL_TRUSTED_ROOT = EMAIL_ROOT / "tools/email/trusted"
+EMAIL_TRUSTED_ROOT = EMAIL_ROOT / "cz3tools/email/trusted"
 
 
 def _prove(source: str) -> ProofResult:
@@ -31,8 +31,8 @@ def test_negative_float_int_does_not_hide_live_effect() -> None:
     results = prove_text(
         """\
 import clauz3
-from tools.email.trusted import contracts as email
-from tools.email.trusted.effects import send_email
+from cz3tools.email.trusted import contracts as email
+from cz3tools.email.trusted.effects import send_email
 
 
 @clauz3.guarantee(email.none())
@@ -55,8 +55,8 @@ def test_negative_float_math_trunc_does_not_hide_live_effect() -> None:
 import math
 
 import clauz3
-from tools.email.trusted import contracts as email
-from tools.email.trusted.effects import send_email
+from cz3tools.email.trusted import contracts as email
+from cz3tools.email.trusted.effects import send_email
 
 
 @clauz3.guarantee(email.none())

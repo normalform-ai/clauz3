@@ -21,7 +21,7 @@ are skipped by the prover.
 
 ## Effects
 
-Import effects from `tools.db.trusted.effects`:
+Import effects from `cz3tools.db.trusted.effects`:
 
 - `read_rows(schema, path, table, where) -> list[RowT]` — read up to 100 rows
   from `path` and instantiate each row as `schema`. `schema` must be a
@@ -50,7 +50,7 @@ but the prover uses the concrete `Row` subclass passed at the call site to type
 
 ## Contracts
 
-Import with `from tools.db.trusted import contracts as db`:
+Import with `from cz3tools.db.trusted import contracts as db`:
 
 - `db.no_guarantees()` — explicit null contract.
 - `db.no_db_reads()` — no `read_rows` calls; writes are governed separately.
@@ -82,8 +82,8 @@ sources and `filesystem.only_read_under` for file reads.
 
 ```python
 import clauz3
-from tools.db.trusted import contracts as db
-from tools.db.trusted.effects import read_rows
+from cz3tools.db.trusted import contracts as db
+from cz3tools.db.trusted.effects import read_rows
 
 
 class UserRow(clauz3.Row):

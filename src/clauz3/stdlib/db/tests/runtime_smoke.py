@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 
-from tools.db.trusted.effects import create_table, insert_row, read_rows
+from cz3tools.db.trusted.effects import create_table, insert_row, read_rows
 
 import clauz3
 

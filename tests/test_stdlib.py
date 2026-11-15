@@ -16,15 +16,15 @@ from clauz3.prover import ProofResult, prove_path
 ROOT = Path(__file__).resolve().parents[1]
 STDLIB = ROOT / "src/clauz3/stdlib"
 FS_ROOT = STDLIB / "filesystem"
-FS_TRUSTED = FS_ROOT / "tools/filesystem/trusted"
+FS_TRUSTED = FS_ROOT / "cz3tools/filesystem/trusted"
 GIT_ROOT = STDLIB / "git"
-GIT_TRUSTED = GIT_ROOT / "tools/git/trusted"
+GIT_TRUSTED = GIT_ROOT / "cz3tools/git/trusted"
 GH_ROOT = STDLIB / "gh"
-GH_TRUSTED = GH_ROOT / "tools/gh/trusted"
+GH_TRUSTED = GH_ROOT / "cz3tools/gh/trusted"
 RSYNC_ROOT = STDLIB / "rsync"
-RSYNC_TRUSTED = RSYNC_ROOT / "tools/rsync/trusted"
+RSYNC_TRUSTED = RSYNC_ROOT / "cz3tools/rsync/trusted"
 ENV_ROOT = STDLIB / "env"
-ENV_TRUSTED = ENV_ROOT / "tools/env/trusted"
+ENV_TRUSTED = ENV_ROOT / "cz3tools/env/trusted"
 
 
 def _prove(
@@ -43,8 +43,8 @@ def _prove(
 def test_filesystem_only_write_under_proves(tmp_path: Path) -> None:
     source = (
         "import clauz3\n"
-        "from tools.filesystem.trusted import contracts as fs\n"
-        "from tools.filesystem.trusted.effects import write_file\n"
+        "from cz3tools.filesystem.trusted import contracts as fs\n"
+        "from cz3tools.filesystem.trusted.effects import write_file\n"
         "\n"
         '@clauz3.guarantee(fs.only_write_under("/sandbox"))\n'
         "def main() -> None:\n"
@@ -57,8 +57,8 @@ def test_filesystem_only_write_under_proves(tmp_path: Path) -> None:
 def test_filesystem_only_write_under_rejects_escape(tmp_path: Path) -> None:
     source = (
         "import clauz3\n"
-        "from tools.filesystem.trusted import contracts as fs\n"
-        "from tools.filesystem.trusted.effects import write_file\n"
+        "from cz3tools.filesystem.trusted import contracts as fs\n"
+        "from cz3tools.filesystem.trusted.effects import write_file\n"
         "\n"
         '@clauz3.guarantee(fs.only_write_under("/sandbox"))\n'
         "def main() -> None:\n"
@@ -71,8 +71,8 @@ def test_filesystem_only_write_under_rejects_escape(tmp_path: Path) -> None:
 def test_git_read_only_proves(tmp_path: Path) -> None:
     source = (
         "import clauz3\n"
-        "from tools.git.trusted import contracts as git_rules\n"
-        "from tools.git.trusted.effects import git\n"
+        "from cz3tools.git.trusted import contracts as git_rules\n"
+        "from cz3tools.git.trusted.effects import git\n"
         "\n"
         "@clauz3.guarantee(git_rules.read_only())\n"
         "def main() -> None:\n"
@@ -85,8 +85,8 @@ def test_git_read_only_proves(tmp_path: Path) -> None:
 def test_git_read_only_rejects_mutation(tmp_path: Path) -> None:
     source = (
         "import clauz3\n"
-        "from tools.git.trusted import contracts as git_rules\n"
-        "from tools.git.trusted.effects import git\n"
+        "from cz3tools.git.trusted import contracts as git_rules\n"
+        "from cz3tools.git.trusted.effects import git\n"
         "\n"
         "@clauz3.guarantee(git_rules.read_only())\n"
         "def main() -> None:\n"
@@ -99,8 +99,8 @@ def test_git_read_only_rejects_mutation(tmp_path: Path) -> None:
 def test_git_only_push_to_branch_rejects_other_branch(tmp_path: Path) -> None:
     source = (
         "import clauz3\n"
-        "from tools.git.trusted import contracts as git_rules\n"
-        "from tools.git.trusted.effects import git_push\n"
+        "from cz3tools.git.trusted import contracts as git_rules\n"
+        "from cz3tools.git.trusted.effects import git_push\n"
         "\n"
         '@clauz3.guarantee(git_rules.only_push_to_branch("main"))\n'
         "def main() -> None:\n"
@@ -113,8 +113,8 @@ def test_git_only_push_to_branch_rejects_other_branch(tmp_path: Path) -> None:
 def test_gh_only_repo_proves(tmp_path: Path) -> None:
     source = (
         "import clauz3\n"
-        "from tools.gh.trusted import contracts as gh_rules\n"
-        "from tools.gh.trusted.effects import gh\n"
+        "from cz3tools.gh.trusted import contracts as gh_rules\n"
+        "from cz3tools.gh.trusted.effects import gh\n"
         "\n"
         '@clauz3.guarantee(gh_rules.only_repo("cmungall/agent-deal"))\n'
         "def main() -> None:\n"
@@ -127,8 +127,8 @@ def test_gh_only_repo_proves(tmp_path: Path) -> None:
 def test_gh_read_only_rejects_merge(tmp_path: Path) -> None:
     source = (
         "import clauz3\n"
-        "from tools.gh.trusted import contracts as gh_rules\n"
-        "from tools.gh.trusted.effects import gh\n"
+        "from cz3tools.gh.trusted import contracts as gh_rules\n"
+        "from cz3tools.gh.trusted.effects import gh\n"
         "\n"
         "@clauz3.guarantee(gh_rules.read_only())\n"
         "def main() -> None:\n"
@@ -141,8 +141,8 @@ def test_gh_read_only_rejects_merge(tmp_path: Path) -> None:
 def test_rsync_no_delete_proves(tmp_path: Path) -> None:
     source = (
         "import clauz3\n"
-        "from tools.rsync.trusted import contracts as rsync_rules\n"
-        "from tools.rsync.trusted.effects import rsync\n"
+        "from cz3tools.rsync.trusted import contracts as rsync_rules\n"
+        "from cz3tools.rsync.trusted.effects import rsync\n"
         "\n"
         "@clauz3.guarantee(rsync_rules.no_delete())\n"
         "def main() -> None:\n"
@@ -155,8 +155,8 @@ def test_rsync_no_delete_proves(tmp_path: Path) -> None:
 def test_rsync_no_delete_rejects_delete(tmp_path: Path) -> None:
     source = (
         "import clauz3\n"
-        "from tools.rsync.trusted import contracts as rsync_rules\n"
-        "from tools.rsync.trusted.effects import rsync\n"
+        "from cz3tools.rsync.trusted import contracts as rsync_rules\n"
+        "from cz3tools.rsync.trusted.effects import rsync\n"
         "\n"
         "@clauz3.guarantee(rsync_rules.no_delete())\n"
         "def main() -> None:\n"
@@ -179,7 +179,7 @@ def test_install_stdlib_scheme(tmp_path: Path) -> None:
     result = install_layer("stdlib:filesystem", into=tmp_path)
 
     assert result.domains == ["filesystem"]
-    copied = tmp_path / ".clauz3/tools/filesystem/trusted/effects.py"
+    copied = tmp_path / ".clauz3/cz3tools/filesystem/trusted/effects.py"
     assert copied.is_file()
     assert "read_file" in copied.read_text()
 
@@ -188,7 +188,7 @@ def test_install_stdlib_bare_name(tmp_path: Path) -> None:
     result = install_layer("git", into=tmp_path)
 
     assert result.domains == ["git"]
-    assert (tmp_path / ".clauz3/tools/git/trusted/contracts.py").is_file()
+    assert (tmp_path / ".clauz3/cz3tools/git/trusted/contracts.py").is_file()
 
 
 def test_install_unknown_stdlib_tool_lists_available(tmp_path: Path) -> None:
@@ -198,7 +198,7 @@ def test_install_unknown_stdlib_tool_lists_available(tmp_path: Path) -> None:
 
 def test_install_stdlib_cli(tmp_path: Path) -> None:
     assert main(["install", "stdlib:filesystem", "--into", str(tmp_path)]) == 0
-    assert (tmp_path / ".clauz3/tools/filesystem/trusted/effects.py").is_file()
+    assert (tmp_path / ".clauz3/cz3tools/filesystem/trusted/effects.py").is_file()
 
 
 # ── one filesystem policy reaches every tool that performs the event ────────
@@ -237,8 +237,8 @@ def test_filesystem_policy_reaches_every_tool(
 ) -> None:
     source = (
         "import clauz3\n"
-        "from tools.filesystem.trusted import contracts as fs\n"
-        "from tools.filesystem.trusted.effects import (\n"
+        "from cz3tools.filesystem.trusted import contracts as fs\n"
+        "from cz3tools.filesystem.trusted.effects import (\n"
         "    append_file, chmod, copy, find, grep, make_dir, move, read_line, remove\n"
         ")\n"
         "\n"
@@ -268,9 +268,9 @@ def test_environment_reads_need_the_env_policy(
 
     source = (
         "import clauz3\n"
-        "from tools.filesystem.trusted import contracts as fs\n"
-        "from tools.env.trusted import contracts as env\n"
-        "from tools.env.trusted.effects import read_env\n"
+        "from cz3tools.filesystem.trusted import contracts as fs\n"
+        "from cz3tools.env.trusted import contracts as env\n"
+        "from cz3tools.env.trusted.effects import read_env\n"
         "\n"
         f"@clauz3.guarantee({guarantee})\n"
         "def main() -> None:\n"
@@ -293,8 +293,8 @@ def test_a_prefix_no_effect_path_can_match_is_refused(
 
     source = (
         "import clauz3\n"
-        "from tools.filesystem.trusted import contracts as fs\n"
-        "from tools.filesystem.trusted.effects import read_file\n"
+        "from cz3tools.filesystem.trusted import contracts as fs\n"
+        "from cz3tools.filesystem.trusted.effects import read_file\n"
         "\n"
         f"@clauz3.guarantee(fs.never_read_under({prefix!r}))\n"
         "def main() -> None:\n"
@@ -325,11 +325,11 @@ def test_a_respelled_path_from_another_layers_tool_is_refused(
     """
 
     install_library(dependent_library.source, into=tmp_path)
-    tools = tmp_path / ".clauz3/tools"
+    tools = tmp_path / ".clauz3/cz3tools"
     source = (
         "import clauz3\n"
-        "from tools.filesystem.trusted import contracts as fs\n"
-        "from tools.search.trusted.effects import search\n"
+        "from cz3tools.filesystem.trusted import contracts as fs\n"
+        "from cz3tools.search.trusted.effects import search\n"
         "\n"
         f"@clauz3.guarantee({guarantee})\n"
         "def main() -> None:\n"

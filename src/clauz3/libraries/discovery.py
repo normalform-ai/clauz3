@@ -10,7 +10,12 @@ from pathlib import Path
 from typing import Any, TypedDict
 from uuid import uuid4
 
-from clauz3.libraries.layout import tools_dirs, trusted_dirs
+from clauz3.libraries.layout import (
+    TOOLS_PACKAGE,
+    TOOLS_PACKAGES,
+    tools_dirs,
+    trusted_dirs,
+)
 from clauz3.libraries.manifest import (
     ManifestError,
     load_yaml,
@@ -39,7 +44,8 @@ def superseded_message(library: str, stale: list[str]) -> str:
     return (
         f"stdlib:{bundle} now provides the tools of {', '.join(stale)}, whose "
         "copies define effects with the same names. Remove those libraries "
-        "(from the Libraries view, or delete them under .clauz3/tools/), then "
+        f"(from the Libraries view, or delete them under "
+        f".clauz3/{TOOLS_PACKAGE}/), then "
         f"install stdlib:{bundle} again. Imports or contracts may have changed; "
         f"see the stdlib:{bundle} README."
     )
@@ -159,7 +165,10 @@ def catalog() -> list[Library]:
         if source.startswith("stdlib:"):
             bundle = source.removeprefix("stdlib:")
             with as_file(files("clauz3") / f"stdlib/{bundle}") as root:
-                tools = root / "tools"
+                tools = next(
+                    (root / pkg for pkg in TOOLS_PACKAGES if (root / pkg).is_dir()),
+                    root / TOOLS_PACKAGE,
+                )
                 domain_names = [
                     trusted.parent.relative_to(tools).as_posix()
                     for trusted in trusted_dirs(tools)
@@ -245,52 +254,58 @@ def global_catalog() -> list[Library]:
     # Do not read or execute library source to list user-wide installations.
     # Sidecar metadata is written by the operator's install command.
     result = []
-    for domain in sorted(_domains(global_library_root() / "tools")):
-        metadata = global_library_root() / "metadata" / domain / "library.json"
-        data = json.loads(metadata.read_text()) if metadata.is_file() else {}
-        if not isinstance(data, dict):
-            raise ValueError(f"invalid library metadata: {metadata}")
-        for key in ("description", "url", "origin"):
-            if key in data and not isinstance(data[key], str):
-                raise ValueError(f"invalid {key} in {metadata}")
-        for key in ("dependencies", "requirements"):
-            if key in data and (
-                not isinstance(data[key], list)
-                or not all(isinstance(item, str) for item in data[key])
-            ):
-                raise ValueError(f"invalid {key} in {metadata}")
-        manifest = read_manifest(global_library_root() / "tools" / domain, domain)
-        if manifest is not None:
-            library = library_from_manifests(
-                f"global:{domain}",
-                {domain: manifest},
-                visibility="global",
-                origin=data.get("origin", ""),
-            )
+    seen: set[str] = set()
+    for pkg in TOOLS_PACKAGES:
+        tools_root = global_library_root() / pkg
+        for domain in sorted(_domains(tools_root)):
+            if domain in seen:
+                continue
+            seen.add(domain)
+            metadata = global_library_root() / "metadata" / domain / "library.json"
+            data = json.loads(metadata.read_text()) if metadata.is_file() else {}
+            if not isinstance(data, dict):
+                raise ValueError(f"invalid library metadata: {metadata}")
+            for key in ("description", "url", "origin"):
+                if key in data and not isinstance(data[key], str):
+                    raise ValueError(f"invalid {key} in {metadata}")
+            for key in ("dependencies", "requirements"):
+                if key in data and (
+                    not isinstance(data[key], list)
+                    or not all(isinstance(item, str) for item in data[key])
+                ):
+                    raise ValueError(f"invalid {key} in {metadata}")
+            manifest = read_manifest(tools_root / domain, domain)
+            if manifest is not None:
+                library = library_from_manifests(
+                    f"global:{domain}",
+                    {domain: manifest},
+                    visibility="global",
+                    origin=data.get("origin", ""),
+                )
+                result.append(
+                    replace(
+                        library,
+                        dependencies=tuple(
+                            "global:" + dep.removeprefix("stdlib:")
+                            if dep.startswith("stdlib:")
+                            else dep
+                            for dep in library.dependencies
+                        ),
+                    )
+                )
+                continue
             result.append(
-                replace(
-                    library,
-                    dependencies=tuple(
-                        "global:" + dep.removeprefix("stdlib:")
-                        if dep.startswith("stdlib:")
-                        else dep
-                        for dep in library.dependencies
-                    ),
+                Library(
+                    source=f"global:{domain}",
+                    description=data.get("description", "User-wide trusted library."),
+                    domains=(domain,),
+                    dependencies=tuple(data.get("dependencies", [])),
+                    requirements=tuple(data.get("requirements", [])),
+                    url=data.get("url", ""),
+                    visibility="global",
+                    origin=data.get("origin", ""),
                 )
             )
-            continue
-        result.append(
-            Library(
-                source=f"global:{domain}",
-                description=data.get("description", "User-wide trusted library."),
-                domains=(domain,),
-                dependencies=tuple(data.get("dependencies", [])),
-                requirements=tuple(data.get("requirements", [])),
-                url=data.get("url", ""),
-                visibility="global",
-                origin=data.get("origin", ""),
-            )
-        )
     return result
 
 

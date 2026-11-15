@@ -28,11 +28,11 @@ from clauz3.contract_metadata import (
 from clauz3.spec import REGISTERED_CONTRACTS
 
 STDLIB = Path(__file__).resolve().parents[1] / "src/clauz3/stdlib"
-CONTRACT_FILES = sorted(STDLIB.glob("*/tools/**/trusted/contracts.py"))
+CONTRACT_FILES = sorted(STDLIB.glob("*/cz3tools/**/trusted/contracts.py"))
 
 #: Contracts whose parameter types the description renderer cannot display.
 EXEMPT = {
-    "tools.db.trusted.contracts.only_where": (
+    "cz3tools.db.trusted.contracts.only_where": (
         "filter_dict is a dict, which description templates cannot render"
     ),
 }
@@ -55,18 +55,22 @@ SAMPLES: dict[str, object] = {
 
 
 def _forget_layers() -> None:
-    for name in [n for n in sys.modules if n == "tools" or n.startswith("tools.")]:
+    for name in [
+        n
+        for n in sys.modules
+        if n in ("cz3tools", "tools") or n.startswith(("cz3tools.", "tools."))
+    ]:
         del sys.modules[name]
 
 
 def _load(path: Path, monkeypatch: pytest.MonkeyPatch) -> ModuleType:
     """Import a library's contracts module from its own source root.
 
-    Every library (and examples such as gh-triage) uses the ``tools`` package
+    Every library (and examples such as gh-triage) uses the ``cz3tools`` package
     name, so previously imported layers are forgotten first and the root is
     removed again afterwards; the module object stays usable.
     """
-    root = next(parent for parent in path.parents if parent.name == "tools").parent
+    root = next(parent for parent in path.parents if parent.name == "cz3tools").parent
     relative = path.relative_to(root).with_suffix("")
     _forget_layers()
     with monkeypatch.context() as scoped:
@@ -138,7 +142,7 @@ def test_exemptions_name_existing_contracts(monkeypatch: pytest.MonkeyPatch) -> 
 def test_read_only_descriptions_name_every_permitted_command(
     library: str, constant: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    path = STDLIB / library / "tools" / library / "trusted/contracts.py"
+    path = STDLIB / library / "cz3tools" / library / "trusted/contracts.py"
     module = _load(path, monkeypatch)
     template = getattr(module.read_only, DESCRIPTION_ATTRIBUTE)
     words = set(re.findall(r"[a-z][a-z-]*", template))

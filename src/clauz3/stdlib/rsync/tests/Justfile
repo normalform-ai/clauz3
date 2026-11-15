@@ -4,7 +4,7 @@
 clauz3 := env_var_or_default("CLAUZ3", "uv run clauz3")
 python := env_var_or_default("PYTHON", "uv run python")
 
-trusted := "../tools/rsync/trusted"
+trusted := "../cz3tools/rsync/trusted"
 effects := trusted + "/effects.py"
 prove := clauz3 + " prove --trusted-root " + trusted + " --import-root .."
 # Proves each case in one process: *_pass.py must prove, *_fail.py must not.

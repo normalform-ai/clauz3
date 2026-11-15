@@ -12,7 +12,7 @@ from clauz3.decorators import (
     is_trusted_effect,
     unfold_chain,
 )
-from clauz3.libraries.layout import project_dir
+from clauz3.libraries.layout import LEGACY_TOOLS_PACKAGE, TOOLS_PACKAGE, project_dir
 
 
 def snapshot_catalogue(cwd: Path, roots: list[Path]) -> dict[str, list[str]]:
@@ -52,7 +52,10 @@ def snapshot_catalogue(cwd: Path, roots: list[Path]) -> dict[str, list[str]]:
                 module_path = importable.with_suffix("")
                 if path.name == "__init__.py":
                     module_path = module_path.parent
-                module_name = ".".join(module_path.parts)
+                parts = module_path.parts
+                if parts and parts[0] == LEGACY_TOOLS_PACKAGE:
+                    parts = (TOOLS_PACKAGE, *parts[1:])
+                module_name = ".".join(parts)
                 if isinstance(node, ast.ClassDef):
                     if any(
                         canonical_target(dotted_name(base), aliases)

@@ -2,9 +2,9 @@
 
 ## Source
 
-{{ include_file("src/clauz3/stdlib/env/tools/env/trusted/effects.py") }}
+{{ include_file("src/clauz3/stdlib/env/cz3tools/env/trusted/effects.py") }}
 
-{{ include_file("src/clauz3/stdlib/env/tools/env/trusted/contracts.py") }}
+{{ include_file("src/clauz3/stdlib/env/cz3tools/env/trusted/contracts.py") }}
 
 ## All cases
 

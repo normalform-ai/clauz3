@@ -50,7 +50,7 @@ def test_review_install_dependencies_and_selection(
     manager: WorkspaceLibraries, dependent_library: Library
 ) -> None:
     review = manager.prepare("install", dependent_library.source, "")
-    assert not (manager.project / ".clauz3/tools").exists()
+    assert not (manager.project / ".clauz3/cz3tools").exists()
     assert set(review["domains"]) == {"search", "filesystem"}
     assert review["api"] and review["sourceCode"]
     assert "search executable" in review["requirements"]
@@ -70,7 +70,7 @@ def test_update_and_remove_are_reviewed_and_backed_up(
 ) -> None:
     review = manager.prepare("install", "stdlib:env", "")
     manager.apply(review["id"], [])
-    file = manager.project / ".clauz3/tools/env/trusted/effects.py"
+    file = manager.project / ".clauz3/cz3tools/env/trusted/effects.py"
     file.write_text(file.read_text() + "\n# My project edit\n")
     review = manager.prepare("update", "stdlib:env", "")
     assert "trusted/effects.py" in review["changes"][0]["changed"]
@@ -95,13 +95,13 @@ def test_changes_after_review_and_symlink_destinations_are_refused(
     manager: WorkspaceLibraries,
 ) -> None:
     review = manager.prepare("install", "stdlib:env", "")
-    target = manager.project / ".clauz3/tools/env/trusted"
+    target = manager.project / ".clauz3/cz3tools/env/trusted"
     target.mkdir(parents=True)
     (target / "mine.py").write_text("# keep")
     with pytest.raises(ValueError, match="changed after review"):
         manager.apply(review["id"], [])
-    shutil.rmtree(manager.project / ".clauz3/tools")
-    (manager.project / ".clauz3/tools").symlink_to(
+    shutil.rmtree(manager.project / ".clauz3/cz3tools")
+    (manager.project / ".clauz3/cz3tools").symlink_to(
         manager.storage, target_is_directory=True
     )
     with pytest.raises(ValueError, match="Symbolic"):
@@ -116,7 +116,7 @@ def test_staged_tampering_unknown_sources_and_ids_are_refused(
         manager.prepare("install", "../../secret", "")
     review = manager.prepare("install", "stdlib:env", "")
     assert manager.staging
-    file = Path(manager.staging.name) / ".clauz3/tools/env/trusted/effects.py"
+    file = Path(manager.staging.name) / ".clauz3/cz3tools/env/trusted/effects.py"
     file.write_text("# changed")
     with pytest.raises(ValueError, match="Staged files changed"):
         manager.apply(review["id"], [])
@@ -208,8 +208,9 @@ def test_selection_applies_only_to_new_conversation(client: TestClient) -> None:
         until(ws, lambda m: m["method"] == "clauz3/restore")
         ready(ws)
         assert app.state.conversation.config.libraries == ["env"]
+        cwd = Path(app.state.conversation.config.cwd)
         assert (
-            str(Path(app.state.conversation.config.cwd) / ".clauz3/tools/env/trusted")
+            str(cwd / ".clauz3/cz3tools/env/trusted")
             in app.state.conversation.config.bridge
         )
         ws.send_json({"method": "clauz3/select", "params": {"id": first}})
@@ -241,7 +242,7 @@ def test_changed_libraries_keep_old_conversations_read_only(client: TestClient) 
         )
         file = (
             Path(app.state.conversation.config.cwd)
-            / ".clauz3/tools/env/trusted/effects.py"
+            / ".clauz3/cz3tools/env/trusted/effects.py"
         )
         file.write_text(file.read_text() + "\n# changed version\n")
         for _ in range(2):
@@ -268,7 +269,7 @@ def test_failed_install_rolls_back_all_domains(
     real_rename = Path.rename
 
     def fail_second(path: Path, target: str | Path) -> Path:
-        if path.name == "search" and path.parent.name == "tools":
+        if path.name == "search" and path.parent.name == "cz3tools":
             raise OSError("disk write failed")
         return real_rename(path, target)
 
@@ -285,7 +286,7 @@ def test_layout_conflict_reports_startup_error_without_authorizing(
 
     install_layer("stdlib:env", into=manager.project)
     shutil.copytree(
-        manager.project / ".clauz3/tools/env", manager.project / "tools/env"
+        manager.project / ".clauz3/cz3tools/env", manager.project / "cz3tools/env"
     )
     config = ChatConfig(
         command=[sys.executable, str(ROOT / "tests/fixtures/workspace_agent.py")],
@@ -539,7 +540,7 @@ def test_changed_libraries_can_continue_after_confirmation(client: TestClient) -
         ready(ws)
         file = (
             Path(app.state.conversation.config.cwd)
-            / ".clauz3/tools/env/trusted/effects.py"
+            / ".clauz3/cz3tools/env/trusted/effects.py"
         )
         file.write_text(file.read_text() + "\n# changed version\n")
         ws.send_json({"method": "clauz3/select", "params": {"id": old}})
@@ -572,7 +573,7 @@ def email_workspace(
 
     project = manager.project
     shutil.copytree(
-        ROOT / "examples/email/tools/email", project / ".clauz3/tools/email"
+        ROOT / "examples/email/cz3tools/email", project / ".clauz3/cz3tools/email"
     )
     install_library("stdlib:env", into=project)
     config = ChatConfig(
@@ -593,8 +594,8 @@ def email_workspace(
     resolved = project.resolve()
     layer = ApprovedLayer(
         (
-            resolved / ".clauz3/tools/email/trusted",
-            resolved / ".clauz3/tools/env/trusted",
+            resolved / ".clauz3/cz3tools/email/trusted",
+            resolved / ".clauz3/cz3tools/env/trusted",
         ),
         tuple(expand_import_roots([resolved])),
     )
@@ -602,8 +603,8 @@ def email_workspace(
     def submit(api: TestClient, recipient: str, body: str) -> Any:
         source = (
             "import clauz3\n"
-            "from tools.email.trusted import contracts as emails\n"
-            "from tools.email.trusted.effects import send_email\n\n"
+            "from cz3tools.email.trusted import contracts as emails\n"
+            "from cz3tools.email.trusted.effects import send_email\n\n"
             f'@clauz3.guarantee(emails.only(["{recipient}"]))\n'
             "@clauz3.guarantee(emails.at_most(1))\n"
             "def main() -> None:\n"
@@ -691,7 +692,7 @@ def test_paused_conversations_ignore_policy_approvals_but_not_rejections(
     policy = approval_policy_from_dict(
         {
             "version": 1,
-            "imports": {"pol": "tools.email.trusted.contracts"},
+            "imports": {"pol": "cz3tools.email.trusted.contracts"},
             "rules": [
                 {
                     "name": "block-ceo",
@@ -748,7 +749,7 @@ def test_uninstalled_defaults_are_dropped_with_a_notice(
     install(client, "stdlib:env" if domain == "env" else dependent_library.source)
     post(client, "select", {"domains": [domain]})
     # Removed outside the Libraries page, e.g. deleted by hand.
-    shutil.rmtree(manager.project / ".clauz3/tools" / deleted)
+    shutil.rmtree(manager.project / ".clauz3/cz3tools" / deleted)
     with client.websocket_connect("ws://127.0.0.1/api/chat/acp", headers=ORIGIN) as ws:
         ready(ws)
         prompt(ws, "Started")
@@ -774,7 +775,7 @@ def test_uninstalled_defaults_do_not_stop_startup(
         "filesystem",
         "search",
     ]
-    shutil.rmtree(manager.project / ".clauz3/tools/filesystem")
+    shutil.rmtree(manager.project / ".clauz3/cz3tools/filesystem")
     config = ChatConfig(
         command=[sys.executable, str(ROOT / "tests/fixtures/workspace_agent.py")],
         cwd=str(manager.project),

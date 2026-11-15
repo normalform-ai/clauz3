@@ -36,8 +36,8 @@ ROOT = Path(__file__).resolve().parents[1]
 OPERATOR = {"Authorization": "Bearer operator"}
 AGENT = {"Authorization": "Bearer agent"}
 SOURCE = """import clauz3
-from tools.email.trusted import contracts as emails
-from tools.email.trusted.effects import send_email
+from cz3tools.email.trusted import contracts as emails
+from cz3tools.email.trusted.effects import send_email
 
 @clauz3.guarantee(emails.only(["bob@example.com"]))
 @clauz3.guarantee(emails.at_most(1))
@@ -49,8 +49,8 @@ def main() -> None:
 @pytest.fixture
 def layer(tmp_path: Path) -> ApprovedLayer:
     project = tmp_path / "project"
-    shutil.copytree(ROOT / "examples/email/tools", project / "tools")
-    return ApprovedLayer((project / "tools/email/trusted",), (project,))
+    shutil.copytree(ROOT / "examples/email/cz3tools", project / "cz3tools")
+    return ApprovedLayer((project / "cz3tools/email/trusted",), (project,))
 
 
 def request(layer: ApprovedLayer, source: str = SOURCE) -> dict[str, object]:
@@ -307,7 +307,7 @@ def test_trusted_documentation_survives_restart_and_escapes_html(
     assert "Forged mock declaration" not in live
     assert "Forged identity" not in live
     assert "email.at_most(count=1)" in live
-    assert "tools.email.trusted.contracts.at_most" in live
+    assert "cz3tools.email.trusted.contracts.at_most" in live
     assert "Source and documentation" in live
     assert "Contract source at verification" in live
     assert "🧪 Mock" in live
@@ -517,8 +517,8 @@ def test_row_arguments_get_verified_identity_but_cannot_be_remembered(
         + "    return Email.empty()\n"
     )
     source = """import clauz3
-from tools.email.trusted import contracts as rules
-from tools.email.trusted.contracts import Recipient
+from cz3tools.email.trusted import contracts as rules
+from cz3tools.email.trusted.contracts import Recipient
 
 @clauz3.guarantee(rules.from_rows(Recipient))
 def main() -> None:
@@ -530,8 +530,8 @@ def main() -> None:
     assert api.post("/requests", json=payload, headers=AGENT).status_code == 503
     api.get("/ui/login?key=operator")
     page = api.get("/ui").text
-    assert "email.from_rows(schema=tools.email.trusted.contracts.Recipient)" in page
-    assert "tools.email.trusted.contracts.from_rows" in page
+    assert "email.from_rows(schema=cz3tools.email.trusted.contracts.Recipient)" in page
+    assert "cz3tools.email.trusted.contracts.from_rows" in page
     assert "No email calls are permitted." in page
     response = api.post(
         f"/api/requests/{payload['request_id']}/decision",
@@ -552,4 +552,4 @@ def test_authorized_manual_service_gets_verified_identity(layer: ApprovedLayer) 
         create_approval_app(authorized_layers=(layer,), max_wait_seconds=0.01)
     )
     assert api.post("/requests", json=request(layer)).status_code == 503
-    assert "tools.email.trusted.contracts.at_most" in api.get("/ui").text
+    assert "cz3tools.email.trusted.contracts.at_most" in api.get("/ui").text

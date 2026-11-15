@@ -1,6 +1,6 @@
 # Library manifests and setup
 
-Each installable domain owns a `tools/<domain>/clauz3.yaml` beside its
+Each installable domain owns a `cz3tools/<domain>/clauz3.yaml` beside its
 `trusted/` directory. It describes the library to a person deciding whether to
 use it. Installation copies the manifest with the code; it does not execute
 setup instructions, install Python packages or CLIs, or obtain credentials.
@@ -36,7 +36,7 @@ requirements:
     - "duckdb>=1.4,<2"
 ```
 
-`name` must match the domain path below `tools/`, including any nested domain
+`name` must match the domain path below `cz3tools/`, including any nested domain
 segments. `title` is the human-facing name, `summary` supplies the card text,
 and `description` supplies the expanded overview. `documentation` can link to
 public HTTP(S) documentation. `dependencies` lists other Clauz3 source references
@@ -102,7 +102,7 @@ the validated package metadata beside it as `.clauz3-package.yaml`. This is a
 generated snapshot, not another authored description:
 
 ```text
-.clauz3/tools/email/
+.clauz3/cz3tools/email/
   clauz3.yaml
   .clauz3-package.yaml
   .clauz3-origin.json
@@ -218,7 +218,7 @@ sources:
 ```
 
 Bundled library metadata is read locally. A source can provide several domains:
-`stdlib:google_workspace` discovers `google_workspace/gmail` below its `tools/`
+`stdlib:google_workspace` discovers `google_workspace/gmail` below its `cz3tools/`
 tree. Its package manifest supplies the bundle title; domain manifests keep
 service titles, descriptions, and permissions. Domain lists are discovered,
 not maintained in the registry.
@@ -256,7 +256,7 @@ itself is only needed to regenerate the schema, not to install or list libraries
 just library-schema        # regenerate JSON Schema in an isolated LinkML environment
 just library-schema-check  # verify generator output matches the checked-in file
 just check                 # validate bundled manifests and schema source digest
-uv run python -c 'from clauz3.libraries.manifest import main; main()' /path/to/library/clauz3.yaml /path/to/library/tools/email/clauz3.yaml
+uv run python -c 'from clauz3.libraries.manifest import main; main()' /path/to/library/clauz3.yaml /path/to/library/cz3tools/email/clauz3.yaml
 ```
 
 Unknown fields, invalid schema versions, wrong domain names, malformed

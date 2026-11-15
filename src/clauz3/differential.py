@@ -30,6 +30,7 @@ from clauz3.differential_inputs import ModelCase, ModelEffect, model_cases
 from clauz3.imports_policy import ImportPolicy, build_policy
 from clauz3.interp import DEFAULT_STEP_BUDGET, execute
 from clauz3.layer_state import selected_layer
+from clauz3.libraries.layout import TOOLS_PACKAGES
 from clauz3.policy import load_trusted_effects
 from clauz3.prover import ProofObservation, prove_text
 from clauz3.row import Row
@@ -555,20 +556,20 @@ def corpus_cases(root: Path) -> list[Path]:
 def corpus_roots(case: Path) -> tuple[list[Path], list[Path]]:
     """Resolve the repository's example and stdlib layer conventions."""
     for parent in case.parents:
-        tools = parent / "tools"
-        if not tools.is_dir():
+        if not any((parent / pkg).is_dir() for pkg in TOOLS_PACKAGES):
             continue
         siblings = (
             [
                 path
                 for path in sorted(parent.parent.iterdir())
-                if (path / "tools").is_dir() and path != parent
+                if any((path / pkg).is_dir() for pkg in TOOLS_PACKAGES)
+                and path != parent
             ]
             if "stdlib" in parent.parts
             else []
         )
         imports = [parent, *siblings]
-        # Nested domains (tools/google_workspace/gmail/trusted) follow the
+        # Nested domains (cz3tools/google_workspace/gmail/trusted) follow the
         # runner's discovery rule, which matches `clauz3 install`.
         return imports, discover_trusted_roots(import_roots=imports)
     raise ValueError(f"no tools root for {case}")

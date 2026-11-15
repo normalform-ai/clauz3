@@ -6,9 +6,9 @@ from clauz3.cli import main
 
 ROOT = Path(__file__).resolve().parents[1]
 EMAIL_ROOT = ROOT / "examples/email"
-TRUSTED_ROOT = EMAIL_ROOT / "tools/email/trusted"
+TRUSTED_ROOT = EMAIL_ROOT / "cz3tools/email/trusted"
 BANK_ROOT = ROOT / "examples/bank"
-BANK_TRUSTED_ROOT = BANK_ROOT / "tools/bank/trusted"
+BANK_TRUSTED_ROOT = BANK_ROOT / "cz3tools/bank/trusted"
 
 
 def test_clauz3_prove_pass(capsys: CaptureFixture[str]) -> None:
@@ -99,10 +99,10 @@ def test_clauz3_prove_with_multiple_trusted_roots(
     entry.write_text(
         "\n".join(
             [
-                "from tools.bank.trusted import contracts as bank",
-                "from tools.bank.trusted.effects import withdraw",
-                "from tools.email.trusted import contracts as emails",
-                "from tools.email.trusted.effects import send_email",
+                "from cz3tools.bank.trusted import contracts as bank",
+                "from cz3tools.bank.trusted.effects import withdraw",
+                "from cz3tools.email.trusted import contracts as emails",
+                "from cz3tools.email.trusted.effects import send_email",
                 "",
                 "import clauz3",
                 "",
@@ -248,7 +248,7 @@ def test_clauz3_tools_lists_by_resolution_not_by_spelling(
     ``@deal.has()``, which asserts the opposite of a boundary.
     """
 
-    trusted = tmp_path / "tools/home/trusted"
+    trusted = tmp_path / "cz3tools/home/trusted"
     trusted.mkdir(parents=True)
     (trusted / "__init__.py").write_text("")
     (trusted / "effects.py").write_text(

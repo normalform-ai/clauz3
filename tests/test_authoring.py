@@ -161,14 +161,14 @@ def test_recipe_selection_requires_unchanged_selected_libraries(tmp_path: Path) 
         "grep-directory",
     }
     # A similarly named custom library is not a tested version of the recipe.
-    effects = tmp_path / ".clauz3/tools/filesystem/trusted/effects.py"
+    effects = tmp_path / ".clauz3/cz3tools/filesystem/trusted/effects.py"
     effects.write_text(effects.read_text() + "\n# local modification\n")
     assert [d.id for d in builtin_documents(tmp_path, roots)] == [AUTHORING_ID]
     assert [d.id for d in builtin_documents(tmp_path, [])] == [AUTHORING_ID]
 
 
 def test_api_is_inert_and_separate_from_implementation(tmp_path: Path) -> None:
-    root = tmp_path / "tools/example/trusted"
+    root = tmp_path / "cz3tools/example/trusted"
     root.mkdir(parents=True)
     path = root / "effects.py"
     path.write_text(
@@ -188,7 +188,7 @@ def test_api_is_inert_and_separate_from_implementation(tmp_path: Path) -> None:
     assert "act(value: int=1, *, dry_run: bool=False) -> str" in api
     assert "cz.requires(lambda value: value > 0)" in api
     assert "Contract (use inside @clauz3.guarantee): limit(n: int)" in api
-    assert "Row type: from tools.example.trusted.effects import Item" in api
+    assert "Row type: from cz3tools.example.trusted.effects import Item" in api
     assert "import os" not in api
     assert "private_implementation" not in api
     assert "CONSTANT" not in api
@@ -214,7 +214,7 @@ def test_api_is_inert_and_separate_from_implementation(tmp_path: Path) -> None:
 def test_catalogue_supports_root_contract_exports_and_package_modules(
     tmp_path: Path, decorator: str
 ) -> None:
-    root = tmp_path / "tools/example/trusted"
+    root = tmp_path / "cz3tools/example/trusted"
     root.mkdir(parents=True)
     (root / "__init__.py").write_text(
         "import clauz3 as cz\nfrom clauz3 import contract as rule\n"
@@ -223,13 +223,13 @@ def test_catalogue_supports_root_contract_exports_and_package_modules(
     )
     api = "\n".join(snapshot_catalogue(tmp_path, [root])["api"])
     assert "Contract (use inside @clauz3.guarantee): limit(n: int)" in api
-    assert "Import: from tools.example.trusted import limit" in api
-    assert "from tools.example.trusted.__init__" not in api
+    assert "Import: from cz3tools.example.trusted import limit" in api
+    assert "from cz3tools.example.trusted.__init__" not in api
     assert "not_an_effect" not in api
 
 
 def test_catalogue_unfolds_chained_preconditions(tmp_path: Path) -> None:
-    root = tmp_path / "tools/example/trusted"
+    root = tmp_path / "cz3tools/example/trusted"
     root.mkdir(parents=True)
     (root / "effects.py").write_text(
         "import deal as d\n"
@@ -245,7 +245,7 @@ def test_catalogue_unfolds_chained_preconditions(tmp_path: Path) -> None:
 def test_invalid_library_keeps_read_only_discovery_available(
     tmp_path: Path, invalid: bytes
 ) -> None:
-    root = tmp_path / "tools/example/trusted"
+    root = tmp_path / "cz3tools/example/trusted"
     root.mkdir(parents=True)
     (root / "effects.py").write_bytes(invalid)
     (root / "contracts.py").write_text(
@@ -255,7 +255,7 @@ def test_invalid_library_keeps_read_only_discovery_available(
     async def inspect() -> None:
         server = create_session_tools(tmp_path, [root])
         api = str(await server.call_tool("tools", {}))
-        assert "tools/example/trusted/effects.py" in api
+        assert "cz3tools/example/trusted/effects.py" in api
         assert "Cannot parse API:" in api
         if invalid.startswith(b"def"):
             assert "line 1" in api
@@ -278,7 +278,7 @@ def test_invalid_library_keeps_read_only_discovery_available(
 def test_catalogue_uses_supported_precondition_and_row_imports(
     tmp_path: Path, requires: str, row: str
 ) -> None:
-    root = tmp_path / "tools/example/trusted"
+    root = tmp_path / "cz3tools/example/trusted"
     root.mkdir(parents=True)
     (root / "effects.py").write_text(
         "import clauz3\n"
@@ -290,4 +290,4 @@ def test_catalogue_uses_supported_precondition_and_row_imports(
     )
     api = "\n".join(snapshot_catalogue(tmp_path, [root])["api"])
     assert "Preconditions:\npre(lambda x: x > 0)" in api
-    assert "Row type: from tools.example.trusted.effects import Item" in api
+    assert "Row type: from cz3tools.example.trusted.effects import Item" in api

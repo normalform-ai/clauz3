@@ -17,6 +17,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
+from clauz3.libraries.layout import alternate_tools_module
+
 #: Always allowed: the clauz3 framework, deal (its decorators are gated
 #: separately in :func:`clauz3.prover.validate_untrusted_source`), and the
 #: ``__future__`` pragma module.
@@ -126,9 +128,9 @@ def _derive_trusted_prefixes(
     import_roots: Iterable[Path],
 ) -> list[str]:
     import_paths = [Path(p).resolve() for p in import_roots]
+    resolved_roots = [Path(root).resolve() for root in trusted_roots]
     prefixes: list[str] = []
-    for trusted_root in trusted_roots:
-        resolved = Path(trusted_root).resolve()
+    for resolved in resolved_roots:
         for import_path in import_paths:
             try:
                 relative = resolved.relative_to(import_path)
@@ -137,9 +139,49 @@ def _derive_trusted_prefixes(
             parts = relative.parts
             if not parts or not all(part.isidentifier() for part in parts):
                 continue
-            prefixes.append(".".join(parts))
+            prefix = ".".join(parts)
+            prefixes.append(prefix)
+            if (alt := alternate_tools_module(prefix)) and _can_alias_trusted_prefix(
+                parts=parts,
+                import_paths=import_paths,
+                trusted_roots=resolved_roots,
+            ):
+                prefixes.append(alt)
             break
     return prefixes
+
+
+def _can_alias_trusted_prefix(
+    *,
+    parts: tuple[str, ...],
+    import_paths: list[Path],
+    trusted_roots: list[Path],
+) -> bool:
+    if len(parts) < 2:
+        return False
+    head, domain_top = parts[0], parts[1]
+    alt_head = alternate_tools_module(head)
+    if alt_head is None:
+        return False
+    for import_path in import_paths:
+        for pkg in (head, alt_head):
+            if (import_path / pkg / "__init__.py").exists() or (
+                import_path / f"{pkg}.py"
+            ).exists():
+                return False
+        alt_dir = import_path / alt_head
+        if (
+            (alt_dir / domain_top).exists()
+            or (alt_dir / domain_top).is_symlink()
+            or (alt_dir / f"{domain_top}.py").exists()
+            or (alt_dir / f"{domain_top}.py").is_symlink()
+        ):
+            return False
+        if (alt_dir.exists() or alt_dir.is_symlink()) and not any(
+            root.is_relative_to(alt_dir.resolve()) for root in trusted_roots
+        ):
+            return False
+    return True
 
 
 def validate_imports(

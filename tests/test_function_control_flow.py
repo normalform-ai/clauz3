@@ -18,7 +18,7 @@ from tools.home.trusted.effects import unlock_door
 """
 
 DB_ROOT = ROOT / "examples/email-from-db"
-DB_TRUSTED_ROOT = DB_ROOT / "tools/db/trusted"
+DB_TRUSTED_ROOT = DB_ROOT / "cz3tools/db/trusted"
 
 DB_HEADER = """\
 import clauz3
@@ -327,7 +327,7 @@ def _prove_email(body: str) -> ProofResult:
     results = prove_text(
         source,
         import_paths=[_EMAIL_ROOT],
-        trusted_roots=[_EMAIL_ROOT / "tools/email/trusted"],
+        trusted_roots=[_EMAIL_ROOT / "cz3tools/email/trusted"],
     )
     assert len(results) == 1
     return results[0]

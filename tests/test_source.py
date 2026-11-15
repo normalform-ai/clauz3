@@ -104,7 +104,7 @@ def upstream_repo(tmp_path: Path) -> Path:
         ["git", "-C", str(repo), "config", "user.name", "Test"],
         check=True,
     )
-    trusted = repo / "tools" / "x" / "trusted"
+    trusted = repo / "cz3tools" / "x" / "trusted"
     trusted.mkdir(parents=True)
     (trusted / "effects.py").write_text("# placeholder trusted effect\n")
     (trusted / "contracts.py").write_text("# placeholder contracts\n")
@@ -130,7 +130,7 @@ def test_resolve_local_file_url(upstream_repo: Path, isolated_cache: Path) -> No
     cached = resolve_remote_source(url)
     assert cached.is_dir()
     assert cached.parent == isolated_cache
-    assert (cached / "tools" / "x" / "trusted" / "effects.py").is_file()
+    assert (cached / "cz3tools" / "x" / "trusted" / "effects.py").is_file()
 
 
 def test_resolve_caches_by_sha(upstream_repo: Path, isolated_cache: Path) -> None:
@@ -152,7 +152,9 @@ def test_resolve_separate_cache_after_new_commit(
     first = resolve_remote_source(url)
 
     # Move HEAD forward.
-    (upstream_repo / "tools" / "x" / "trusted" / "effects.py").write_text("# updated\n")
+    (upstream_repo / "cz3tools" / "x" / "trusted" / "effects.py").write_text(
+        "# updated\n"
+    )
     subprocess.run(["git", "-C", str(upstream_repo), "add", "-A"], check=True)
     subprocess.run(
         ["git", "-C", str(upstream_repo), "commit", "--quiet", "-m", "update"],
@@ -221,7 +223,7 @@ def test_git_subprocesses_do_not_inherit_approval_authority(
         monkeypatch.setenv(name, "private-service-value")
     monkeypatch.setenv("SSH_AUTH_SOCK", "operator-git-auth")
     cached = resolve_remote_source(upstream_repo.as_uri())
-    assert (cached / "tools/x/trusted/effects.py").exists()
+    assert (cached / "cz3tools/x/trusted/effects.py").exists()
     environments = [json.loads(line) for line in capture.read_text().splitlines()]
     assert len(environments) >= 3  # ls-remote, clone, checkout
     for env in environments:

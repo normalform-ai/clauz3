@@ -14,11 +14,11 @@ approved.
 clauz3 install stdlib:filesystem
 ```
 
-This copies the library into `.clauz3/tools/filesystem/`. Then prove a program against
+This copies the library into `.clauz3/cz3tools/filesystem/`. Then prove a program against
 it:
 
 ```bash
-clauz3 prove --trusted-root .clauz3/tools/filesystem/trusted plan.py
+clauz3 prove --trusted-root .clauz3/cz3tools/filesystem/trusted plan.py
 ```
 
 ## Migrating from coreutils, editor, find, grep and text
@@ -27,8 +27,8 @@ These libraries were merged into `filesystem`, and an old copy defines effects
 with the same names (`remove`, `append_file`, `find`, ...). Proving it beside
 the new `filesystem` is refused as a duplicate effect, and installing the new
 `filesystem` next to one is refused with the same advice. Remove the old
-libraries (from the Libraries view, or delete them under `.clauz3/tools/` and,
-for user-wide installs, `~/.local/share/clauz3/tools/`), then run
+libraries (from the Libraries view, or delete them under `.clauz3/cz3tools/` and,
+for user-wide installs, `~/.local/share/clauz3/cz3tools/`), then run
 `clauz3 install --force stdlib:filesystem`.
 
 Programs that imported them need the new names. `edit_file` is gone; use
@@ -123,7 +123,7 @@ physical type, symlinks, or hard links.
 
 ## Effects
 
-Import from `tools.filesystem.trusted.effects`. Every path argument must be
+Import from `cz3tools.filesystem.trusted.effects`. Every path argument must be
 non-empty and have no `..` component, no `.` component after the first (`/./`,
 a trailing `/.`), no empty component (`//`) and no backslash. A leading `./`
 is allowed.
@@ -193,8 +193,8 @@ apply as to any other tool. This program can only change files under `src/`:
 
 ```python
 import clauz3
-from tools.filesystem.trusted import contracts as fs
-from tools.filesystem.trusted.effects import edit_file, search_files
+from cz3tools.filesystem.trusted import contracts as fs
+from cz3tools.filesystem.trusted.effects import edit_file, search_files
 
 
 @clauz3.guarantee(fs.only_writes_files_under(clauz3.DirectoryPath("src")))
@@ -233,7 +233,7 @@ an absolute path when stating an absolute prefix.
 
 ## Contracts
 
-Import with `from tools.filesystem.trusted import contracts as fs`:
+Import with `from cz3tools.filesystem.trusted import contracts as fs`:
 
 | Contract | Over |
 | --- | --- |
@@ -295,8 +295,8 @@ to confine listings too.
 
 ```python
 import clauz3
-from tools.filesystem.trusted import contracts as fs
-from tools.filesystem.trusted.effects import copy, grep, read_file, write_file
+from cz3tools.filesystem.trusted import contracts as fs
+from cz3tools.filesystem.trusted.effects import copy, grep, read_file, write_file
 
 
 @clauz3.guarantee(fs.only_reads_files_under(clauz3.DirectoryPath("/repo")))
@@ -316,8 +316,8 @@ under `/repo/build`, and keep it away from `/repo/.env` whichever tool it uses.
 
 ```python
 import clauz3
-from tools.filesystem.trusted import contracts as fs
-from tools.filesystem.trusted.effects import read_lines
+from cz3tools.filesystem.trusted import contracts as fs
+from cz3tools.filesystem.trusted.effects import read_lines
 
 @clauz3.guarantee(fs.only_reads_files([clauz3.FilePath("./data/input.txt")]))
 @clauz3.guarantee(fs.read_only())

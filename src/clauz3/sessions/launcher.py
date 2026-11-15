@@ -63,7 +63,7 @@ unresolved proof never executes; do not infer success from a long-running call.
 This is read-only catalogue access; ask the user to install missing libraries
 and restart the session. Only the selected project libraries can execute.
 Submit Python source directly to mcp__clauz3__run (the clauz3 run command).
-Import installed effects and contract helpers from tools.<domain>.trusted.
+Import installed effects and contract helpers from cz3tools.<domain>.trusted.
 Define main() with @clauz3.guarantee(...) decorators calling those helpers with
 literal arguments. State meaningful guarantees matching the user's request.
 The tool proves the program, waits for the user to approve in their browser,

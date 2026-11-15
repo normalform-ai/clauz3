@@ -62,7 +62,7 @@ def package() -> dict[str, Any]:
 
 def source(root: Path) -> Path:
     for name in ("email", "calendar"):
-        directory = root / "tools" / name
+        directory = root / "cz3tools" / name
         (directory / "trusted").mkdir(parents=True)
         (directory / "trusted/effects.py").write_text(
             "raise AssertionError('no imports')\n"
@@ -94,9 +94,9 @@ def test_package_install_preserves_authored_manifests_and_shared_setup(
     project = tmp_path / "project"
     install_library(str(root), into=project, generate_skills=True)
     for name in ("email", "calendar"):
-        installed = project / ".clauz3/tools" / name
+        installed = project / ".clauz3/cz3tools" / name
         assert (installed / "clauz3.yaml").read_bytes() == (
-            root / "tools" / name / "clauz3.yaml"
+            root / "cz3tools" / name / "clauz3.yaml"
         ).read_bytes()
         assert yaml.safe_load((installed / PACKAGE_SNAPSHOT).read_text()) == package()
         manifest = read_manifest(installed, name)
@@ -122,11 +122,11 @@ def test_force_update_refreshes_and_removes_package_snapshot(tmp_path: Path) -> 
     data = package()
     data["requirements"]["tools"][0]["description"] = "Updated CLI setup"
     (root / "clauz3.yaml").write_text(yaml.safe_dump(data))
-    install_layer(root / "tools", into=project, force=True)
+    install_layer(root / "cz3tools", into=project, force=True)
     assert "Updated CLI setup" in project_email(project)["requirements"]
     (root / "clauz3.yaml").unlink()
     install_layer(root, into=project, force=True)
-    assert not list((project / ".clauz3/tools").rglob(PACKAGE_SNAPSHOT))
+    assert not list((project / ".clauz3/cz3tools").rglob(PACKAGE_SNAPSHOT))
     assert "Updated CLI setup" not in project_email(project)["requirements"]
 
 
@@ -137,8 +137,8 @@ def test_global_copy_retains_setup_when_original_source_is_gone(tmp_path: Path) 
     assert all("Select account" in lib.requirements for lib in global_catalog())
     project = tmp_path / "project"
     install_library("global:email", into=project, generate_skills=True)
-    assert (project / ".clauz3/tools/email" / PACKAGE_SNAPSHOT).is_file()
-    assert not (project / ".clauz3/tools/calendar").exists()
+    assert (project / ".clauz3/cz3tools/email" / PACKAGE_SNAPSHOT).is_file()
+    assert not (project / ".clauz3/cz3tools/calendar").exists()
     assert "Select account" in project_email(project)["requirements"]
 
 
@@ -164,7 +164,7 @@ def test_invalid_package_is_refused_before_copy(
     (root / "clauz3.yaml").write_text(yaml.safe_dump(data))
     with pytest.raises(ManifestError):
         install_library(str(root), into=tmp_path / "project")
-    assert not (tmp_path / "project/.clauz3/tools").exists()
+    assert not (tmp_path / "project/.clauz3/cz3tools").exists()
 
 
 def test_shared_steps_cannot_claim_domain_specific_effects() -> None:
@@ -179,7 +179,7 @@ def test_conflicting_shared_requirements_fail_preflight(
     tmp_path: Path, field: str
 ) -> None:
     root = source(tmp_path / "source")
-    path = root / "tools/email/clauz3.yaml"
+    path = root / "cz3tools/email/clauz3.yaml"
     data = yaml.safe_load(path.read_text())
     entry = package()["requirements"][field][0]
     entry["description"] = "A conflicting definition"
@@ -187,27 +187,27 @@ def test_conflicting_shared_requirements_fail_preflight(
     path.write_text(yaml.safe_dump(data))
     with pytest.raises(ManifestError, match=f"conflicting {field}"):
         install_layer(root, into=tmp_path / "project")
-    assert not (tmp_path / "project/.clauz3/tools").exists()
+    assert not (tmp_path / "project/.clauz3/cz3tools").exists()
 
 
 def test_identical_shared_entries_are_deduplicated(tmp_path: Path) -> None:
     root = source(tmp_path / "source")
-    path = root / "tools/email/clauz3.yaml"
+    path = root / "cz3tools/email/clauz3.yaml"
     data = yaml.safe_load(path.read_text())
     data["requirements"] = package()["requirements"]
     path.write_text(yaml.safe_dump(data))
     install_layer(root, into=tmp_path / "project")
-    merged = read_manifest(tmp_path / "project/.clauz3/tools/email", "email")
+    merged = read_manifest(tmp_path / "project/.clauz3/cz3tools/email", "email")
     assert merged is not None
     assert merged["requirements"] == package()["requirements"]
 
 
 def test_package_requires_domains_to_own_their_descriptions(tmp_path: Path) -> None:
     root = source(tmp_path / "source")
-    (root / "tools/email/clauz3.yaml").unlink()
+    (root / "cz3tools/email/clauz3.yaml").unlink()
     with pytest.raises(ManifestError, match="manifest for every domain"):
         install_library(str(root), into=tmp_path / "project")
-    assert not (tmp_path / "project/.clauz3/tools").exists()
+    assert not (tmp_path / "project/.clauz3/cz3tools").exists()
 
 
 def test_package_symlink_is_refused_including_dangling_link(tmp_path: Path) -> None:
@@ -254,7 +254,7 @@ def test_workspace_review_includes_shared_metadata_and_detects_its_changes(
         manager.discard()
     install_library(str(root), into=project)
     before = manager.fingerprint(["email"])
-    snapshot = project / ".clauz3/tools/email" / PACKAGE_SNAPSHOT
+    snapshot = project / ".clauz3/cz3tools/email" / PACKAGE_SNAPSHOT
     data = yaml.safe_load(snapshot.read_text())
     data["requirements"]["tools"][0]["description"] = "Changed"
     snapshot.write_text(yaml.safe_dump(data))

@@ -11,7 +11,7 @@ That is the stdlib convention:
 <tool>/
   clauz3.yaml               # optional package-level shared requirements
   README.md
-  tools/<tool>/
+  cz3tools/<tool>/
     clauz3.yaml             # domain description and prerequisites
     trusted/
       effects.py
@@ -21,7 +21,7 @@ That is the stdlib convention:
     cases/
 ```
 
-The installable artifact is the whole `tools/<tool>/` directory; only its
+The installable artifact is the whole `cz3tools/<tool>/` directory; only its
 `trusted/` subtree is a trusted Python boundary. `clauz3 install stdlib:db`
 copies the domain code and metadata into a project. An optional package
 manifest's shared requirements are snapshotted beside the installed domain

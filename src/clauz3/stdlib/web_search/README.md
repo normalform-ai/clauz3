@@ -31,14 +31,14 @@ backend configured.
 
 ## Effects
 
-Import with `from tools.web_search.trusted.effects import web_search`:
+Import with `from cz3tools.web_search.trusted.effects import web_search`:
 
 - `web_search(query: str) -> list[str]` — return a list of result URLs.
   Precondition: `query` is non-empty.
 
 ## Contracts
 
-Import with `from tools.web_search.trusted import contracts as srch`:
+Import with `from cz3tools.web_search.trusted import contracts as srch`:
 
 - `srch.no_guarantees()` — explicit null contract.
 - `srch.no_searches()` — the program issues no searches.
@@ -52,8 +52,8 @@ Import with `from tools.web_search.trusted import contracts as srch`:
 
 ```python
 import clauz3
-from tools.web_search.trusted import contracts as srch
-from tools.web_search.trusted.effects import web_search
+from cz3tools.web_search.trusted import contracts as srch
+from cz3tools.web_search.trusted.effects import web_search
 
 
 @clauz3.guarantee(srch.searches_at_most(3))

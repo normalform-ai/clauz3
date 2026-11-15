@@ -1,7 +1,7 @@
 # ruff: noqa
 import clauz3
-from tools.db.trusted import contracts
-from tools.db.trusted.effects import db_query
+from cz3tools.db.trusted import contracts
+from cz3tools.db.trusted.effects import db_query
 
 
 @clauz3.guarantee(contracts.none())

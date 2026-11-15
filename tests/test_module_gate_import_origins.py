@@ -425,8 +425,8 @@ from clauz3.runner import run_source
 consumer, directory, domain = sys.argv[1:]
 root = Path(directory)
 cases = root / 'cases'
-trusted = root / 'tools' / domain / 'trusted'
-prefix = f'tools.{domain}.trusted'
+trusted = root / 'cz3tools' / domain / 'trusted'
+prefix = f'cz3tools.{domain}.trusted'
 entry = cases / 'plan.py'
 source = entry.read_text()
 roots = [root, cases]
@@ -487,7 +487,7 @@ def _namespace_probe(
     tmp_path: Path, *, consumer: str, outside_module: bool, body_import: bool = False
 ) -> dict[str, object]:
     domain = f"domain_{uuid4().hex}"
-    trusted = tmp_path / "tools" / domain / "trusted"
+    trusted = tmp_path / "cz3tools" / domain / "trusted"
     trusted.mkdir(parents=True)
     # Every parent and the trusted root itself is a PEP 420 namespace package,
     # matching the shipped examples. Nothing creates an __init__.py.
@@ -507,10 +507,10 @@ def _namespace_probe(
     )
     cases = tmp_path / "cases"
     cases.mkdir()
-    prefix = f"tools.{domain}.trusted"
+    prefix = f"cz3tools.{domain}.trusted"
     extra_import = ""
     if outside_module:
-        candidate = cases / "tools" / domain / "trusted"
+        candidate = cases / "cz3tools" / domain / "trusted"
         candidate.mkdir(parents=True)
         (candidate / "pwn.py").write_text(
             _marker_source(tmp_path / "agent-executed.txt")

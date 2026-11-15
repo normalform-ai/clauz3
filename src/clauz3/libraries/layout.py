@@ -1,12 +1,13 @@
 """Where a project's trusted layers live on disk.
 
-Installed libraries go under ``<project>/.clauz3/tools/<domain>/trusted/``, out
+Installed libraries go under ``<project>/.clauz3/cz3tools/<domain>/trusted/``, out
 of the way of the project's own files. Layers a project authors itself (and
 library sources, examples and the bundled stdlib) keep the plain
-``<project>/tools/<domain>/trusted/`` layout.
+``<project>/cz3tools/<domain>/trusted/`` layout. Legacy ``tools/`` directories
+and ``tools.<domain>.trusted`` imports remain supported.
 
-Both directories hold the same ``tools`` namespace package, so agent programs
-import ``tools.<domain>.trusted`` whichever one provides the domain. A project
+Both directories hold the same ``cz3tools`` namespace package, so agent programs
+import ``cz3tools.<domain>.trusted`` whichever one provides the domain. A project
 with installed libraries therefore has two import roots, ``<project>/.clauz3``
 and ``<project>``; :func:`expand_import_roots` derives them from the project
 directory so every caller selects the same, ordered layer.
@@ -21,14 +22,20 @@ from pathlib import Path
 PROJECT_DIR = ".clauz3"
 
 #: The import package that holds trusted layers, in either location.
-TOOLS_PACKAGE = "tools"
+TOOLS_PACKAGE = "cz3tools"
+
+#: Legacy import package accepted for backwards compatibility.
+LEGACY_TOOLS_PACKAGE = "tools"
+
+#: All recognized trusted-layer package names, primary first.
+TOOLS_PACKAGES = (TOOLS_PACKAGE, LEGACY_TOOLS_PACKAGE)
 
 #: The package name that marks a domain's trusted layer.
 TRUSTED_PACKAGE = "trusted"
 
-#: How many directories a domain may span under ``tools/``: a flat
-#: ``tools/<domain>/trusted`` or an org-namespaced
-#: ``tools/<org>/<domain>/trusted``. Deeper candidates are skipped with a
+#: How many directories a domain may span under ``cz3tools/``: a flat
+#: ``cz3tools/<domain>/trusted`` or an org-namespaced
+#: ``cz3tools/<org>/<domain>/trusted``. Deeper candidates are skipped with a
 #: warning so the trusted boundary stays auditable from two globs.
 MAX_DOMAIN_DEPTH = 2
 
@@ -50,10 +57,32 @@ class SkippedLayerWarning(UserWarning):
     """A ``trusted`` directory was found but cannot be used as a trusted layer."""
 
 
-def domain_problem(parts: Sequence[str]) -> str | None:
-    """Why a domain path under ``tools/`` cannot be a trusted layer, or None.
+def alternate_tools_module(name: str) -> str | None:
+    """Swap a leading ``cz3tools`` and ``tools`` package segment, or None.
 
-    A domain is imported as ``tools.<part>...trusted``, so every part must be a
+    >>> alternate_tools_module("cz3tools.email.trusted")
+    'tools.email.trusted'
+    >>> alternate_tools_module("tools.email.trusted")
+    'cz3tools.email.trusted'
+    >>> alternate_tools_module("cz3tools")
+    'tools'
+    >>> alternate_tools_module("math") is None
+    True
+    """
+    head, dot, tail = name.partition(".")
+    if head == TOOLS_PACKAGE:
+        other = LEGACY_TOOLS_PACKAGE
+    elif head == LEGACY_TOOLS_PACKAGE:
+        other = TOOLS_PACKAGE
+    else:
+        return None
+    return f"{other}.{tail}" if dot else other
+
+
+def domain_problem(parts: Sequence[str]) -> str | None:
+    """Why a domain path under ``cz3tools/`` cannot be a trusted layer, or None.
+
+    A domain is imported as ``cz3tools.<part>...trusted``, so every part must be a
     Python identifier and not a keyword, and it may nest at most
     :data:`MAX_DOMAIN_DEPTH` levels.
 
@@ -66,16 +95,16 @@ def domain_problem(parts: Sequence[str]) -> str | None:
     >>> domain_problem(["class"])
     "'class' is a Python keyword, so it cannot be imported"
     >>> domain_problem(["a", "b", "c"])
-    'domains nest at most 2 levels under tools/ (tools/<org>/<domain>/trusted)'
+    'domains nest at most 2 levels under cz3tools/ (cz3tools/<org>/<domain>/trusted)'
     >>> domain_problem([])
-    'a trusted layer needs a domain directory (tools/<domain>/trusted)'
+    'a trusted layer needs a domain directory (cz3tools/<domain>/trusted)'
     """
     if not parts:
-        return "a trusted layer needs a domain directory (tools/<domain>/trusted)"
+        return "a trusted layer needs a domain directory (cz3tools/<domain>/trusted)"
     if len(parts) > MAX_DOMAIN_DEPTH:
         return (
-            f"domains nest at most {MAX_DOMAIN_DEPTH} levels under tools/ "
-            "(tools/<org>/<domain>/trusted)"
+            f"domains nest at most {MAX_DOMAIN_DEPTH} levels under cz3tools/ "
+            "(cz3tools/<org>/<domain>/trusted)"
         )
     for part in parts:
         if not part.isidentifier():
@@ -145,22 +174,27 @@ def project_dir(project: Path) -> Path:
 
 
 def installed_tools(project: Path) -> Path:
-    """``<project>/.clauz3/tools``: where ``clauz3 install`` copies layers."""
+    """``<project>/.clauz3/cz3tools``: where ``clauz3 install`` copies layers."""
     return project_dir(project) / TOOLS_PACKAGE
 
 
 def authored_tools(project: Path) -> Path:
-    """``<project>/tools``: trusted layers the project authors itself."""
+    """``<project>/cz3tools``: trusted layers the project authors itself."""
     return project / TOOLS_PACKAGE
 
 
+def _candidate_tools_dirs(project: Path) -> tuple[Path, ...]:
+    return (
+        installed_tools(project),
+        project_dir(project) / LEGACY_TOOLS_PACKAGE,
+        authored_tools(project),
+        project / LEGACY_TOOLS_PACKAGE,
+    )
+
+
 def tools_dirs(project: Path) -> list[Path]:
-    """Every existing ``tools/`` directory of ``project``, installed first."""
-    return [
-        path
-        for path in (installed_tools(project), authored_tools(project))
-        if path.is_dir()
-    ]
+    """Existing ``cz3tools/`` or legacy ``tools/`` dirs, installed first."""
+    return [path for path in _candidate_tools_dirs(project) if path.is_dir()]
 
 
 def domain_path(project: Path, domain: str) -> Path:
@@ -175,9 +209,9 @@ def domain_path(project: Path, domain: str) -> Path:
 
 
 def domain_name(project: Path, trusted_root: Path) -> str:
-    """The domain (``a/b``) of ``trusted_root`` under either tools directory."""
+    """The domain (``a/b``) of ``trusted_root`` under any tools directory."""
     domain = trusted_root.parent
-    for tools in (installed_tools(project), authored_tools(project)):
+    for tools in _candidate_tools_dirs(project):
         if domain.is_relative_to(tools):
             return domain.relative_to(tools).as_posix()
     raise ValueError(f"{trusted_root} is not a layer of {project}")
@@ -186,26 +220,27 @@ def domain_name(project: Path, trusted_root: Path) -> str:
 def check_project(project: Path) -> None:
     """Refuse layouts where installed and authored layers would shadow each other.
 
-    ``tools`` is a namespace package split across both directories. A regular
-    ``tools/__init__.py`` would hide every installed library, and the same
-    top-level package in both directories would merge two unrelated trees.
+    ``cz3tools`` (and legacy ``tools``) is a namespace package split across both
+    directories. A regular ``__init__.py`` would hide the other tools directory,
+    and the same top-level package in two directories would merge unrelated trees.
     """
-    installed = installed_tools(project)
-    authored = authored_tools(project)
-    if not installed.is_dir() or not authored.is_dir():
+    existing = tools_dirs(project)
+    if len(existing) < 2:
         return
-    for tools in (installed, authored):
+    for tools in existing:
         if (tools / "__init__.py").exists():
             raise LayoutError(
-                f"{tools / '__init__.py'} makes `tools` a regular package, which "
-                "hides the other tools directory; remove it"
+                f"{tools / '__init__.py'} makes `{tools.name}` a regular "
+                "package, which hides the other tools directory; remove it"
             )
-    clashes = sorted(_packages(installed) & _packages(authored))
-    if clashes:
-        listed = ", ".join(clashes)
-        raise LayoutError(
-            f"{listed} provided by both {installed} and {authored}; keep one copy"
-        )
+    for index, left in enumerate(existing):
+        for right in existing[index + 1 :]:
+            clashes = sorted(_packages(left) & _packages(right))
+            if clashes:
+                listed = ", ".join(clashes)
+                raise LayoutError(
+                    f"{listed} provided by both {left} and {right}; keep one copy"
+                )
 
 
 def expand_import_roots(roots: Iterable[Path]) -> list[Path]:

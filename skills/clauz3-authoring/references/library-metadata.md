@@ -20,7 +20,7 @@ to use this manifest format; do not invent a replacement schema.
 Validate a domain or package manifest explicitly:
 
 ```bash
-python -m clauz3.libraries.manifest tools/bio/clauz3.yaml
+python -m clauz3.libraries.manifest cz3tools/bio/clauz3.yaml
 python -m clauz3.libraries.manifest clauz3.yaml
 ```
 
@@ -32,7 +32,7 @@ setup steps, dependencies, and source provenance should describe that copy.
 Neither validation nor installation executes setup instructions or verifies
 credentials.
 
-`tools/<domain>/clauz3.yaml` owns the exact domain `name`, human `title`,
+`cz3tools/<domain>/clauz3.yaml` owns the exact domain `name`, human `title`,
 `summary`, `description`, optional dependency source references, and requirements.
 A namespaced domain uses a slash, e.g. `google_workspace/gmail`; imports use dots.
 An optional root `clauz3.yaml` with `kind: package` owns shared requirements and

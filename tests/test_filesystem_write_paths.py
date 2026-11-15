@@ -13,14 +13,14 @@ from clauz3.interp import execute
 from clauz3.prover import _concrete_contracts, _selected_layer_context, prove_text
 
 LIBRARY = Path(__file__).resolve().parents[1] / "src/clauz3/stdlib/filesystem"
-ROOTS = [LIBRARY / "tools/filesystem/trusted"]
+ROOTS = [LIBRARY / "cz3tools/filesystem/trusted"]
 
 
 def program(guarantee: str, body: str) -> str:
     return f"""import clauz3
 from clauz3 import FilePath, DirectoryPath
-from tools.filesystem.trusted import contracts as fs
-from tools.filesystem.trusted.effects import (
+from cz3tools.filesystem.trusted import contracts as fs
+from cz3tools.filesystem.trusted.effects import (
     write_file, append_file, touch, chmod, make_dir, remove, copy, move, read_file,
 )
 @clauz3.guarantee(fs.{guarantee})
@@ -227,7 +227,7 @@ def test_handoff_exact_write_proves_displays_and_executes_only_in_tmp(
             specs[0],
             [
                 (
-                    "tools.filesystem.trusted.effects.write_file",
+                    "cz3tools.filesystem.trusted.effects.write_file",
                     ("./test.md", "hello"),
                     {},
                 )
@@ -238,7 +238,7 @@ def test_handoff_exact_write_proves_displays_and_executes_only_in_tmp(
             specs[0],
             [
                 (
-                    "tools.filesystem.trusted.effects.write_file",
+                    "cz3tools.filesystem.trusted.effects.write_file",
                     ("test.md.bak", "hello"),
                     {},
                 )

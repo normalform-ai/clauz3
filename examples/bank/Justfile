@@ -1,5 +1,5 @@
 
-trusted := "tools/bank/trusted"
+trusted := "cz3tools/bank/trusted"
 prove := "uv run clauz3 prove --trusted-root " + trusted
 # Proves each case in one process: *_pass.py must prove, *_fail.py must not.
 prove-cases := "uv run python -m clauz3._prove_cases --trusted-root " + trusted

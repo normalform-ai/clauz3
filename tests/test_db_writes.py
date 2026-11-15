@@ -14,7 +14,7 @@ from clauz3._vendor.deal_solver import Conclusion
 from clauz3.prover import _selected_layer_context, prove_text
 
 LIBRARY = Path(__file__).resolve().parents[1] / "src/clauz3/stdlib/db"
-ROOTS = [LIBRARY / "tools/db/trusted"]
+ROOTS = [LIBRARY / "cz3tools/db/trusted"]
 
 
 class Transaction(clauz3.Row):
@@ -27,7 +27,7 @@ class Transaction(clauz3.Row):
 @pytest.fixture
 def db_effects() -> Iterator[ModuleType]:
     with _selected_layer_context(ROOTS, [LIBRARY]):
-        yield importlib.import_module("tools.db.trusted.effects")
+        yield importlib.import_module("cz3tools.db.trusted.effects")
 
 
 def test_create_insert_read_and_preserve_existing_data(
@@ -142,8 +142,8 @@ def test_write_connections_disable_external_access(
 
 
 PREAMBLE = """import clauz3
-from tools.db.trusted import contracts as db
-from tools.db.trusted.effects import create_table, insert_row
+from cz3tools.db.trusted import contracts as db
+from cz3tools.db.trusted.effects import create_table, insert_row
 class Transaction(clauz3.Row):
     id: int
     merchant: str
@@ -222,7 +222,7 @@ def test_write_guarantees(guarantee: str, body: str, allowed: bool) -> None:
 def test_query_rows_can_be_copied_with_a_proved_count_bound() -> None:
     source = (
         PREAMBLE
-        + """from tools.db.trusted.effects import read_rows
+        + """from cz3tools.db.trusted.effects import read_rows
 @clauz3.guarantee(db.only_writes_databases([clauz3.FilePath("dest.duckdb")]))
 @clauz3.guarantee(db.rows_inserted_at_most(100))
 def main() -> None:

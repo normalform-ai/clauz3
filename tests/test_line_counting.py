@@ -13,15 +13,15 @@ from clauz3.prover import prove_text
 
 ROOT = Path(__file__).resolve().parents[1]
 FS = ROOT / "src/clauz3/stdlib/filesystem"
-TRUSTED = FS / "tools/filesystem/trusted"
+TRUSTED = FS / "cz3tools/filesystem/trusted"
 
 
 def source(expression: str, contract: str = 'fs.only_read_under("./data/")') -> str:
     return (
         "import clauz3\n"
-        "from tools.filesystem.trusted.effects import "
+        "from cz3tools.filesystem.trusted.effects import "
         "read_file, read_lines, write_file\n"
-        "from tools.filesystem.trusted import contracts as fs\n"
+        "from cz3tools.filesystem.trusted import contracts as fs\n"
         f"@clauz3.guarantee({contract})\n"
         "def main() -> None:\n"
         f"    print({expression})\n"
@@ -252,7 +252,7 @@ def test_line_count_through_authenticated_approval_service(
 
     monkeypatch.chdir(tmp_path)
     install_layer("stdlib:filesystem", into=tmp_path)
-    roots = [tmp_path / ".clauz3/tools/filesystem/trusted"]
+    roots = [tmp_path / ".clauz3/cz3tools/filesystem/trusted"]
     (tmp_path / "data").mkdir()
     (tmp_path / "data/input.txt").write_bytes(b"hello\n\nlast")
     signing, verifying = generate_keypair()

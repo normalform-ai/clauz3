@@ -1,6 +1,6 @@
 # ruff: noqa: F821
-from tools.web_search.trusted import contracts as srch
-from tools.web_search.trusted.effects import web_search
+from cz3tools.web_search.trusted import contracts as srch
+from cz3tools.web_search.trusted.effects import web_search
 
 import clauz3
 

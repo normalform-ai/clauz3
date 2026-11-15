@@ -36,7 +36,11 @@ from clauz3.imports_policy import (
 )
 from clauz3.interp.library_origins import validate_trusted_module
 from clauz3.layer_state import LayerImage, LayerStateError, selected_layer
-from clauz3.libraries.layout import LayoutError, expand_import_roots
+from clauz3.libraries.layout import (
+    LayoutError,
+    alternate_tools_module,
+    expand_import_roots,
+)
 from clauz3.policy import (
     DomainPolicy,
     DuplicateEffectError,
@@ -384,6 +388,26 @@ def _concrete_contracts(
         )
         module_name, _, helper_name = name.rpartition(".")
         helper_module = sys.modules.get(module_name)
+        if (alt := alternate_tools_module(module_name)) is not None and (
+            alt in sys.modules
+        ):
+            alt_module = sys.modules[alt]
+            if helper_module is not None and helper_module is not alt_module:
+                raise ProverConfigError(
+                    f"ambiguous concrete contract module {module_name!r} vs {alt!r}"
+                )
+            if helper_module is None:
+                helper_module = alt_module
+        if helper_module is not None and spec._EFFECT_SIGNATURES is not None:
+            module_file = getattr(helper_module, "__file__", None)
+            if (
+                not isinstance(module_file, str)
+                or str(Path(module_file).resolve()) not in spec._CHECKED_FILES
+            ):
+                raise ProverConfigError(
+                    f"concrete contract module {module_name!r} is outside the "
+                    "verified trusted layer"
+                )
         helper = (
             getattr(helper_module, helper_name, None)
             if helper_module is not None
@@ -681,16 +705,26 @@ def _resolve_required_module(policy: DomainPolicy, name: str) -> str:
     helper an agent-written guarantee is allowed to name.
     """
 
-    prefix = f"{policy.domain_package}." if policy.domain_package else ""
+    prefixes: tuple[str, ...] = (
+        (f"{policy.domain_package}.",) if policy.domain_package else ("",)
+    )
+    if policy.domain_package and (alt := alternate_tools_module(policy.domain_package)):
+        prefixes = (*prefixes, f"{alt}.")
     matches = sorted(
         key
         for key in REGISTERED_CONTRACTS
-        if key.startswith(prefix) and key.rsplit(".", 1)[-1] == name
+        if any(key.startswith(prefix) for prefix in prefixes)
+        and key.rsplit(".", 1)[-1] == name
     )
     if not matches:
         raise ProverConfigError(
             f"required contract {name!r} for domain {policy.domain_package!r} "
             "is not a registered @contract",
+        )
+    if len(matches) > 1:
+        raise ProverConfigError(
+            f"required contract {name!r} for domain {policy.domain_package!r} "
+            f"is ambiguous across {matches!r}",
         )
     return matches[0].rsplit(".", 1)[0]
 
@@ -858,7 +892,22 @@ def _load_trusted_modules(
     # Validate the whole layer before the first initializer runs. A later
     # shadowed file must not be discovered after earlier trusted imports have
     # already executed an agent-selected parent package.
+    seen_canonical: dict[str, tuple[str, Path]] = {}
     for module_name, path in candidates:
+        alt = alternate_tools_module(module_name)
+        canonical_key = (
+            alt if alt is not None and module_name.startswith("tools.") else module_name
+        )
+        if canonical_key in seen_canonical:
+            prev_name, prev_path = seen_canonical[canonical_key]
+            if prev_path.resolve() != path.resolve():
+                raise ProverConfigError(
+                    f"trusted modules {prev_name!r} ({prev_path}) and "
+                    f"{module_name!r} ({path}) share the same domain module path; "
+                    "keep one copy"
+                )
+        else:
+            seen_canonical[canonical_key] = (module_name, path)
         if module_name in sys.modules:
             _require_loaded_from(sys.modules[module_name], path)
         validate_trusted_module(

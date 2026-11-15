@@ -91,7 +91,7 @@ FORBIDDEN_ATTRIBUTES = frozenset(
 
 ROOT = Path(__file__).resolve().parents[1]
 EMAIL_ROOT = ROOT / "examples/email"
-EMAIL_TRUSTED = EMAIL_ROOT / "tools/email/trusted"
+EMAIL_TRUSTED = EMAIL_ROOT / "cz3tools/email/trusted"
 
 
 def run(source: str) -> Outcome:
@@ -230,8 +230,8 @@ def write_note(text: str) -> None:
 
 @pytest.fixture
 def layer_root(tmp_path: Path) -> Path:
-    """A minimal trusted layer at ``<tmp>/tools/demo/trusted/effects.py``."""
-    trusted = tmp_path / "tools/demo/trusted"
+    """A minimal trusted layer at ``<tmp>/cz3tools/demo/trusted/effects.py``."""
+    trusted = tmp_path / "cz3tools/demo/trusted"
     trusted.mkdir(parents=True)
     # Ancestors outside the trusted root are inert namespace packages.
     (trusted / "__init__.py").write_text("")
@@ -247,7 +247,7 @@ def _run_against_layer(root: Path, source: str) -> Outcome:
             source,
             source_name="plan.py",
             policy=build_policy(
-                trusted_roots=[root / "tools/demo/trusted"],
+                trusted_roots=[root / "cz3tools/demo/trusted"],
                 import_roots=[root],
             ),
             import_roots=[root],
@@ -270,7 +270,7 @@ def test_trusted_layer_imports_are_not_its_surface(layer_root: Path) -> None:
     with pytest.raises(TrustedBoundaryError, match="not exposed"):
         _run_against_layer(
             layer_root,
-            "from tools.demo.trusted import effects\n"
+            "from cz3tools.demo.trusted import effects\n"
             "\n"
             "def main() -> None:\n"
             '    effects.os.system("id > /tmp/pwned")\n',
@@ -280,13 +280,13 @@ def test_trusted_layer_imports_are_not_its_surface(layer_root: Path) -> None:
 def test_trusted_layer_still_exposes_what_it_defines(layer_root: Path) -> None:
     outcome = _run_against_layer(
         layer_root,
-        "from tools.demo.trusted.effects import write_note\n"
+        "from cz3tools.demo.trusted.effects import write_note\n"
         "\n"
         "def main() -> None:\n"
         '    write_note("hi")\n',
     )
     assert [effect[0] for effect in outcome.effects] == [
-        "tools.demo.trusted.effects.write_note",
+        "cz3tools.demo.trusted.effects.write_note",
     ]
 
 
@@ -300,15 +300,15 @@ def test_allow_import_is_not_a_trust_grant() -> None:
     ``@deal.has`` markers -- contrary to AGENTS.md's trust-boundary rule. Trust
     is read from ``trusted_prefixes`` instead.
     """
-    policy = build_policy(import_roots=[EMAIL_ROOT], extra_allowed=["tools.email"])
-    assert policy.is_allowed("tools.email.trusted.effects")
+    policy = build_policy(import_roots=[EMAIL_ROOT], extra_allowed=["cz3tools.email"])
+    assert policy.is_allowed("cz3tools.email.trusted.effects")
     assert policy.trusted_prefixes == ()
 
     with pytest.raises(
         TrustedBoundaryError, match="outside authorized library origins"
     ):
         execute(
-            "from tools.email.trusted.effects import send_email\n"
+            "from cz3tools.email.trusted.effects import send_email\n"
             "\n"
             "def main() -> None:\n"
             "    send_email('bob@example.com', 'hi')\n",
@@ -323,7 +323,7 @@ RE_EXPORT_EFFECTS = """\
 
 import deal
 
-from tools.demo.trusted.schemas import Note
+from cz3tools.demo.trusted.schemas import Note
 
 
 @deal.has("write", "trusted")
@@ -346,12 +346,12 @@ def test_trusted_layers_may_re_export_across_their_own_files(
     """A layer is a trusted *root*, not a single file.
 
     Requiring ``__module__ == module.__name__`` dropped re-exports, so
-    ``from tools.db.trusted.effects import UserRow`` -- a shape that ships in
+    ``from cz3tools.db.trusted.effects import UserRow`` -- a shape that ships in
     ``examples/email-from-db`` -- was refused although it proves. Widening to
     the trusted prefix is safe for the reason the layer is trusted at all; what
     stays excluded is anything defined outside every trusted root.
     """
-    trusted = tmp_path / "tools/demo/trusted"
+    trusted = tmp_path / "cz3tools/demo/trusted"
     trusted.mkdir(parents=True)
     # Ancestors outside the trusted root are inert namespace packages.
     (trusted / "__init__.py").write_text("")
@@ -360,14 +360,14 @@ def test_trusted_layers_may_re_export_across_their_own_files(
 
     outcome = _run_against_layer(
         tmp_path,
-        "from tools.demo.trusted.effects import Note, write_note\n"
+        "from cz3tools.demo.trusted.effects import Note, write_note\n"
         "\n"
         "def main() -> None:\n"
         "    write_note(Note('hi'))\n",
     )
     assert [effect[0] for effect in outcome.effects] == [
-        "tools.demo.trusted.effects.Note",
-        "tools.demo.trusted.effects.write_note",
+        "cz3tools.demo.trusted.effects.Note",
+        "cz3tools.demo.trusted.effects.write_note",
     ]
 
 
@@ -378,7 +378,7 @@ def test_re_export_widening_still_excludes_outside_definitions(
     with pytest.raises(TrustedBoundaryError, match="not exposed"):
         _run_against_layer(
             layer_root,
-            "from tools.demo.trusted import effects\n"
+            "from cz3tools.demo.trusted import effects\n"
             "\n"
             "def main():\n"
             "    return effects.deal\n",
