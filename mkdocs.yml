@@ -95,6 +95,7 @@ nav:
     - FAQ: explanation/faq.md
     - Symbolic iteration: explanation/symbolic-iteration.md
     - Differential testing: explanation/differential-testing.md
+    - Cloud Dots: explanation/cloud-dots.md
 
 not_in_nav: |
   todos/

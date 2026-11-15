@@ -957,3 +957,47 @@ def test_handoff_cannot_export_another_project_or_choose_an_output_path(
             == 400
         )
     assert not (store.path.parent / "handoffs").exists()
+
+
+def test_cloud_host_allowlist_and_browser_url(config: ChatConfig) -> None:
+    cloud_config = config.model_copy(
+        update={"browser_url": "https://dot.example.com/browser/vnc.html"}
+    )
+    app = create_approval_app(
+        auth_token="submit",
+        decision_token="approve",
+        allowed_hosts=["127.0.0.1", "dot.example.com"],
+        chat_config=cloud_config,
+    )
+    with TestClient(
+        app,
+        base_url="https://dot.example.com",
+        client=("172.18.0.2", 50000),
+    ) as client:
+        login_res = client.get("/ui/login?key=approve", follow_redirects=False)
+        assert login_res.status_code == 303
+        page = client.get("/ui")
+        assert page.status_code == 200
+        assert 'id="browser-panel"' in page.text
+        assert 'id="browser-toggle"' in page.text
+        assert 'id="browser-takeover"' in page.text
+        assert client.get("/api/chat/conversations").status_code == 200
+        with client.websocket_connect(
+            "wss://dot.example.com/api/chat/acp",
+            headers={"Origin": "https://dot.example.com"},
+        ) as ws:
+            restored = ws.receive_json()
+            assert restored["method"] == "clauz3/restore"
+            assert (
+                restored["params"]["browserUrl"]
+                == "https://dot.example.com/browser/vnc.html"
+            )
+        # Cross-origin requests remain rejected even on an allowlisted Host.
+        assert (
+            client.post(
+                "/api/chat/handoff",
+                json={"conversationId": "any"},
+                headers={"Origin": "https://evil.example.com"},
+            ).status_code
+            == 401
+        )

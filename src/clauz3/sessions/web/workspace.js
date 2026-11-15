@@ -301,6 +301,12 @@
     $("model").textContent = `${state.agentLabel || "Claude"} · ${state.model || "default"}`;
     $("prompt-label").textContent = `Message ${state.agentLabel || "agent"}`;
     $("unrestricted-mode").hidden = !state.unrestricted;
+    if ($("browser-toggle")) {
+      $("browser-toggle").hidden = !state.browserUrl;
+      if (state.browserUrl && $("browser-popout")) {
+        $("browser-popout").href = state.browserUrl;
+      }
+    }
     $("confinement").textContent = state.unrestricted
       ? "Unrestricted: native tools can bypass proofs and approval."
       : "Your approval controls effects.";
@@ -496,7 +502,8 @@
     }
   });
   function connect() {
-    socket = new WebSocket(`ws://${location.host}/api/chat/acp`);
+    const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+    socket = new WebSocket(`${protocol}//${location.host}/api/chat/acp`);
     socket.onopen = () => {
       connected = true;
       notice("");

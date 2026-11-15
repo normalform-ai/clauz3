@@ -1,0 +1,56 @@
+services:
+  dot-workspace:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: clauz3-dot-workspace
+    restart: unless-stopped
+    ports:
+      - "${CLAUZ3_BIND_IP:-127.0.0.1}:${CLAUZ3_PORT:-8080}:8080"
+    environment:
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+      CLAUZ3_AGENT: "${CLAUZ3_AGENT:-claude}"
+      CLAUZ3_MODEL: "${CLAUZ3_MODEL:-}"
+      CLAUZ3_HOST: "0.0.0.0"
+      CLAUZ3_PORT: "8080"
+      CLAUZ3_ALLOWED_HOSTS: "${CLAUZ3_ALLOWED_HOSTS:-localhost,127.0.0.1,dot-workspace}"
+      CLAUZ3_BROWSER_URL: "${CLAUZ3_BROWSER_URL:-http://127.0.0.1:6080/vnc.html?autoconnect=true&resize=scale}"
+      CLAUZ3_CDP_URL: "http://dot-browser:9222"
+      CLAUZ3_DOT_DECISION_TOKEN: "${CLAUZ3_DOT_DECISION_TOKEN:-}"
+    volumes:
+      - dot-workspace:/workspace
+      - dot-data:/home/clauz3/.local/share/clauz3
+    depends_on:
+      - dot-browser
+    networks:
+      - dot-net
+    security_opt:
+      - no-new-privileges:true
+
+  dot-browser:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.browser
+    container_name: clauz3-dot-browser
+    restart: unless-stopped
+    shm_size: "2gb"
+    ports:
+      - "${CLAUZ3_BIND_IP:-127.0.0.1}:${CLAUZ3_BROWSER_PORT:-6080}:6080"
+    volumes:
+      - dot-browser-profile:/data/profile
+      - dot-workspace:/workspace:ro
+    networks:
+      - dot-net
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  dot-workspace:
+  dot-data:
+  dot-browser-profile:
+
+networks:
+  dot-net:
+    driver: bridge

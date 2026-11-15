@@ -19,6 +19,7 @@
       <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></symbol>
       <symbol id="icon-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
       <symbol id="icon-files" viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/></symbol>
+      <symbol id="icon-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></symbol>
     </svg>
     <aside class="sidebar">
       <a class="brand" href="/ui"><img src="/ui/assets/logo.svg" alt="ClauZ3" /></a>
@@ -86,6 +87,16 @@
           </div>
           <div class="header-actions">
             <span id="model" class="model">Agent</span>
+            <button
+              id="browser-toggle"
+              class="icon-button"
+              aria-expanded="false"
+              aria-controls="browser-panel"
+              title="Cloud browser live view and Take Over"
+              hidden
+            >
+              <svg class="icon"><use href="#icon-globe" /></svg>Browser
+            </button>
             <button
               id="files-toggle"
               class="icon-button"
@@ -273,6 +284,43 @@
       >
         Read-only
       </p>
+    </aside>
+    <aside id="browser-panel" aria-label="Cloud browser" hidden>
+      <div class="files-heading">
+        <div>
+          <div class="eyebrow">CLOUD BROWSER</div>
+          <h2>Live View</h2>
+        </div>
+        <button id="browser-close" aria-label="Close browser">×</button>
+      </div>
+      <div class="files-toolbar">
+        <button
+          id="browser-takeover"
+          aria-pressed="false"
+          title="Toggle interactive control to complete logins or 2FA"
+        >
+          Take over control
+        </button>
+        <a
+          id="browser-popout"
+          href="#"
+          target="_blank"
+          rel="noopener noreferrer"
+          >Open in new tab ↗</a
+        >
+      </div>
+      <p id="browser-mode-status" class="browser-mode-note" role="status">
+        View-only mode · Click “Take over control” to interact with the browser
+        (e.g., for OAuth or 2FA).
+      </p>
+      <div class="browser-viewport">
+        <iframe
+          id="browser-frame"
+          title="Isolated Chromium browser"
+          class="browser-frame view-only"
+          referrerpolicy="no-referrer"
+        ></iframe>
+      </div>
     </aside>
     <div id="workspace-menu" class="menu workspace-menu" popover role="menu" aria-label="Switch workspace">
       <div class="menu-heading">Recent workspaces</div>

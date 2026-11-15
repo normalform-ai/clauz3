@@ -133,15 +133,35 @@
     }
   }
   overlay.addEventListener("change", layout);
-  function close() {
+  const browserPanel = $("browser-panel");
+  let browserUrl = "";
+  document.addEventListener("clauz3:state", (event) => {
+    const nextUrl = event.detail?.browserUrl || "";
+    if (nextUrl && nextUrl !== browserUrl) {
+      browserUrl = nextUrl;
+      if (browserPanel && !browserPanel.hidden && $("browser-frame")) {
+        $("browser-frame").src = browserUrl;
+      }
+    }
+  });
+  function closeBrowser(focusToggle = true) {
+    if (!browserPanel) return;
+    browserPanel.hidden = true;
+    layout();
+    document.body.classList.remove("browser-open");
+    $("browser-toggle")?.setAttribute("aria-expanded", "false");
+    if (focusToggle) $("browser-toggle")?.focus();
+  }
+  function close(focusToggle = true) {
     panel.hidden = true;
     layout();
     document.body.classList.remove("files-open");
     $("files-toggle").setAttribute("aria-expanded", "false");
-    $("files-toggle").focus();
+    if (focusToggle) $("files-toggle").focus();
   }
   $("files-toggle").addEventListener("click", () => {
     if (!panel.hidden) return close();
+    closeBrowser(false);
     panel.hidden = false;
     layout();
     document.body.classList.add("files-open");
@@ -149,7 +169,37 @@
     open(path);
     $("files-close").focus();
   });
-  $("files-close").addEventListener("click", close);
+  $("files-close").addEventListener("click", () => close(true));
+  if ($("browser-toggle") && browserPanel) {
+    $("browser-toggle").addEventListener("click", () => {
+      if (!browserPanel.hidden) return closeBrowser(true);
+      close(false);
+      browserPanel.hidden = false;
+      layout();
+      document.body.classList.add("browser-open");
+      $("browser-toggle").setAttribute("aria-expanded", "true");
+      const frame = $("browser-frame");
+      if (frame && browserUrl && frame.src !== browserUrl) {
+        frame.src = browserUrl;
+      }
+      $("browser-close")?.focus();
+    });
+    $("browser-close")?.addEventListener("click", () => closeBrowser(true));
+    $("browser-takeover")?.addEventListener("click", () => {
+      const btn = $("browser-takeover");
+      const frame = $("browser-frame");
+      const status = $("browser-mode-status");
+      const takingOver = btn.getAttribute("aria-pressed") !== "true";
+      btn.setAttribute("aria-pressed", String(takingOver));
+      btn.textContent = takingOver ? "Release control" : "Take over control";
+      frame?.classList.toggle("view-only", !takingOver);
+      if (status) {
+        status.textContent = takingOver
+          ? "Interactive Take Over active · Complete login or 2FA, then release control."
+          : "View-only mode · Click “Take over control” to interact with the browser (e.g., for OAuth or 2FA).";
+      }
+    });
+  }
   panel.addEventListener("keydown", (event) => {
     if (event.key === "Escape") close();
     if (event.key === "Tab" && overlay.matches) {

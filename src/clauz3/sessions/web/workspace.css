@@ -760,16 +760,20 @@ pre {
 .header-actions {
   flex-shrink: 0;
 }
-#files-toggle[aria-expanded="true"] {
+#files-toggle[aria-expanded="true"],
+#browser-toggle[aria-expanded="true"],
+#browser-takeover[aria-pressed="true"] {
   background: #dce8dc;
 }
-.files-open main {
+.files-open main,
+.browser-open main {
   flex: 1;
   min-width: 0;
   padding-left: 30px;
   padding-right: 30px;
 }
-#files-panel {
+#files-panel,
+#browser-panel {
   width: 390px;
   flex-shrink: 0;
   position: sticky;
@@ -782,6 +786,38 @@ pre {
   display: flex;
   flex-direction: column;
 }
+#browser-panel {
+  width: min(560px, 46vw);
+}
+.browser-mode-note {
+  margin: 12px 0;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.browser-viewport {
+  flex: 1;
+  min-height: 360px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #111815;
+  display: flex;
+}
+.browser-frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #111815;
+}
+.browser-frame.view-only {
+  pointer-events: none;
+}
+#browser-close,
+#files-close {
+  font-size: 22px;
+  padding: 3px 10px;
+}
 .files-heading h2 {
   font-size: 20px;
   font-weight: 550;
@@ -789,10 +825,6 @@ pre {
 }
 .files-heading .eyebrow {
   margin-bottom: 7px;
-}
-#files-close {
-  font-size: 22px;
-  padding: 3px 10px;
 }
 .files-toolbar {
   margin-top: 25px;

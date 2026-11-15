@@ -291,6 +291,9 @@ def _claude_command(
 def start_session(
     *,
     agent: str,
+    host: str = "127.0.0.1",
+    allowed_hosts: list[str] | None = None,
+    browser_url: str | None = None,
     port: int = 0,
     policy: Path | None = None,
     open_browser: bool = True,
@@ -404,7 +407,27 @@ def start_session(
     )
     signing, verifying = generate_keypair()
     submission = secrets.token_urlsafe(32)
-    decision = secrets.token_urlsafe(32)
+    decision = os.environ.get("CLAUZ3_DOT_DECISION_TOKEN") or secrets.token_urlsafe(32)
+    if secrets.compare_digest(decision.encode(), submission.encode()):
+        submission = secrets.token_urlsafe(32)
+    effective_browser_url = (
+        browser_url
+        if browser_url is not None
+        else (os.environ.get("CLAUZ3_BROWSER_URL") or None)
+    )
+    extra_hosts = [
+        h.strip()
+        for h in [
+            *(allowed_hosts or []),
+            *os.environ.get("CLAUZ3_ALLOWED_HOSTS", "").split(","),
+        ]
+        if h.strip()
+    ]
+    configured_hosts = (
+        sorted({"127.0.0.1", "localhost", host, *extra_hosts})
+        if host != "127.0.0.1" or extra_hosts
+        else ["127.0.0.1"]
+    )
     # Never inherit stale clauz3 credentials, including a private signing key
     # previously exported by the operator in this shell.
     base_env = {
@@ -416,6 +439,10 @@ def start_session(
             "CLAUZ3_UI_CONFIG",
             "CLAUZ3_RUN_STATUS_FILE",
             "CLAUZ3_SESSION_LIFETIME_SOCKET",
+            "CLAUZ3_SERVICE_ALLOWED_HOSTS",
+            "CLAUZ3_BROWSER_URL",
+            "CLAUZ3_ALLOWED_HOSTS",
+            "CLAUZ3_DOT_DECISION_TOKEN",
         }
     }
     # Both urllib and harness transports must reach the local service directly,
@@ -451,9 +478,14 @@ def start_session(
                 file=sys.stderr,
             )
             listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            listener.bind(("127.0.0.1", port))
+            try:
+                listener.bind((host, port))
+            except OSError as exc:
+                raise StartError(f"could not bind {host}:{port}: {exc}") from exc
             listener.listen()
-            url = f"http://127.0.0.1:{listener.getsockname()[1]}"
+            bound_port = listener.getsockname()[1]
+            connect_host = "127.0.0.1" if host in {"0.0.0.0", "::", ""} else host
+            url = f"http://{connect_host}:{bound_port}"
             runner_env = {
                 APPROVAL_SERVICE_ENV: url,
                 APPROVAL_TOKEN_ENV: submission,
@@ -466,6 +498,7 @@ def start_session(
                 APPROVAL_TOKEN_ENV: submission,
                 APPROVAL_DECISION_TOKEN_ENV: decision,
                 SIGNING_KEY_ENV: signing,
+                "CLAUZ3_SERVICE_ALLOWED_HOSTS": json.dumps(configured_hosts),
             }
             if use_acp:
                 config_path = Path(session_directory) / "ui.json"
@@ -488,6 +521,7 @@ def start_session(
                             "libraries": [domain_name(cwd, root) for root in roots],
                             "manage_libraries": True,
                             "show_libraries": setup or not roots,
+                            "browser_url": effective_browser_url,
                         }
                     )
                 )
