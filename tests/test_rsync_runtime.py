@@ -6,6 +6,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import cast
 
+import deal
 import pytest
 
 RSYNC_ROOT = Path(__file__).resolve().parents[1] / "src/clauz3/stdlib/rsync"
@@ -67,6 +68,9 @@ def rsync_effect(monkeypatch: pytest.MonkeyPatch) -> RsyncEffect:
         ["--keep-d"],
         ["-K"],
         ["-avK"],
+        ["--password-file=/home/me/.ssh/id_rsa"],
+        ["--password-file", "/home/me/.ssh/id_rsa"],
+        ["--passw=/etc/shadow"],
     ],
 )
 @pytest.mark.usefixtures("deal_disabled")
@@ -134,3 +138,28 @@ def test_precondition_names_every_refused_option(
     names += [f"-{letter}" for letter in module.REFUSED_SHORT_OPTIONS]
     for name in names:
         assert not module.has_no_refused_option_names([name]), name
+
+
+@pytest.mark.usefixtures("deal_disabled")
+@pytest.mark.parametrize(
+    "src,dest", [("/precious/x", "--delete"), ("--remove-source-files", "/backup/")]
+)
+def test_rsync_refuses_option_like_paths_without_deal(
+    rsync_effect: RsyncEffect, monkeypatch: pytest.MonkeyPatch, src: str, dest: str
+) -> None:
+    def forbidden(*args: object, **kwargs: object) -> None:
+        pytest.fail("an option-like rsync path reached the subprocess")
+
+    monkeypatch.setattr(subprocess, "run", forbidden)
+    with pytest.raises(ValueError, match="start with '-'"):
+        rsync_effect(src, dest, False, ["-a", "/data/y"])
+
+
+@pytest.mark.parametrize(
+    "src,dest", [("/precious/x", "--delete"), ("--remove-source-files", "/backup/")]
+)
+def test_rsync_option_like_paths_fail_the_precondition(
+    rsync_effect: RsyncEffect, src: str, dest: str
+) -> None:
+    with pytest.raises(deal.PreContractError, match="start with '-'"):
+        rsync_effect(src, dest, False, ["-a"])

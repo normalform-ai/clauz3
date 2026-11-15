@@ -36,9 +36,10 @@ Import with `from tools.rsync.trusted.effects import rsync`:
   `dest` (`--backup-dir`, `--log-file`, `--temp-dir`/`-T`, `--partial-dir`,
   `--write-batch`, `--keep-dirlinks`/`-K`), read from elsewhere
   (`--files-from`, `--link-dest`, `--compare-dest`, `--copy-dest`,
-  `--read-batch`), or run another program (`-e`/`--rsh`, `--rsync-path`,
+  `--read-batch`, `--password-file`), or run another program (`-e`/`--rsh`, `--rsync-path`,
   `-M`/`--remote-option`); see `REFUSED_LONG_OPTIONS` in `effects.py`.
-  Short-option groups like `-avz` are fine.
+  Short-option groups like `-avz` are fine. `src` and `dest` may not start
+  with `-` (rsync reads options even after the paths).
 
 The exact spellings above are preconditions, checked by the prover and again
 by the effect body. Abbreviations (`--remove-sou`), `--option=value` forms and
