@@ -5,7 +5,10 @@ example-roots := `find examples -mindepth 1 -maxdepth 1 -type d | sort | paste -
 fixture-roots := `find tests/fixtures -mindepth 1 -maxdepth 1 -type d | sort | paste -sd: -`
 stdlib-justfiles := `find src/clauz3/stdlib -name Justfile | sort | paste -sd' ' -`
 
-test: pytest check node-test examples stdlib
+# Every proof case is proved once, by pytest's exact-conclusion tables, and
+# the Justfiles' lint and runtime checks run under pytest too
+# (tests/test_bundled_suites.py), so the per-Justfile suites are not repeated.
+test: pytest check node-test
 
 # Install a user-wide clauz3 command backed by this checkout's source.
 install-editable:
@@ -55,6 +58,8 @@ check:
 contract-schema:
     uv run python -m clauz3.libraries.contract_schema --output docs/reference/contracts.linkml.json
 
+# The example and bundled-library Justfiles end to end, as `clauz3 test` runs
+# them. Not part of `just test`: pytest already covers everything they check.
 examples:
     for justfile in {{example-justfiles}}; do \
         just -f "$justfile" test || exit "$?"; \

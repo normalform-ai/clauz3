@@ -43,11 +43,19 @@ documented in `docs/development/workspace-ui.md`.
 ## Build, Test, and Development Commands
 
 - `uv sync --dev`: install the project and development tools.
-- `just test`: run pytest, ruff, mypy, the web UI node tests, and every
-  example Justfile. Needs `node`, `rg` (ripgrep) and `git` on the path.
+- `just test`: run pytest, ruff, mypy and the web UI node tests. Needs `node`,
+  `just`, `rg` (ripgrep) and `git` on the path. Pytest proves every example and
+  bundled-library case once, pinning its exact conclusion
+  (`tests/test_example_provers.py`, `tests/test_email_prover.py`,
+  `tests/test_bank_prover.py`, `tests/test_stdlib_case_conclusions.py`,
+  `tests/test_text_library.py`), and runs the Justfiles' other checks (effects
+  lint, the `db` and `google_workspace` runtime suites) in
+  `tests/test_bundled_suites.py`. A new case needs a row in its table.
 - `just check`: run ruff formatting/linting and strict mypy.
 - `just pytest`: run only the pytest suite.
-- `just examples`: run example proofs only.
+- `just examples` / `just stdlib`: run every example / bundled-library
+  Justfile end to end, as `clauz3 test <library>` does. Not part of
+  `just test`, which already covers what they check.
 - `just ui-test`: `just node-test` (syntax-check the web UI scripts and run
   their node tests in `tests/web/`) plus the pytest files that serve them; a
   subset of `just test`. CI runs only this for pull requests that touch
@@ -69,7 +77,9 @@ modules should use `tools/<domain>/trusted/{effects.py,contracts.py}`.
 Tests use pytest and are named `tests/test_*.py`. Add focused pytest cases for
 core behavior and example case files for proof behavior. Cases under
 `examples/*/cases/` should be valid Python and remain mypy-clean. Example
-Justfiles should include both expected-pass and expected-fail proof commands.
+and library Justfiles prove their cases in one process with
+`python -m clauz3._prove_cases ... cases/*_pass.py cases/*_fail.py`; pin each
+case's exact conclusion in the matching pytest table as well.
 Run `just test` before pushing.
 
 ## Learning from Conversation Handoffs
