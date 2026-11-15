@@ -19,6 +19,30 @@ from clauz3.spec import no_guarantees as core_no_guarantees
 
 Gh = effect(gh)
 
+#: gh commands whose every subcommand works on the single ``--repo``
+#: repository (gh 2.101: each subcommand's ``--help`` lists ``-R, --repo``),
+#: plus ``repo``, whose other subcommands reject ``--repo`` and so cannot
+#: run. Excluded although some subcommands accept ``--repo``: ``codespace``
+#: (codespaces belong to your account), ``project`` (projects belong to an
+#: owner), ``agent-task`` and ``attestation`` (mixed, account-level), and
+#: ``search``. Account-level commands (``auth``, ``gist``, ``ssh-key``,
+#: ``gpg-key``, ``org``, ``config``, ``status``, ...) are excluded.
+REPOSITORY_COMMANDS = [
+    "browse",
+    "discussion",
+    "issue",
+    "pr",
+    "release",
+    "repo",
+    "cache",
+    "run",
+    "workflow",
+    "label",
+    "ruleset",
+    "secret",
+    "variable",
+]
+
 #: GitHub-CLI verbs that only read state. ``read_only`` pins every ``action``
 #: to this set. Deliberately excludes mutating verbs such as ``create``,
 #: ``edit``, ``merge``, ``close``, ``comment``, ``delete``, and ``ready``.
@@ -82,7 +106,7 @@ def only_commands(allowlist: list[str]) -> ContractSpec:
     description=(
         "No GitHub command uses any of these actions: {blocklist}. Only the action "
         "word is compared, so for example blocking delete does not stop "
-        "pr merge --delete-branch."
+        "pr merge --delete-branch or release delete-asset."
     )
 )
 def never_actions(blocklist: list[str]) -> ContractSpec:
@@ -99,8 +123,8 @@ def never_actions(blocklist: list[str]) -> ContractSpec:
 
 @contract(
     description=(
-        "GitHub commands work only on the repository {repo}; GitHub-wide search "
-        "and search filters are not allowed."
+        "GitHub commands work only on the repository {repo}; only commands that "
+        "work on a single repository are allowed, and searching is not."
     )
 )
 def only_repo(repo: str) -> ContractSpec:
@@ -110,14 +134,16 @@ def only_repo(repo: str) -> ContractSpec:
     effect refuses web-address arguments, which gh would resolve against the
     address's own repository instead.
     It also refuses ``issue transfer`` and ``label clone``, which name a
-    second repository as an ordinary argument. ``gh search`` and the
+    second repository as an ordinary argument. Only ``REPOSITORY_COMMANDS``
+    are allowed, so account-level commands (``gist``, ``ssh-key``, ...) fail.
+    ``gh search`` and the
     ``--search``/``-S`` filters of ``list`` commands are forbidden, because a
     query qualifier such as ``repo:other/name`` reaches other repositories.
     """
     return Gh.all(
         lambda e: (
             e.repo == repo
-            and e.command != "search"
+            and e.command in REPOSITORY_COMMANDS
             and "--search" not in e.args
             and "-S" not in e.args
         )
@@ -126,8 +152,8 @@ def only_repo(repo: str) -> ContractSpec:
 
 @contract(
     description=(
-        "GitHub commands work only on repositories owned by {owner}; GitHub-wide "
-        "search and search filters are not allowed."
+        "GitHub commands work only on repositories owned by {owner}; only commands "
+        "that work on a single repository are allowed, and searching is not."
     )
 )
 def only_owner(owner: str) -> ContractSpec:
@@ -143,7 +169,7 @@ def only_owner(owner: str) -> ContractSpec:
     return Gh.all(
         lambda e: (
             e.repo.startswith(prefix)
-            and e.command != "search"
+            and e.command in REPOSITORY_COMMANDS
             and "--search" not in e.args
             and "-S" not in e.args
         )

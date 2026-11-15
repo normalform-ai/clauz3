@@ -33,7 +33,9 @@ def is_builtin_command(command: str) -> bool:
     The list is the built-in command set of the gh version this library
     targets (gh 2.101: the core, GitHub Actions and additional command groups
     of ``gh --help``). ``alias`` and ``extension`` are excluded, as is
-    ``copilot``, which runs a separately installed program. Aliases and
+    ``copilot``, which runs a separately installed program, and ``api``:
+    ``gh api`` ignores ``--repo`` for a literal endpoint and accepts any
+    method, so it can reach any repository or account. Aliases and
     extensions are refused because their meaning comes from local
     configuration, so a contract over the second word could not describe
     what they do. The list is written inline because preconditions cannot
@@ -56,7 +58,6 @@ def is_builtin_command(command: str) -> bool:
         "run",
         "workflow",
         "agent-task",
-        "api",
         "attestation",
         "completion",
         "config",
@@ -104,6 +105,15 @@ def reaches_second_repository(command: str, action: str) -> bool:
     return (command == "issue" and action == "transfer") or (
         command == "label" and action == "clone"
     )
+
+
+def is_plain_action(action: str) -> bool:
+    """Whether ``action`` is a word, not a flag, ``--flag=value`` or a link.
+
+    ``action`` reaches gh's command line like any argument, so a flag such as
+    ``--org=otherorg`` there would widen the command just as in ``args``.
+    """
+    return not action.startswith("-") and "=" not in action and "://" not in action
 
 
 def has_no_scope_flags(args: list[str]) -> bool:
@@ -171,6 +181,10 @@ def _argument_error(arg: str) -> str | None:
     message="args must not widen the command past its --repo repository",
 )
 @clauz3.requires(
+    lambda command, action, args, repo: is_plain_action(action),
+    message="action must be a word, not a flag or a web address",
+)
+@clauz3.requires(
     lambda command, action, args, repo: is_canonical_action(command, action),
     message="action must be gh's canonical name, not an alias such as ls or remove",
 )
@@ -204,8 +218,10 @@ def gh(command: str, action: str, args: list[str], repo: str) -> str:
     Refused, as preconditions and again in the body (Deal's runtime checks
     are optional, so the body never relies on them):
 
-    - a ``command`` that is not built in (``is_builtin_command``): aliases and
-      extensions;
+    - a ``command`` that is not built in (``is_builtin_command``): aliases,
+      extensions and ``gh api``, which can reach any endpoint;
+    - an ``action`` that is a flag, ``--flag=value`` or link
+      (``is_plain_action``); the body also applies the ``args`` checks to it;
     - an action alias (``is_canonical_action``): use ``list``, not ``ls``;
       ``delete``, not ``remove``;
     - ``issue transfer`` and ``label clone``, which take a second repository
@@ -237,6 +253,11 @@ def gh(command: str, action: str, args: list[str], repo: str) -> str:
         raise ValueError(f"gh command {command!r} is not a built-in gh command")
     if reaches_second_repository(command, action):
         raise ValueError("issue transfer and label clone reach a second repository")
+    if not is_plain_action(action):
+        raise ValueError(f"gh action {action!r} must be a word, not a flag or link")
+    action_error = _argument_error(action)
+    if action_error is not None:
+        raise ValueError(f"gh action {action!r} is refused: it {action_error}")
     if not is_canonical_action(command, action):
         raise ValueError(f"gh action {action!r} is an alias; use its canonical name")
     for arg in args:

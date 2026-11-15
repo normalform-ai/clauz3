@@ -237,3 +237,33 @@ def test_gh_itself_rejects_abbreviated_admin(tmp_path: Path) -> None:
     )
     assert completed.returncode != 0
     assert "unknown flag: --adm" in completed.stderr
+
+
+@pytest.mark.usefixtures("no_gh_subprocess")
+def test_gh_api_is_not_available(gh_effect: GhEffect) -> None:
+    """gh api ignores --repo for literal endpoints and accepts any method."""
+    with pytest.raises(deal.PreContractError, match="built-in"):
+        gh_effect("api", "/repos/other/victim", ["-X", "DELETE"], "you/safe")
+
+
+@pytest.mark.usefixtures("no_gh_subprocess")
+@pytest.mark.parametrize(
+    "action", ["--org=otherorg", "--org", "-R", "https://github.com/a/b/pull/1"]
+)
+def test_gh_refuses_flags_or_links_as_the_action(
+    gh_effect: GhEffect, action: str
+) -> None:
+    with pytest.raises(deal.PreContractError, match="action"):
+        gh_effect("secret", action, ["list"], "you/safe")
+
+
+@pytest.mark.usefixtures("no_gh_subprocess", "deal_disabled")
+@pytest.mark.parametrize(
+    "command,action",
+    [("api", "/repos/other/victim"), ("secret", "--org=otherorg"), ("secret", "-o")],
+)
+def test_gh_body_refuses_api_and_flag_actions_without_deal(
+    gh_effect: GhEffect, command: str, action: str
+) -> None:
+    with pytest.raises(ValueError):
+        gh_effect(command, action, ["list"], "you/safe")

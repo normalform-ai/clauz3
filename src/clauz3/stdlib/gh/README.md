@@ -38,7 +38,9 @@ Import with `from tools.gh.trusted.effects import gh`:
   `repo` must be an `owner/name` slug (gh reads `HOST/OWNER/REPO` as a host).
   Preconditions: `command`, `action`, and `repo` non-empty; `command` is one
   of gh's built-in commands (`is_builtin_command`), so aliases and extensions
-  are refused; action aliases are refused (`is_canonical_action`: write
+  are refused. `gh api` is not available: it ignores `--repo` for a literal
+  endpoint and accepts any method, so it could reach any repository or
+  account. `action` must be a word, not a flag or link (`is_plain_action`); action aliases are refused (`is_canonical_action`: write
   `list`, not `ls`; `delete`, not `remove`); `issue transfer` and `label clone`
   are refused because they reach a second repository; and `args` may not
   contain flags that widen the command past `--repo` (`has_no_scope_flags`:
@@ -76,9 +78,12 @@ Import with `from tools.gh.trusted import contracts as gh_rules`:
 - `gh_rules.never_actions(blocklist)` — no action (verb) is in `blocklist`,
   e.g. `never_actions(["merge", "close", "delete"])`.
 - `gh_rules.only_repo(repo)` — every invocation targets the `owner/name` slug
-  `repo`, and none uses `gh search` or a `--search`/`-S` filter.
-- `gh_rules.only_owner(owner)` — every targeted repository belongs to `owner`
-  (matches any `owner/<name>` slug), and none uses search.
+  `repo` with a command that works on a single repository
+  (`REPOSITORY_COMMANDS`: browse, discussion, issue, pr, release, repo, cache,
+  run, workflow, label, ruleset, secret, variable), and none uses a
+  `--search`/`-S` filter. Account-level commands such as `gist` or `ssh-key`,
+  and `gh search`, fail the proof.
+- `gh_rules.only_owner(owner)` — the same, for any `owner/<name>` slug.
 - `gh_rules.runs_at_most(count)` — at most `count` invocations occur.
 - `gh_rules.no_admin_override()` — no invocation passes `--admin`, which
   overrides branch protection and required reviews (e.g. `gh pr merge 42
