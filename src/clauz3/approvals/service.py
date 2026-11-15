@@ -338,6 +338,7 @@ def create_approval_app(
             lambda session: _is_approver(None, session),
             activate_workspace_libraries,
             activate_workspace,
+            allowed_hosts=allowed_hosts,
         )
 
     @app.get("/health")

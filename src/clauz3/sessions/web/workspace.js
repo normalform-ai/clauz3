@@ -303,6 +303,12 @@
     $("model").textContent = `${state.agentLabel || "Claude"} · ${state.model || "default"}`;
     $("prompt-label").textContent = `Message ${state.agentLabel || "agent"}`;
     $("unrestricted-mode").hidden = !state.unrestricted;
+    if ($("browser-toggle")) {
+      $("browser-toggle").hidden = !state.browserUrl;
+      if (state.browserUrl && $("browser-popout")) {
+        $("browser-popout").href = state.browserUrl;
+      }
+    }
     $("confinement").textContent = state.unrestricted
       ? "Unrestricted: native tools can bypass proofs and approval."
       : "Your approval controls effects.";
@@ -496,8 +502,9 @@
     }
   });
   function connect(takeover = false) {
+    const protocol = location.protocol === "https:" ? "wss:" : "ws:";
     const ws = new WebSocket(
-      `ws://${location.host}/api/chat/acp${takeover ? "?takeover=1" : ""}`,
+      `${protocol}//${location.host}/api/chat/acp${takeover ? "?takeover=1" : ""}`,
     );
     socket = ws;
     // A retry still connecting when "Use here" replaced it must not touch state.

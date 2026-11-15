@@ -86,6 +86,22 @@ def _build_parser() -> argparse.ArgumentParser:
         help="print the private approval URL without opening it",
     )
     start.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="approval service bind host (default: 127.0.0.1)",
+    )
+    start.add_argument(
+        "--allowed-host",
+        dest="allowed_hosts",
+        action="append",
+        default=[],
+        metavar="HOST",
+        help=(
+            "additional Host/Origin hostname allowed by the approval service "
+            "(repeatable)"
+        ),
+    )
+    start.add_argument(
         "--port",
         type=int,
         default=0,
@@ -125,6 +141,27 @@ def _build_parser() -> argparse.ArgumentParser:
         "--no-browser",
         action="store_true",
         help="print the private login URL without opening a browser",
+    )
+    ui.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="workspace service bind host (default: 127.0.0.1)",
+    )
+    ui.add_argument(
+        "--allowed-host",
+        dest="allowed_hosts",
+        action="append",
+        default=[],
+        metavar="HOST",
+        help=(
+            "additional Host/Origin hostname allowed by the workspace service "
+            "(repeatable)"
+        ),
+    )
+    ui.add_argument(
+        "--browser-url",
+        default=None,
+        help="live browser view URL (e.g. noVNC/WebRTC) to embed in the workspace",
     )
     ui.add_argument(
         "--port",
@@ -568,6 +605,9 @@ def _start(args: argparse.Namespace) -> int:
     try:
         return start_session(
             agent=args.agent,
+            host=getattr(args, "host", "127.0.0.1"),
+            allowed_hosts=getattr(args, "allowed_hosts", []),
+            browser_url=getattr(args, "browser_url", None),
             port=args.port,
             policy=args.policy,
             open_browser=not args.no_browser,

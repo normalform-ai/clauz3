@@ -1,0 +1,54 @@
+#cloud-config
+package_update: true
+package_upgrade: true
+packages:
+  - ca-certificates
+  - curl
+  - git
+  - gnupg
+  - caddy
+
+write_files:
+  - path: /etc/caddy/Caddyfile
+    permissions: "0644"
+    content: |
+      ${domain_name} {
+          handle_path /browser/* {
+              reverse_proxy 127.0.0.1:6080
+          }
+          handle {
+              reverse_proxy 127.0.0.1:8080
+          }
+      }
+
+  - path: /etc/clauz3-dot.env
+    permissions: "0600"
+    content: |
+      ANTHROPIC_API_KEY=${anthropic_api_key}
+      CLAUZ3_ALLOWED_HOSTS=${domain_name},localhost,127.0.0.1,dot-workspace
+      CLAUZ3_BROWSER_URL=https://${domain_name}/browser/vnc.html?autoconnect=true&resize=scale&path=browser/websockify
+      CLAUZ3_DOT_DECISION_TOKEN=${decision_token}
+
+runcmd:
+  - |
+    set -euxo pipefail
+    # Format and mount persistent EBS volume if attached
+    DEV="/dev/nvme1n1"
+    if [ ! -b "$DEV" ] && [ -b "/dev/xvdf" ]; then DEV="/dev/xvdf"; fi
+    if [ -b "$DEV" ]; then
+      blkid "$DEV" || mkfs.ext4 -L clauz3-data "$DEV"
+      mkdir -p /var/lib/clauz3-dot
+      grep -q '/var/lib/clauz3-dot' /etc/fstab || echo "LABEL=clauz3-data /var/lib/clauz3-dot ext4 defaults,nofail 0 2" >> /etc/fstab
+      mount -a
+    fi
+    # Install Docker & Docker Compose plugin
+    curl -fsSL https://get.docker.com | sh
+    systemctl enable --now docker
+    # Clone Clauz3 and start the Dot stack
+    mkdir -p /opt/clauz3
+    if [ ! -d /opt/clauz3/.git ]; then
+      git clone --branch "${clauz3_git_ref}" "${clauz3_repo_url}" /opt/clauz3
+    fi
+    cd /opt/clauz3
+    docker compose --env-file /etc/clauz3-dot.env up -d --build
+    systemctl restart caddy

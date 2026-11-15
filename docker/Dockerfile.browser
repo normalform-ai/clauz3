@@ -1,0 +1,40 @@
+# syntax=docker/dockerfile:1
+FROM debian:bookworm-slim
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    DISPLAY=:99 \
+    SCREEN_WIDTH=1280 \
+    SCREEN_HEIGHT=800 \
+    SCREEN_DEPTH=24 \
+    CDP_PORT=9222 \
+    VNC_PORT=5900 \
+    NOVNC_PORT=6080
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    chromium \
+    dbus-x11 \
+    fluxbox \
+    fonts-liberation \
+     fonts-noto-color-emoji \
+    novnc \
+    socat \
+    tini \
+    websockify \
+    x11vnc \
+    xvfb \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd --gid 1000 browser \
+    && useradd --uid 1000 --gid 1000 --create-home --shell /bin/bash browser \
+    && mkdir -p /data/profile /data/downloads \
+    && chown -R browser:browser /data
+
+COPY --chmod=0755 docker/browser-entrypoint.sh /usr/local/bin/browser-entrypoint
+
+USER browser
+WORKDIR /home/browser
+
+EXPOSE 6080 9222
+
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/browser-entrypoint"]

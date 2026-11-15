@@ -16,7 +16,7 @@ import signal
 import subprocess
 import sys
 import tempfile
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import ExitStack, asynccontextmanager, suppress
 from functools import partial
 from pathlib import Path
@@ -79,6 +79,7 @@ class ChatConfig(BaseModel):
     libraries: list[str] = []
     model: str | None = None
     prompt: str | None = None
+    browser_url: str | None = None
 
 
 def adapter_problem(executable: str) -> str:
@@ -115,7 +116,15 @@ def agent_environment() -> dict[str, str]:
         for key, value in os.environ.items()
         if not key.startswith("CLAUZ3_APPROVAL")
         and key
-        not in {"CLAUZ3_UI_CONFIG", STATUS_FILE_ENV, "CLAUZ3_SESSION_LIFETIME_SOCKET"}
+        not in {
+            "CLAUZ3_UI_CONFIG",
+            STATUS_FILE_ENV,
+            "CLAUZ3_SESSION_LIFETIME_SOCKET",
+            "CLAUZ3_SERVICE_ALLOWED_HOSTS",
+            "CLAUZ3_BROWSER_URL",
+            "CLAUZ3_ALLOWED_HOSTS",
+            "CLAUZ3_DOT_DECISION_TOKEN",
+        }
     }
     env["ENABLE_CLAUDEAI_MCP_SERVERS"] = "false"
     return env
@@ -318,6 +327,7 @@ class Conversation:
             "showLibraries": self.config.show_libraries,
             "requestedModel": self.config.model,
             "model": self.config.model or "Agent default",
+            "browserUrl": self.config.browser_url,
             "runs": self.runs(),
         }
 
@@ -821,6 +831,8 @@ def install_chat(
     is_approver: Callable[[str | None], bool],
     activate_libraries: Callable[[list[Path], bool], None] | None = None,
     activate_workspace: Callable[[Path, bool], dict[str, str]] | None = None,
+    *,
+    allowed_hosts: Sequence[str] | None = None,
 ) -> None:
     from clauz3.approvals.service import APPROVER_SESSION_COOKIE
 
@@ -1010,17 +1022,25 @@ def install_chat(
     # No conversation writes or status-file resets before the project lease.
     conversation = Conversation(config)  # Unpersisted until lifespan owns the lease.
 
+    allowed_hostnames = (
+        set(allowed_hosts) if allowed_hosts is not None else {"127.0.0.1"}
+    )
+    allow_remote_client = bool(
+        allowed_hosts is not None and set(allowed_hosts) - {"127.0.0.1"}
+    )
+
     def authorized(connection: Request | WebSocket, *, mutation: bool = False) -> bool:
         host = connection.headers.get("host", "")
         origin = connection.headers.get("origin")
+        hostname = urlsplit("http://" + host).hostname
         return bool(
             is_approver(connection.cookies.get(APPROVER_SESSION_COOKIE))
-            and urlsplit("http://" + host).hostname == "127.0.0.1"
+            and hostname in allowed_hostnames
             and connection.client
-            and connection.client.host == "127.0.0.1"
+            and (connection.client.host == "127.0.0.1" or allow_remote_client)
             and connection.headers.get("sec-fetch-site") != "cross-site"
             and (not mutation or origin)
-            and (not origin or origin == "http://" + host)
+            and (not origin or origin in {f"http://{host}", f"https://{host}"})
         )
 
     @app.get("/api/workspaces")

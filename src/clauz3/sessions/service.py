@@ -21,10 +21,12 @@ from clauz3.sessions.chat import ChatConfig
 def main() -> None:
     fd, cwd, roots, *policy = sys.argv[1:]
     ui_config = os.environ.pop("CLAUZ3_UI_CONFIG", None)
+    raw_hosts = os.environ.pop("CLAUZ3_SERVICE_ALLOWED_HOSTS", None)
+    allowed_hosts: list[str] = json.loads(raw_hosts) if raw_hosts else ["127.0.0.1"]
     app = create_approval_app(
         auth_token=os.environ[APPROVAL_TOKEN_ENV],
         decision_token=os.environ[APPROVAL_DECISION_TOKEN_ENV],
-        allowed_hosts=["127.0.0.1"],
+        allowed_hosts=allowed_hosts,
         authorized_layers=(
             ApprovedLayer(
                 trusted_roots=tuple(Path(root) for root in json.loads(roots)),
