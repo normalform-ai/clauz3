@@ -109,6 +109,24 @@ def test_preconditions(
         search_files(pattern, "src", "", max_results)
 
 
+def test_hidden_files_skipped_unless_glob_matches_them(
+    search_files: Search, tree: Path
+) -> None:
+    (tree / "src/.env").write_text("TODO hidden file\n")
+    (tree / "src/.secret").mkdir()
+    (tree / "src/.secret/key").write_text("TODO hidden directory\n")
+    assert rows(search_files("TODO hidden", "src", "", 10)) == []
+    assert rows(search_files("TODO hidden", "src", "*.py", 10)) == []
+    # ripgrep applies a --glob whitelist before its hidden-file rule.
+    assert rows(search_files("TODO hidden", "src", ".*", 10)) == [
+        ("src/.env", 1, "TODO hidden file"),
+    ]
+    assert rows(search_files("TODO hidden", "src", "*", 10)) == [
+        ("src/.env", 1, "TODO hidden file"),
+        ("src/.secret/key", 1, "TODO hidden directory"),
+    ]
+
+
 def test_missing_path_raises(search_files: Search, tree: Path) -> None:
     with pytest.raises(subprocess.CalledProcessError):
         search_files("TODO", "missing", "", 10)
@@ -121,29 +139,79 @@ def test_non_utf8_line(search_files: Search, tree: Path) -> None:
     assert matches[0].text.startswith("TODO ")
 
 
-def test_overall_timeout_while_streaming(
+MATCH_LINE = (
+    '{"type":"match","data":{"path":{"text":"./src/app.py"},'
+    '"lines":{"text":"TODO = 1\\n"},"line_number":2,'
+    '"absolute_offset":0,"submatches":[]}}'
+)
+
+
+@pytest.fixture
+def fake_rg(
     filesystem_effects: ModuleType,
-    tree: Path,
     tmp_path_factory: pytest.TempPathFactory,
     monkeypatch: pytest.MonkeyPatch,
+) -> Callable[[str, float], Search]:
+    """Put a fake ``rg`` running ``body`` first on PATH; return search_files.
+
+    The fake is a single process (its shebang runs the interpreter directly,
+    not a shell that could fork an orphaned grandchild that outlives a kill
+    and keeps its inherited stdout pipe open). ``timeout`` replaces the
+    overall timeout; it must outlast the interpreter's start-up.
+    """
+
+    def install(body: str, timeout: float) -> Search:
+        fake_bin = tmp_path_factory.mktemp("fake-rg-bin")
+        fake = fake_bin / "rg"
+        fake.write_text(f"#!{sys.executable}\nimport os, sys, time\n{body}\n")
+        fake.chmod(0o755)
+        monkeypatch.setenv("PATH", f"{fake_bin}{os.pathsep}{os.environ['PATH']}")
+        monkeypatch.setattr(filesystem_effects, "DEFAULT_TIMEOUT_SECONDS", timeout)
+        return cast(Search, filesystem_effects.search_files)
+
+    return install
+
+
+def test_overall_timeout_while_streaming(
+    fake_rg: Callable[[str, float], Search], tree: Path
 ) -> None:
-    # A real rg that hangs (or is simply slow) must not block search_files
-    # forever: an overall timeout must cut it off even while matches are
-    # still streaming in (before stdout ever reaches EOF). The fake rg is a
-    # single process (its shebang runs the interpreter directly, not a shell
-    # that could fork an orphaned grandchild that outlives a kill and keeps
-    # its inherited stdout pipe open).
-    fake_bin = tmp_path_factory.mktemp("fake-rg-bin")
-    fake_rg = fake_bin / "rg"
-    fake_rg.write_text(f"#!{sys.executable}\nimport time\ntime.sleep(5)\n")
-    fake_rg.chmod(0o755)
-    monkeypatch.setenv("PATH", f"{fake_bin}{os.pathsep}{os.environ['PATH']}")
-    monkeypatch.setattr(filesystem_effects, "DEFAULT_TIMEOUT_SECONDS", 0.2)
-    search = cast(Search, filesystem_effects.search_files)
+    # A slow rg that keeps streaming matches (stdout never reaches EOF) must
+    # be cut off by the overall timeout, with no partial list returned.
+    search = fake_rg(
+        f"while True:\n    print({MATCH_LINE!r}, flush=True)\n    time.sleep(0.05)",
+        1.5,
+    )
+    start = time.monotonic()
+    with pytest.raises(subprocess.TimeoutExpired):
+        search("TODO", "src", "", 1000)
+    assert time.monotonic() - start < 5
+
+
+def test_overall_timeout_after_output_ends(
+    fake_rg: Callable[[str, float], Search], tree: Path
+) -> None:
+    # rg closes stdout but does not exit, so the timer fires while waiting
+    # for the exit status: that is a timeout, not a ripgrep error.
+    search = fake_rg("os.close(1)\ntime.sleep(10)", 1.5)
     start = time.monotonic()
     with pytest.raises(subprocess.TimeoutExpired):
         search("TODO", "src", "", 10)
-    assert time.monotonic() - start < 2
+    assert time.monotonic() - start < 5
+
+
+def test_error_after_a_match_returns_no_partial_results(
+    fake_rg: Callable[[str, float], Search], tree: Path
+) -> None:
+    search = fake_rg(
+        f"print({MATCH_LINE!r}, flush=True)\n"
+        "sys.stderr.buffer.write(b'rg: ./src/\\xff: Permission denied\\n')\n"
+        "sys.exit(2)",
+        30,
+    )
+    with pytest.raises(subprocess.CalledProcessError) as raised:
+        search("TODO", "src", "", 10)
+    assert raised.value.returncode == 2
+    assert "Permission denied" in raised.value.stderr
 
 
 def test_ignores_the_users_ripgrep_config(

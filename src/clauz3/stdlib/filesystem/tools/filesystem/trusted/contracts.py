@@ -2,9 +2,10 @@
 
 Each contract below is a query over an event class from ``events.py``, so it
 governs every tool that performs that event: ``never_read_under`` covers
-``read_file``, ``read_lines``, ``read_line``, ``grep`` and the source of
-``copy`` and ``move``; ``only_write_under`` covers every modification,
-including deletes, creates and chmods.
+``read_file``, ``read_lines``, ``read_line``, ``grep``, ``search_files``,
+the read half of ``edit_file`` and the source of ``copy`` and ``move``;
+``only_write_under`` covers every modification, including edits, deletes,
+creates and chmods.
 
 Every contract covers this library's tools only. Effects of other libraries
 that touch files (git, rsync, db) are not events here, and the approval text
@@ -26,7 +27,14 @@ Symbolic links, hard links and case-insensitive filesystems are not modelled.
 ``write_file``, ``copy`` or ``move`` is a ``Write``, not a ``Delete``: protect
 contents with ``never_write_under``. Parent directories that ``write_file``,
 ``touch`` and ``copy`` create on the way are not ``Create`` events; they lie on
-the path of the ``Write`` that created them.
+the path of the ``Write`` that created them. Likewise ``edit_file`` writes a
+temporary ``.NAME.*.tmp`` sibling and renames it over ``path``; that sibling
+is not an event, so exact-file contracts such as ``only_writes_files`` do not
+list it.
+
+An ``edit_file`` call is a ``Read`` of ``path`` and a ``WriteText`` of ``new``
+to ``path``, so ``must_not_write`` and ``write_length_at_most`` check only the
+inserted text, never the old text or the resulting file.
 
 A few contracts are about one tool's own arguments (``only_pattern``,
 ``only_modes``) and are stated over that tool or event alone.
@@ -188,15 +196,17 @@ def no_reads() -> ContractSpec:
 @contract(
     description=(
         "Filesystem tools read only the exact files {files}; "
-        "directory listings and copy or move sources are forbidden."
+        "directory listings, file searches and copy or move sources "
+        "are forbidden."
     )
 )
 def only_reads_files(files: list[FilePath]) -> ContractSpec:
     """Allow reads of these exact files (one or many), never a name prefix.
 
     Bare and leading ./ spellings are equivalent. An empty list permits no
-    reads or listings. Copy and move may recursively read directories, so this
-    contract refuses them even when their source looks like a file name.
+    reads or listings. Copy, move and search_files may recursively read
+    directories, so this contract refuses them even when their path looks
+    like a file name.
     Paths are lexical: no existence, symlink or hard-link checks are implied.
     """
     if type(files) is not list or any(type(path) is not FilePath for path in files):
@@ -301,7 +311,11 @@ def never_read_under(prefix: str) -> ContractSpec:
 
 @contract(description="Filesystem tools read files at most {count} times.")
 def reads_at_most(count: int) -> ContractSpec:
-    """Guarantee at most ``count`` reads (a copy or move reads its source)."""
+    """Guarantee at most ``count`` reads.
+
+    A search, an edit, and a copy or move (which reads its source) each count
+    as one read.
+    """
     return Read.count() <= count
 
 
@@ -327,9 +341,18 @@ def lists_at_most(count: int) -> ContractSpec:
     return List.count() <= count
 
 
-@contract(description="Every grep search uses exactly the pattern {pattern}.")
+@contract(
+    description=(
+        "Every grep search uses exactly the pattern {pattern}. "
+        "Searches with search_files are not covered."
+    )
+)
 def only_pattern(pattern: str) -> ContractSpec:
-    """Guarantee every ``grep`` search uses exactly this pattern."""
+    """Guarantee every ``grep`` search uses exactly this pattern.
+
+    This covers ``grep`` only, not ``search_files``, whose pattern this
+    contract does not constrain.
+    """
     return Grep.all(lambda e: e.pattern == pattern)
 
 
@@ -343,7 +366,7 @@ def only_pattern(pattern: str) -> ContractSpec:
     )
 )
 def read_only() -> ContractSpec:
-    """Guarantee no write, append, create, delete, move, copy or chmod occurs."""
+    """Guarantee no write, append, edit, create, delete, move, copy or chmod."""
     return Write.empty()
 
 
@@ -357,13 +380,16 @@ def read_only() -> ContractSpec:
 def only_writes_files(files: list[FilePath]) -> ContractSpec:
     """Confine modifications to exact file names (one or many), never prefixes.
 
-    Allows write_file, append_file, touch and chmod at the listed paths.
+    Allows write_file, append_file, edit_file, touch and chmod at the listed
+    paths.
     Copy, move and remove may modify whole directories, so they are refused;
     make_dir is refused too. An empty list permits no modifications. Parent
     directories implicitly created by write_file, append_file or touch are
-    allowed and are not separate write events. Bare and leading ./ spellings
-    are equivalent. Paths are lexical: existence, file type and symlink or
-    hard-link targets are not checked. Reads are not restricted by this contract.
+    allowed and are not separate write events, nor is the temporary
+    ``.NAME.*.tmp`` sibling edit_file writes and renames over the listed
+    path. Bare and leading ./ spellings are equivalent. Paths are lexical:
+    existence, file type and symlink or hard-link targets are not checked.
+    Reads are not restricted by this contract.
     """
     if type(files) is not list or any(type(path) is not FilePath for path in files):
         raise TypeError("files must be a list of FilePath literals")
@@ -387,7 +413,7 @@ def only_writes_files(files: list[FilePath]) -> ContractSpec:
 def only_writes_files_under(directory: DirectoryPath) -> ContractSpec:
     """Confine all modification paths to a directory boundary, including deletes.
 
-    Covers write, append, touch, make_dir, chmod, copy destinations, and both
+    Covers write, append, edit, touch, make_dir, chmod, copy destinations, and both
     the source and destination of moves. Reads are unrestricted. DirectoryPath
     ("data") permits data/a but not database/a. Bare and ./ paths are equivalent;
     a trailing slash is optional. Dot permits relative paths, slash absolute
@@ -425,29 +451,42 @@ def never_write_under(prefix: str) -> ContractSpec:
 
 @contract(description="Filesystem tools make at most {count} modifications.")
 def writes_at_most(count: int) -> ContractSpec:
-    """Guarantee at most ``count`` modifications (a move counts twice)."""
+    """Guarantee at most ``count`` modifications.
+
+    An edit counts once, however many occurrences it replaces; a move counts
+    twice.
+    """
     return Write.count() <= count
 
 
 @contract(
-    description="No text a filesystem tool writes to a file contains {substring}."
+    description=(
+        "No text a filesystem tool writes to a file contains {substring}; "
+        "for an edit, only the inserted text is checked."
+    )
 )
 def must_not_write(substring: str) -> ContractSpec:
-    """Guarantee no written or appended text contains ``substring``.
+    """Guarantee no written, appended or inserted text contains ``substring``.
 
     A secrets / banned-content guard before content reaches disk. Copies and
-    moves write existing contents, not text, so they are not covered.
+    moves write existing contents, not text, so they are not covered. For
+    ``edit_file`` only ``new`` is checked: text already in the file, or
+    formed by joining its neighbours when text is removed, is not.
     """
     return WriteText.all(lambda e: substring not in e.text)
 
 
 @contract(
     description=(
-        "Text a filesystem tool writes to a file is at most {max_chars} characters."
+        "Text a filesystem tool writes to a file is at most {max_chars} "
+        "characters; for an edit, only the inserted text is checked."
     )
 )
 def write_length_at_most(max_chars: int) -> ContractSpec:
-    """Guarantee every written or appended text is at most ``max_chars`` long."""
+    """Guarantee every written, appended or inserted text is at most ``max_chars``.
+
+    For ``edit_file`` only ``new`` is measured, not the resulting file.
+    """
     return WriteText.all(lambda e: len(e.text) <= max_chars)
 
 

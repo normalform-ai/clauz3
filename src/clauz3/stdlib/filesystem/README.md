@@ -140,8 +140,10 @@ is allowed.
   recursively under `path` with ripgrep. `pattern` is a regular expression,
   `glob` limits file names (`""` for all), and at most `max_results` (1 to
   1000) `Match` rows are returned, each with `path`, `line_number` and `text`.
-  ripgrep's defaults apply: `.gitignore`d (inside a git repository), hidden
-  and binary files are skipped, and a symlink encountered under `path` is not
+  ripgrep's defaults apply: `.gitignore`d (inside a git repository) and
+  binary files are skipped, hidden files and directories are skipped unless
+  `glob` matches them (`glob="*"` matches every name, so it searches hidden
+  files such as `.ssh/` too), and a symlink encountered under `path` is not
   followed — but a symlink given as `path` itself is followed. The user's own
   ripgrep configuration is ignored, so it cannot change any of this. Ignore
   files are honoured only at or below `path`: a `.gitignore` above `path`
@@ -152,7 +154,8 @@ is allowed.
   reached is unspecified. Any ripgrep error, including a missing `path` or
   one unreadable file, raises and returns no partial results, unless
   `max_results` is reached first, in which case the matches found so far are
-  returned instead.
+  returned instead. A search running longer than two minutes is killed and
+  raises `subprocess.TimeoutExpired`, also with no partial results.
 - `find(path, args) -> list[str]`: list paths under `path` using `-name`,
   `-path`, `-type f/d/l`, `-mindepth` and `-maxdepth`, optionally negated with
   `-not`. Other arguments raise `ValueError` before `find` runs.
@@ -166,8 +169,10 @@ is allowed.
   Line endings and permission bits are preserved. The write goes through a
   temporary file in the same directory, renamed over `path`, so it needs
   write permission on the directory as well as the file; a process killed
-  mid-write can leave a stray `.NAME.*.tmp` sibling behind. A read-only file
-  raises `PermissionError` rather than being rewritten.
+  mid-write can leave a stray `.NAME.*.tmp` sibling behind. Like the parent
+  directories `write_file` creates, that temporary sibling is not an event,
+  so exact-file contracts such as `only_writes_files` do not list it. A
+  read-only file raises `PermissionError` rather than being rewritten.
 - `make_dir(path)`, `touch(path)`: create a directory (with parents) or an
   empty file.
 - `remove(path)`: delete a file, or a directory and everything under it.
@@ -195,17 +200,21 @@ def main() -> None:
 ```
 
 An edit is a read of the file and a text write of `new`. `must_not_write` and
-`write_length_at_most` check that inserted text, not the resulting file:
-deleting text can join its neighbours into a forbidden string, and that is
-not detected. `old` is matched at every position, including overlapping
-ones, so `"aa"` against `"aaa"` is two occurrences, not one; `replace_all`
+`write_length_at_most` check that inserted text, not the old text or the
+resulting file: `edit_file(p, "SECRET", "x")` passes
+`must_not_write("SECRET")`, and deleting text can join its neighbours into a
+forbidden string, which is not detected. `only_pattern` constrains `grep`
+only, not `search_files`. `old` is matched at every position, including
+overlapping ones, so `"aa"` against `"aaa"` is two occurrences, not one; `replace_all`
 replaces every non-overlapping occurrence left to right. `edit_file` refuses
 to rewrite a read-only file (`PermissionError`), and otherwise writes through
 a temporary file in the same directory before renaming it over `path`, so it
 needs write permission on that directory too, and a process killed mid-edit
 can leave a stray `.NAME.*.tmp` sibling behind. A search is a recursive read
 of its `path`, so `never_read_under` refuses a search of any parent of the
-forbidden directory; it ignores the user's own ripgrep configuration, so a
+forbidden directory (a `glob` does not narrow what contracts see, and hidden
+directories are searched when `glob` matches them), and `only_reads_files`
+refuses every search; it ignores the user's own ripgrep configuration, so a
 guarantee cannot be defeated by a config file that turns on following
 symlinks.
 
@@ -223,7 +232,7 @@ Import with `from tools.filesystem.trusted import contracts as fs`:
 | Contract | Over |
 | --- | --- |
 | `fs.no_guarantees()` | nothing |
-| `fs.only_reads_files(files: list[FilePath])` | exact file reads; no listings or copy/move |
+| `fs.only_reads_files(files: list[FilePath])` | exact file reads; no listings, searches or copy/move |
 | `fs.only_reads_files_under(directory: DirectoryPath)` | `Observe` within a directory boundary |
 | `fs.only_writes_files(files: list[FilePath])` | exact modification paths; no recursive operations or explicit directory creation |
 | `fs.only_writes_files_under(directory: DirectoryPath)` | `Write` within a directory boundary |
@@ -231,11 +240,11 @@ Import with `from tools.filesystem.trusted import contracts as fs`:
 | `fs.never_read_under(prefix)`, `fs.reads_at_most(count)` | `Read` |
 | `fs.never_list_under(prefix)`, `fs.lists_at_most(count)` | `List` |
 | `fs.read_only()`, legacy `fs.only_write_under(root)`, `fs.never_write_under(prefix)`, `fs.writes_at_most(count)` | `Write` (every modification) |
-| `fs.must_not_write(substring)`, `fs.write_length_at_most(max_chars)` | `WriteText` |
+| `fs.must_not_write(substring)`, `fs.write_length_at_most(max_chars)` | `WriteText` (for `edit_file`, the inserted text `new`) |
 | `fs.no_deletes()`, `fs.only_delete_under(root)`, `fs.never_delete_under(prefix)`, `fs.deletes_at_most(count)` | `Delete` |
 | `fs.no_creates()`, `fs.creates_at_most(count)` | `Create` |
 | `fs.no_chmods()`, `fs.only_modes(allowlist)` | `Chmod` |
-| `fs.only_pattern(pattern)` | `grep` calls |
+| `fs.only_pattern(pattern)` | `grep` calls (not `search_files`) |
 
 The older `only_read_under`, `only_write_under`, `only_delete_under`, and
 `never_*` helpers are literal path-prefix policies over the symbolic call

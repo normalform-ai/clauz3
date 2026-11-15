@@ -70,8 +70,10 @@ def search_files(pattern: str, path: str, glob: str, max_results: int) -> list[M
 - `max_results` must be between 1 and 1000. Results stop at the cap, so the
   argument-aware `ensures` lets loops over results prove against count
   contracts, as with `search_messages`.
-- ripgrep defaults apply and are documented: `.gitignore`d, hidden and binary
-  files are skipped, and symlinks are not followed. No flag to change this in
+- ripgrep defaults apply and are documented: `.gitignore`d and binary files
+  are skipped, hidden files are skipped unless `glob` matches them (ripgrep
+  applies a `--glob` whitelist before its hidden rule, so `glob="*"` searches
+  them), and symlinks are not followed. No flag to change this in
   this version. Ignore files are honoured only at or below `path`: a
   `.gitignore` above `path`, the global `core.excludesFile`, and
   `.git/info/exclude` are not read, so a repository-root `.gitignore` applies

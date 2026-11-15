@@ -234,23 +234,28 @@ def search_files(pattern: str, path: str, glob: str, max_results: int) -> list[M
     all files. ``max_results`` must be between 1 and 1000. Each result is a
     ``Match`` with the file path, one-based line number and line text.
 
-    ripgrep's defaults apply: ``.gitignore``d (inside a git repository),
-    hidden and binary files are skipped, and a symlink encountered under
-    ``path`` is not followed -- but a symlink given as ``path`` itself is
-    followed. The user's own ripgrep configuration (``RIPGREP_CONFIG_PATH``
-    and the rest) is ignored, so these defaults cannot be changed from
-    outside the call. Ignore files are honoured only at or below ``path``:
-    a ``.gitignore`` above ``path`` (including the global and repository
-    excludes) is not read, so a repository-root ``.gitignore`` applies when
-    searching ``.`` but not when searching a subdirectory of it; use
-    ``glob`` to narrow a search instead. No matches returns ``[]``. ripgrep
-    searches files in parallel, so which matches are returned when
+    ripgrep's defaults apply: ``.gitignore``d (inside a git repository) and
+    binary files are skipped, hidden files and directories are skipped
+    unless ``glob`` matches them (``glob="*"`` matches every name, so it
+    searches hidden files too, and ``".*"`` searches only hidden files),
+    and a symlink encountered under ``path`` is not followed -- but a
+    symlink given as ``path`` itself is followed. The user's own ripgrep
+    configuration (``RIPGREP_CONFIG_PATH`` and the rest) is ignored, so
+    these defaults cannot be changed from outside the call. Ignore files
+    are honoured only at or below ``path``: a ``.gitignore`` above ``path``
+    (including the global and repository excludes) is not read, so a
+    repository-root ``.gitignore`` applies when searching ``.`` but not
+    when searching a subdirectory of it; use ``glob`` to narrow a search
+    instead. No matches returns ``[]``. ripgrep searches files in parallel,
+    so which matches are returned when
     ``max_results`` is reached is unspecified. Any ripgrep error -- an
     invalid pattern, a missing ``path``, or a single unreadable file under
     it -- raises ``subprocess.CalledProcessError`` with no partial results,
     unless ``max_results`` is reached first, in which case the matches found
-    so far are returned and no error is raised. Contracts see a recursive
-    read of ``path``.
+    so far are returned and no error is raised. A search that takes longer
+    than two minutes (``DEFAULT_TIMEOUT_SECONDS``) is killed and raises
+    ``subprocess.TimeoutExpired``, also with no partial results. Contracts
+    see a recursive read of ``path``.
     """
     # No separate body check is needed: ``-e``, ``--`` and the ``./`` prefix
     # stop option injection, and the plain-path precondition is proved first.
@@ -271,18 +276,17 @@ def search_files(pattern: str, path: str, glob: str, max_results: int) -> list[M
         command += ["--glob", glob]
     command += ["--", root]
     matches: list[Match] = []
-    # stderr goes to an anonymous file, not a pipe, so a large stderr never
-    # blocks rg. This is ``tempfile.TemporaryFile`` spelled out: deal's linter
-    # crashes inferring that function's body (``os.open`` with an int mode).
-    descriptor, name = tempfile.mkstemp()
-    os.unlink(name)
-    with (
-        os.fdopen(descriptor, "w+b") as stderr,
-        subprocess.Popen(  # noqa: S603
-            command, stdout=subprocess.PIPE, stderr=stderr, encoding="utf-8"
-        ) as process,
-    ):
+    with subprocess.Popen(  # noqa: S603
+        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    ) as process:
         assert process.stdout is not None
+        assert process.stderr is not None
+        # stderr is drained by its own thread, so a large stderr never fills
+        # its pipe and blocks rg while stdout is being read.
+        stderr = process.stderr
+        errors: list[bytes] = []
+        drain = threading.Thread(target=lambda: errors.append(stderr.read()))
+        drain.start()
         # process.wait(timeout=...) below only runs once stdout ends, so a
         # slow or hung rg would otherwise block forever. This timer bounds
         # the whole call, including the time spent streaming matches.
@@ -299,6 +303,7 @@ def search_files(pattern: str, path: str, glob: str, max_results: int) -> list[M
                 # A line read after the timer's kill may be truncated.
                 if timed_out.is_set():
                     break
+                # rg's JSON lines are UTF-8; json.loads decodes the bytes.
                 event = json.loads(line)
                 if event["type"] != "match":
                     continue
@@ -319,10 +324,16 @@ def search_files(pattern: str, path: str, glob: str, max_results: int) -> list[M
             if timed_out.is_set():
                 raise subprocess.TimeoutExpired(command, DEFAULT_TIMEOUT_SECONDS)
             returncode = process.wait(timeout=DEFAULT_TIMEOUT_SECONDS)
+            # The timer may fire while waiting for the exit status: rg then
+            # dies of the kill, which is a timeout, not a ripgrep error.
+            if timed_out.is_set():
+                raise subprocess.TimeoutExpired(command, DEFAULT_TIMEOUT_SECONDS)
             if returncode not in (0, 1):
-                stderr.seek(0)
+                drain.join()
                 raise subprocess.CalledProcessError(
-                    returncode, command, stderr=stderr.read().decode("utf-8")
+                    returncode,
+                    command,
+                    stderr=errors[0].decode("utf-8", errors="replace"),
                 )
         finally:
             timer.cancel()
@@ -401,7 +412,10 @@ def edit_file(path: str, old: str, new: str, replace_all: bool = False) -> None:
 
     Contracts see a read of ``path`` and a text write of ``new`` to ``path``.
     ``must_not_write`` and ``write_length_at_most`` therefore check only the
-    inserted text, not the resulting file. A symlink at ``path`` is replaced
+    inserted text, not the resulting file. The temporary sibling is not
+    seen: like the parent directories ``write_file`` creates, it is not
+    listed by exact-file contracts such as ``only_writes_files``, though it
+    sits in the same directory as ``path``. A symlink at ``path`` is replaced
     by a regular file holding the new contents (the link's target is not
     changed), as are hard links; ownership is not preserved.
     """
