@@ -2,13 +2,18 @@ schema_version: 1
 name: filesystem
 title: Files and folders
 summary: >-
-  Read, search, list, write, copy, move, delete and chmod files, with contracts over what each tool does to the filesystem.
+  Read, search, list, write, edit, copy, move, delete and chmod files, with contracts over what each tool does to the filesystem.
 description: |
   Work with local files and folders: read text, search contents, list entries,
-  and make approved changes. Contracts distinguish exact file names from folder
-  boundaries and can restrict reads, writes, and operation counts.
+  edit code in place, and make approved changes. Contracts distinguish exact
+  file names from folder boundaries and can restrict reads, writes, and
+  operation counts.
 requirements:
   tools:
     - name: find
       description: The find executable is needed for filesystem.find calls.
       instructions: Install find and make it available on the PATH used by Clauz3.
+    - name: rg
+      description: ripgrep is needed for filesystem.search_files calls.
+      instructions: Install ripgrep (for example, brew install ripgrep) and make rg available on the PATH used by Clauz3.
+      documentation: https://github.com/BurntSushi/ripgrep#installation

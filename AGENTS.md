@@ -44,7 +44,7 @@ documented in `docs/development/workspace-ui.md`.
 
 - `uv sync --dev`: install the project and development tools.
 - `just test`: run pytest, ruff, mypy, the web UI node tests, and every
-  example Justfile. Needs `node` on the path.
+  example Justfile. Needs `node`, `rg` (ripgrep) and `git` on the path.
 - `just check`: run ruff formatting/linting and strict mypy.
 - `just pytest`: run only the pytest suite.
 - `just examples`: run example proofs only.

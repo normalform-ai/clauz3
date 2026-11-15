@@ -176,7 +176,7 @@ def test_bundled_schema_covers_all_filesystem_contracts() -> None:
     contracts = [value for value in classes.values() if value.get("is_a") == "Contract"]
     effects = [value for value in classes.values() if value.get("is_a") == "EffectCall"]
     assert len(contracts) == 26
-    assert len(effects) == 13
+    assert len(effects) == 15
     file_slots = cast(
         dict[str, dict[str, object]], classes["FilesystemOnlyReadsFiles"]["attributes"]
     )
