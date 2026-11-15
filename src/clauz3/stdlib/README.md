@@ -117,3 +117,9 @@ or one tool at a time:
 ```bash
 just -f src/clauz3/stdlib/filesystem/tests/Justfile test
 ```
+
+`just test` does not run these Justfiles. Instead pytest proves every case once
+and pins its exact conclusion in `tests/test_stdlib_case_conclusions.py`: a new
+`_fail` case needs a row there saying whether a precondition (`assertion`) or
+the guarantee (`guarantee`) refutes it. The Justfiles' lint and runtime checks
+run in `tests/test_bundled_suites.py`.

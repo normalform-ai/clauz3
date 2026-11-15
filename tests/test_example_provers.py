@@ -1,4 +1,4 @@
-"""Pin exact conclusions and discharged obligations for five worked examples.
+"""Pin exact conclusions and discharged obligations for the worked examples.
 
 A failed guarantee must be a refutation, not a refusal or load failure. Directory
 coverage keeps new cases from silently escaping this table. The shared autouse
@@ -17,12 +17,20 @@ EXAMPLES = ROOT / "examples"
 
 #: Examples pinned by this module. Trusted roots follow the repo convention
 #: ``examples/<example>/tools/<domain>/trusted`` and are globbed from it.
-PINNED_EXAMPLES = ("cloud", "gh-triage", "email-from-db", "http", "text")
-# Bank and email have dedicated proof tables. The other examples still rely on
-# their domain-specific tests and Justfiles; name them so adding a new example
-# requires an explicit decision about exact conclusion coverage.
+PINNED_EXAMPLES = (
+    "cloud",
+    "gh-triage",
+    "email-from-db",
+    "home-automation",
+    "http",
+    "lims",
+    "text",
+    "trading",
+)
+# Bank and email have dedicated proof tables. Name them so adding a new example
+# requires an explicit decision about exact conclusion coverage: ``just test``
+# no longer runs the example Justfiles, so these tables are where cases prove.
 SEPARATELY_PINNED_EXAMPLES = {"bank", "email"}
-DELIBERATELY_UNPINNED_EXAMPLES = {"home-automation", "lims", "trading"}
 
 CASES = [
     # cloud: hard spend caps on deploys, plus a cap-restored-at-end fluent.
@@ -133,6 +141,129 @@ CASES = [
     ("text", "edit_length_at_most_fail.py", Conclusion.FAIL, "guarantee"),
     ("text", "no_edits_pass.py", Conclusion.OK, "assertion, guarantee"),
     ("text", "no_edits_fail.py", Conclusion.FAIL, "guarantee"),
+    # home-automation
+    (
+        "home-automation",
+        "away_mode_pass.py",
+        Conclusion.OK,
+        "assertion, assertion, assertion, assertion, assertion, "
+        "guarantee, guarantee, guarantee, guarantee, guarantee",
+    ),
+    ("home-automation", "grocery_budget_fail.py", Conclusion.FAIL, "guarantee"),
+    (
+        "home-automation",
+        "grocery_budget_pass.py",
+        Conclusion.OK,
+        "assertion, assertion, assertion, guarantee",
+    ),
+    (
+        "home-automation",
+        "grocery_qty_precondition_fail.py",
+        Conclusion.FAIL,
+        "assertion",
+    ),
+    (
+        "home-automation",
+        "home_no_guarantees_pass.py",
+        Conclusion.OK,
+        "assertion, assertion, assertion, guarantee",
+    ),
+    ("home-automation", "locked_at_end_fail.py", Conclusion.FAIL, "guarantee"),
+    (
+        "home-automation",
+        "locked_at_end_pass.py",
+        Conclusion.OK,
+        "assertion, assertion, assertion, guarantee, guarantee",
+    ),
+    (
+        "home-automation",
+        "never_unlock_front_door_fail.py",
+        Conclusion.FAIL,
+        "guarantee",
+    ),
+    (
+        "home-automation",
+        "never_unlock_front_door_pass.py",
+        Conclusion.OK,
+        "assertion, assertion, guarantee",
+    ),
+    ("home-automation", "only_unlock_doors_fail.py", Conclusion.FAIL, "guarantee"),
+    (
+        "home-automation",
+        "only_unlock_doors_pass.py",
+        Conclusion.OK,
+        "assertion, assertion, guarantee",
+    ),
+    ("home-automation", "temp_range_fail.py", Conclusion.FAIL, "guarantee"),
+    (
+        "home-automation",
+        "temp_range_pass.py",
+        Conclusion.OK,
+        "assertion, assertion, guarantee",
+    ),
+    # lims
+    (
+        "lims",
+        "dbtl_campaign_pass.py",
+        Conclusion.OK,
+        "assertion, assertion, assertion, assertion, assertion, assertion, "
+        "assertion, assertion, assertion, guarantee, guarantee, guarantee, guarantee",
+    ),
+    (
+        "lims",
+        "lims_no_guarantees_pass.py",
+        Conclusion.OK,
+        "assertion, assertion, assertion, guarantee",
+    ),
+    ("lims", "no_hazard_sequence_fail.py", Conclusion.FAIL, "guarantee"),
+    (
+        "lims",
+        "no_hazard_sequence_pass.py",
+        Conclusion.OK,
+        "assertion, guarantee, guarantee",
+    ),
+    ("lims", "only_instruments_fail.py", Conclusion.FAIL, "guarantee"),
+    (
+        "lims",
+        "only_instruments_pass.py",
+        Conclusion.OK,
+        "assertion, assertion, guarantee",
+    ),
+    ("lims", "only_plate_fail.py", Conclusion.FAIL, "guarantee"),
+    ("lims", "only_plate_pass.py", Conclusion.OK, "assertion, assertion, guarantee"),
+    ("lims", "pipette_volume_precondition_fail.py", Conclusion.FAIL, "assertion"),
+    ("lims", "reagent_budget_fail.py", Conclusion.FAIL, "guarantee"),
+    (
+        "lims",
+        "reagent_budget_pass.py",
+        Conclusion.OK,
+        "assertion, assertion, assertion, guarantee",
+    ),
+    ("lims", "total_runtime_fail.py", Conclusion.FAIL, "guarantee"),
+    ("lims", "total_runtime_pass.py", Conclusion.OK, "assertion, assertion, guarantee"),
+    # trading
+    (
+        "trading",
+        "approved_sale_pass.py",
+        Conclusion.OK,
+        "guarantee, guarantee, guarantee, guarantee, guarantee",
+    ),
+    ("trading", "literal_sale_fail.py", Conclusion.FAIL, "guarantee"),
+    ("trading", "no_sales_pass.py", Conclusion.OK, "guarantee"),
+    ("trading", "orders_too_tight_fail.py", Conclusion.FAIL, "guarantee"),
+    ("trading", "quantity_mismatch_fail.py", Conclusion.FAIL, "guarantee"),
+    # A documented hole (see the case and docs/examples/trading.md): if it
+    # stops proving, the prover gained row-identity binding.
+    (
+        "trading",
+        "row_mixing_hole_pass.py",
+        Conclusion.OK,
+        "guarantee, guarantee, guarantee, guarantee",
+    ),
+    ("trading", "sells_with_none_fail.py", Conclusion.FAIL, "guarantee"),
+    ("trading", "trading_no_guarantees_pass.py", Conclusion.OK, "guarantee"),
+    ("trading", "unapproved_source_fail.py", Conclusion.FAIL, "guarantee"),
+    ("trading", "wrong_desk_fail.py", Conclusion.FAIL, "guarantee"),
 ]
 
 
@@ -180,11 +311,7 @@ def test_every_case_is_pinned(example: str) -> None:
 
 def test_every_example_has_an_explicit_coverage_decision() -> None:
     on_disk = {path.name for path in EXAMPLES.iterdir() if (path / "cases").is_dir()}
-    declared = (
-        set(PINNED_EXAMPLES)
-        | SEPARATELY_PINNED_EXAMPLES
-        | DELIBERATELY_UNPINNED_EXAMPLES
-    )
+    declared = set(PINNED_EXAMPLES) | SEPARATELY_PINNED_EXAMPLES
 
     assert on_disk == declared, (
         "Examples and the proof coverage inventory disagree; classify each new "
