@@ -37,8 +37,10 @@ terraform apply -var="domain_name=dot.example.com" -var="anthropic_api_key=$ANTH
 
 ### 3. Hosted Multi-Tenant Service (`clauz3-cloud`)
 
-For a hosted multi-tenant SaaS deployment (maintained in `~/repos/clauz3-cloud`), the control plane provides:
+For a hosted multi-tenant deployment (maintained in [`normalform-ai/clauz3-cloud`](https://github.com/normalform-ai/clauz3-cloud)), the control plane provides:
 
-- **OAuth 2.0 / OIDC Authentication:** Google and GitHub OAuth login with encrypted per-user OAuth token vault (e.g., for `stdlib:google_workspace`).
-- **Per-User Dot Orchestrator:** Provisions an isolated `dot-workspace` + `dot-browser` pair per authenticated user with unique cryptographic approval tokens (`CLAUZ3_DOT_DECISION_TOKEN`).
-- **Authenticated Edge Reverse Proxy:** Verifies the user's OAuth session at the edge, mints/injects their Dot's `clauz3_approver_session` cookie, and proxies HTTP and WebSocket (`/api/chat/acp` and `/browser/websockify`) traffic to their dedicated Dot instance.
+- **OAuth 2.0 / OIDC Authentication & Role-Based Fleet Management (`user` / `admin`):** Google and GitHub OAuth login (plus a built-in Local OAuth Simulator and multi-user persona switcher for offline development) with an encrypted per-user OAuth token vault (`TokenVault`) and an Admin Fleet Console.
+- **Per-User Dot Orchestrator:** Provisions an isolated `dot-workspace` + `dot-browser` pair per authenticated user on loopback with unique cryptographic approval tokens (`CLAUZ3_DOT_DECISION_TOKEN`).
+- **Single-Origin HTTP + WebSocket Reverse Proxy (No Subdomains Required):** Everything is served from a single domain (e.g., `https://cloud.example.com`), supporting both:
+  - **ChatGPT Dot / JupyterHub style (`https://cloud.example.com/dots/<dot-id>`):** Verifies tenant ownership (`403 Forbidden` for any other user), renders a top Cloud status bar showing the Dot ID and owner, and embeds the user's `clauz3 ui` workspace on the same origin.
+  - **`claude.ai/code` style (`https://cloud.example.com/ui`):** Routes `/ui`, `/api/{chat,workspace,workspaces,profile,requests}*`, and the `/api/chat/acp` WebSocket directly to the signed-in user's isolated Dot by exchanging their `decision_token` for their `clauz3_approver_session` cookie behind the scenes.

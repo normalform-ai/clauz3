@@ -22,3 +22,7 @@ After provisioning completes, retrieve your private approver login link:
 ```bash
 terraform output -raw approver_login_url
 ```
+
+## Multi-Tenant Deployment (`clauz3-cloud`)
+
+For a multi-tenant deployment with Google/GitHub OAuth login, `user` and `admin` roles, and single-origin routing (`https://cloud.example.com/dots/<dot-id>` and `https://cloud.example.com/ui` without wildcard subdomains), see [`normalform-ai/clauz3-cloud`](https://github.com/normalform-ai/clauz3-cloud).
