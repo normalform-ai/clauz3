@@ -207,7 +207,10 @@ Sum a selected numeric field over reachable rows, then compare it:
 Withdraw.sum(lambda w: w.amount) <= limit
 ```
 
-Unreachable rows contribute zero.
+Unreachable rows contribute zero. Inside a loop over a trusted query result,
+a selector that reads the row is bounded by promotion (`len * min <= sum <=
+len * max`) rather than summed exactly; see
+[Symbolic iteration](../explanation/symbolic-iteration.md).
 
 ### `count`
 

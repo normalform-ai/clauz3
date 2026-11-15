@@ -63,9 +63,84 @@ def test_count_too_tight_fail() -> None:
     assert _prove("count_too_tight_fail.py") == [Conclusion.FAIL]
 
 
-def test_sum_selector_depending_on_row_raises_unsupported() -> None:
-    """sum(selector) depending on bound-var field raises UnsupportedError -> not OK."""
-    assert _prove_fixture("sum_selector_depends_on_row_skip.py") == [Conclusion.SKIP]
+def test_sum_selector_depending_on_row_fails_without_per_row_bound() -> None:
+    """sum(amount) over a loop with unbounded amounts must not prove <= 1000."""
+    assert _prove_fixture("sum_selector_depends_on_row_fail.py") == [Conclusion.FAIL]
+
+
+def test_sum_selector_promotion_lifts_per_row_guard() -> None:
+    """<= 100 rows, each charge <= 10: promotion bound proves total <= 1000."""
+    assert _prove_fixture("sum_selector_guarded_pass.py") == [Conclusion.OK]
+
+
+def test_sum_selector_promotion_bound_is_tight() -> None:
+    """3 charges of 10 reach 30, so a 29 cap must fail with a counterexample."""
+    assert _prove_fixture("sum_selector_guarded_too_tight_fail.py") == [Conclusion.FAIL]
+
+
+def test_sum_selector_promotion_symbols_cannot_be_aliased() -> None:
+    """Soundness: parameters named like the bound's internal symbols must not
+    alias the fresh total or Skolem indices and make the guarantee vacuous."""
+    assert _prove_fixture("sum_selector_aliased_total_fail.py") == [Conclusion.FAIL]
+
+
+def test_sum_selector_promotion_survives_a_str_parameter() -> None:
+    """A str parameter adds a quantified domain given; the cap reader must
+    skip it, not crash the encoding into SKIP."""
+    assert _prove_fixture("sum_selector_str_param_pass.py") == [Conclusion.OK]
+
+
+def test_sum_selector_promotion_survives_a_str_row_field() -> None:
+    """A str row field adds a quantified given for the query result."""
+    assert _prove_fixture("sum_selector_str_row_field_pass.py") == [Conclusion.OK]
+
+
+def test_sum_selector_promotion_lower_bound() -> None:
+    """Nonnegative charges prove total >= 0 through the lower half."""
+    assert _prove_fixture("sum_selector_lower_bound_pass.py") == [Conclusion.OK]
+
+
+def test_sum_selector_promotion_lower_bound_fails_on_empty() -> None:
+    """The query may return no rows, so total >= 1 must fail."""
+    assert _prove_fixture("sum_selector_lower_bound_fail.py") == [Conclusion.FAIL]
+
+
+def test_sum_selector_uncapped_positive_bound_fails() -> None:
+    """Without len(result) <= K the total is unbounded: a real counterexample."""
+    assert _prove_fixture("sum_selector_uncapped_fail.py") == [Conclusion.FAIL]
+
+
+def test_sum_selector_promotion_over_two_independent_loops() -> None:
+    """<= 100 * 100 rows, each charge <= 10: the product cap proves 100000."""
+    assert _prove_fixture("sum_selector_two_loops_pass.py") == [Conclusion.OK]
+
+
+def test_sum_selector_promotion_two_loops_cap_is_a_product() -> None:
+    """3 * 3 charges of 10 reach 90: an 89 cap fails. A sum or max of the
+    per-loop caps would wrongly prove it."""
+    assert _prove_fixture("sum_selector_two_loops_too_tight_fail.py") == [
+        Conclusion.FAIL
+    ]
+
+
+def test_sum_selector_promotion_through_a_helper() -> None:
+    """A charge emitted inside a helper called in the loop is bounded too."""
+    assert _prove_fixture("sum_selector_helper_pass.py") == [Conclusion.OK]
+
+
+def test_sum_selector_promotion_with_a_conditional_query() -> None:
+    """A query under a branch still yields its length cap."""
+    assert _prove_fixture("sum_selector_conditional_query_pass.py") == [Conclusion.OK]
+
+
+def test_sum_selector_nested_dependent_loop_is_refused() -> None:
+    """An inner length that depends on the outer row has no product row count."""
+    assert _prove_fixture("sum_selector_nested_dependent_skip.py") == [Conclusion.SKIP]
+
+
+def test_sum_selector_promotion_composes_with_direct_facts() -> None:
+    """A direct charge(100) plus <= 100 loop charges of <= 9 stays <= 1000."""
+    assert _prove_fixture("sum_selector_plus_direct_pass.py") == [Conclusion.OK]
 
 
 def test_distinct_over_loop_fails_without_uniqueness_postcondition() -> None:
