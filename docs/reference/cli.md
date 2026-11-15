@@ -162,7 +162,9 @@ or removing libraries it uses. Previous copies are kept under
 still need the setup shown in the review.
 
 One agent conversation and one connected browser tab are active at a time.
-Reloads preserve the running agent. **New conversation** saves the previous
+A second tab offers **Use here**, which moves the workspace to that tab; the
+first tab then offers **Use here** to take it back. Reloads preserve the
+running agent. **New conversation** saves the previous
 chat, and the sidebar lets you search, rename, and reopen earlier conversations.
 Selecting a chat resumes its saved agent context and library selection with
 fresh submission credentials. If those library files have changed, its transcript

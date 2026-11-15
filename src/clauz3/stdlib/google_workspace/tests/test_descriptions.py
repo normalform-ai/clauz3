@@ -26,6 +26,7 @@ class EmailDescriptionsTests(unittest.TestCase):
             ).read_text()
         self.assertIn("Effect: create_draft(", api)
         self.assertIn("Effect: send_email(", api)
+        self.assertIn("Effect: search_messages(", api)
         self.assertIn("*, dry_run: bool=True", api)
         self.assertIn("clauz3.requires(", api)
         self.assertIn("This creates a new message", api)
@@ -33,6 +34,7 @@ class EmailDescriptionsTests(unittest.TestCase):
         for summary in (
             "Save an unsent email in Gmail's Drafts folder",
             "Send immediately when ``dry_run=False``",
+            "Return up to ``max_results`` Gmail messages matching ``query``",
             "Cap the combined number of send_email and create_draft calls per run",
         ):
             self.assertIn(summary, api)
@@ -53,6 +55,9 @@ class EmailDescriptionsTests(unittest.TestCase):
             "no_subject_contains": ["secret"],
             "drafts_only": [],
             "no_drafts": [],
+            "read_only": [],
+            "no_searches": [],
+            "searches_at_most": [1],
         }
         for name, args in arguments.items():
             with self.subTest(name=name):

@@ -1,9 +1,10 @@
 schema_version: 1
 name: google_workspace/gmail
 title: Gmail
-summary: Save Gmail drafts, preview or send email through gog, with recipient and message
-  limits.
-description: Prepare unsent messages in Gmail or deliver new emails through your own account.
+summary: Search and read Gmail, save drafts, preview or send email through gog, with
+  read-only, recipient and message limits.
+description: Search and read messages in your Gmail, prepare unsent messages, or deliver
+  new emails through your own account. Searching never changes the mailbox.
   Contracts can restrict recipients, message counts, content, and whether sending is allowed.
   A preview saves nothing; creating a draft changes your Gmail mailbox. Sending an existing
   draft by its ID is not supported.
@@ -23,8 +24,9 @@ requirements:
       \ reauthorize through gog; reinstalling this library will not fix it."
     documentation: https://gogcli.sh/quickstart.html
     permissions:
-    - Gmail authorization capable of creating drafts and sending messages
+    - Gmail authorization capable of reading messages, creating drafts and sending messages
     applies_to:
+    - search_messages
     - create_draft
     - send_email
   - id: email-backend

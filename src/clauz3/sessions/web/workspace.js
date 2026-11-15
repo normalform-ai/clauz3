@@ -495,14 +495,21 @@
       await pollApprovals();
     }
   });
-  function connect() {
-    socket = new WebSocket(`ws://${location.host}/api/chat/acp`);
-    socket.onopen = () => {
+  function connect(takeover = false) {
+    const ws = new WebSocket(
+      `ws://${location.host}/api/chat/acp${takeover ? "?takeover=1" : ""}`,
+    );
+    socket = ws;
+    // A retry still connecting when "Use here" replaced it must not touch state.
+    ws.onopen = () => {
+      if (ws !== socket) return;
       connected = true;
       notice("");
+      $("take-over").hidden = true;
       controls();
     };
-    socket.onmessage = (event) => {
+    ws.onmessage = (event) => {
+      if (ws !== socket) return;
       const nearBottom =
         window.innerHeight + window.scrollY >= document.body.scrollHeight - 180;
       display(JSON.parse(event.data));
@@ -512,21 +519,37 @@
           behavior: "instant",
         });
     };
-    socket.onclose = (event) => {
+    ws.onclose = (event) => {
+      if (ws !== socket) return;
       connected = false;
       controls();
       if (event.code === 1008) {
         notice("Open the private login link from your terminal to sign in.");
         return;
       }
-      if (event.code === 1013)
+      clearTimeout(retry);
+      if (event.code === 4001) {
+        // Another tab took over; reconnecting would just take it back.
+        notice("This workspace was opened in another tab.");
+        $("take-over").hidden = false;
+        return;
+      }
+      if (event.code === 1013) {
         notice(
           "This workspace is open in another tab. Reconnecting when it closes…",
         );
-      clearTimeout(retry);
-      retry = setTimeout(connect, event.code === 1013 ? 3000 : 1500);
+        $("take-over").hidden = false;
+      }
+      retry = setTimeout(() => connect(), event.code === 1013 ? 3000 : 1500);
     };
   }
+  $("take-over").addEventListener("click", () => {
+    clearTimeout(retry);
+    $("take-over").hidden = true;
+    // Close a pending retry so only the takeover socket can attach.
+    if (socket && socket.readyState < 2) socket.close();
+    connect(true);
+  });
   $("composer").addEventListener("submit", (event) => {
     event.preventDefault();
     if (!$("send").disabled) {
