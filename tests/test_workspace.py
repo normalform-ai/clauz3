@@ -1053,7 +1053,11 @@ def test_cloud_host_allowlist_and_browser_url(config: ChatConfig) -> None:
         base_url="http://127.0.0.1",
         client=("172.18.0.2", 50000),
     ) as remote_on_default:
-        remote_on_default.get("/ui/login?key=approve", follow_redirects=False)
+        http_login = remote_on_default.get(
+            "/ui/login?key=approve", follow_redirects=False
+        )
+        # Plain HTTP login does not set the Secure cookie attribute.
+        assert "Secure" not in http_login.headers.get("set-cookie", "")
         assert remote_on_default.get("/api/chat/conversations").status_code == 401
 
     app = create_approval_app(
@@ -1090,6 +1094,13 @@ def test_cloud_host_allowlist_and_browser_url(config: ChatConfig) -> None:
                 restored["params"]["browserUrl"]
                 == "https://dot.example.com/browser/vnc.html"
             )
+        # Chained X-Forwarded-Proto from a TLS proxy sets Secure.
+        chained_login = client.get(
+            "/ui/login?key=approve",
+            headers={"X-Forwarded-Proto": "https, http"},
+            follow_redirects=False,
+        )
+        assert "Secure" in chained_login.headers.get("set-cookie", "")
         # Cross-origin and scheme-downgraded requests are rejected.
         for bad_origin in ("https://evil.example.com", "http://dot.example.com"):
             assert (

@@ -17,7 +17,8 @@ write_files:
           handle_path /browser/* {
               forward_auth 127.0.0.1:8080 {
                   uri /api/auth/verify
-                  copy_headers Cookie
+                  header_up -Upgrade
+                  header_up -Connection
               }
               reverse_proxy 127.0.0.1:6080
           }

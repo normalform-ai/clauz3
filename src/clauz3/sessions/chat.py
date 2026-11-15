@@ -1033,9 +1033,14 @@ def install_chat(
         host = connection.headers.get("host", "")
         origin = connection.headers.get("origin")
         hostname = urlsplit("http://" + host).hostname
+        forwarded_proto = (
+            connection.headers.get("x-forwarded-proto", "")
+            .partition(",")[0]
+            .strip()
+            .lower()
+        )
         is_https = (
-            connection.url.scheme in {"https", "wss"}
-            or connection.headers.get("x-forwarded-proto") == "https"
+            connection.url.scheme in {"https", "wss"} or forwarded_proto == "https"
         )
         expected_origin = f"{'https' if is_https else 'http'}://{host}"
         return bool(

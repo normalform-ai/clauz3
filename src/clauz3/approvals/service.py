@@ -367,10 +367,13 @@ def create_approval_app(
         session = secrets.token_urlsafe(32)
         with condition:
             approver_sessions.add(session)
-        is_https = (
-            request.url.scheme == "https"
-            or request.headers.get("x-forwarded-proto") == "https"
+        forwarded_proto = (
+            request.headers.get("x-forwarded-proto", "")
+            .partition(",")[0]
+            .strip()
+            .lower()
         )
+        is_https = request.url.scheme == "https" or forwarded_proto == "https"
         response = RedirectResponse("/ui", status_code=303)
         response.set_cookie(
             APPROVER_SESSION_COOKIE,

@@ -7,7 +7,7 @@ Clauz3 supports running as an always-on personal assistant modeled after OpenAI'
 | Capability | OpenAI ChatGPT "Dot" | Clauz3 Dot |
 | --- | --- | --- |
 | **Dedicated Compute** | Per-instance cloud Linux VM with persistent filesystem | Persistent workspace container/VM (`dot-workspace`) |
-| **Isolated Cloud Browser** | Separate Chromium container with live view & **"Take Over"** mode | `dot-browser` sidecar (Chromium + CDP + noVNC) embedded in the Workspace UI (`#browser-panel`) with **View-Only / Take Over** toggle |
+| **Isolated Cloud Browser** | Separate Chromium container with live view & **"Take Over"** mode | `dot-browser` sidecar (Chromium + Xvfb + noVNC) embedded in the Workspace UI (`#browser-panel`) with **View-Only / Take Over** toggle |
 | **Action Gating** | LLM-based Auto-Review Agent + custom natural-language rules | Z3 formal contract proofs (`@clauz3.guarantee`) + operator policy / remembered profile verification (`ProfileStore`) |
 | **Privilege Separation** | Approval service isolated from agent sandbox | Signing key (`CLAUZ3_APPROVAL_SIGNING_KEY`) and approver token (`CLAUZ3_APPROVAL_DECISION_TOKEN`) stay in the approval service and never enter the agent environment |
 
@@ -35,7 +35,7 @@ terraform init
 terraform apply -var="domain_name=dot.example.com" -var="anthropic_api_key=$ANTHROPIC_API_KEY"
 ```
 
-Caddy enforces HSTS and gates `/browser/*` (including `/browser/websockify`) via `forward_auth` against the workspace service's `/api/auth/verify` endpoint so that only an authenticated approver session (`clauz3_approver_session`) can view or interact with the Cloud Browser stream.
+Caddy enforces HSTS, sets `X-Forwarded-Proto: https` (required by any TLS-terminating reverse proxy so `clauz3` sets `Secure` on the session cookie and validates `https://` `Origin` headers), and gates `/browser/*` (including `/browser/websockify`) via `forward_auth` against the workspace service's `/api/auth/verify` endpoint so that only an authenticated approver session (`clauz3_approver_session`) can view or interact with the Cloud Browser stream.
 
 ### 3. Hosted Multi-Tenant Service (`clauz3-cloud`)
 
