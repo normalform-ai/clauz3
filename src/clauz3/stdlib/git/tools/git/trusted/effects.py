@@ -29,8 +29,11 @@ DEFAULT_TIMEOUT_SECONDS = 120
 #: Prepended to every git command line. Allowed commands can write files into
 #: ``.git/hooks`` (``checkout-index --prefix=.git/``), and a later ``commit``
 #: would run such a hook, so hooks are disabled for every call by pointing
-#: ``core.hooksPath`` at a path that contains none.
-NO_HOOKS = ["-c", "core.hooksPath=/dev/null"]
+#: ``core.hooksPath`` at a path that contains none. ``core.fsmonitor`` names a
+#: program that even ``git status`` runs, so it is switched off too. Other
+#: settings that name programs (diff, merge and filter drivers, textconv,
+#: ``core.sshCommand``) have open-ended names and are not overridden.
+NO_HOOKS = ["-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false"]
 
 
 def is_builtin_subcommand(subcommand: str) -> bool:
@@ -57,9 +60,9 @@ def is_builtin_subcommand(subcommand: str) -> bool:
     Commands that can still be told to run another program (``rebase
     --exec``, ``submodule foreach``, ``bisect run``, ``fetch
     --upload-pack``, ``grep -O``/``--open-files-in-pager``, or settings
-    that name a program, such as ``core.fsmonitor`` or a filter driver)
-    remain; contract descriptions say they are not covered. Hooks never run:
-    see ``NO_HOOKS``. The list is written inline
+    that name a program, such as a diff or filter driver) remain; contract
+    descriptions say they are not covered. Hooks and ``core.fsmonitor``
+    never run: see ``NO_HOOKS``. The list is written inline
     because preconditions cannot read module-level constants.
     """
     return subcommand in [

@@ -41,8 +41,12 @@ Import with `from tools.git.trusted.effects import git, git_push`:
   `remote` from the repo at `cwd`. Preconditions: all three non-empty;
   `remote` and `branch` do not start with `-`.
 
-Every git command runs with `-c core.hooksPath=/dev/null`, so repository hooks
-never run, even ones the program writes into `.git/hooks`.
+Every git command runs with `-c core.hooksPath=/dev/null -c core.fsmonitor=false`,
+so repository hooks never run, even ones the program writes into `.git/hooks`,
+and neither does a configured file-system monitor. Other settings that name a
+program can still run it, even under `read_only()`: `diff.external` with
+`log -p --ext-diff`, or a `diff.<driver>.textconv` on `git diff`, `log -p` or
+`show`.
 
 Preconditions are checked by the prover and again by the effect bodies when
 the program runs. One check happens **only when the program runs**: an
@@ -67,8 +71,9 @@ Import with `from tools.git.trusted import contracts as git_rules`:
 - `git_rules.runs_at_most(count)` — at most `count` subcommands run.
 - `git_rules.no_push()` — the program performs no pushes. Commands that can be
   told to run other programs (`rebase --exec`, `submodule foreach`,
-  `bisect run`, `fetch --upload-pack`, `grep -O`, settings such as
-  `core.fsmonitor`) are not covered; `read_only()` excludes them.
+  `bisect run`, `fetch --upload-pack`, `grep -O`) and programs named in the
+  repository's git settings (diff, merge or filter drivers, textconv,
+  `core.sshCommand`) are not covered.
 - `git_rules.only_push_to_remote(remote)` — every push targets `remote`.
 - `git_rules.only_push_to_branch(branch)` — every push targets `branch`.
 

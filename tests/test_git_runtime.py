@@ -70,6 +70,8 @@ def test_git_runs_inspection_commands(
             "git",
             "-c",
             "core.hooksPath=/dev/null",
+            "-c",
+            "core.fsmonitor=false",
             "-C",
             "/repo",
             "log",
@@ -147,4 +149,21 @@ def test_git_never_runs_repository_hooks(
     hook.chmod(0o755)
     git_effects.git("commit", ["--allow-empty", "-q", "-m", "x"], str(repo))
     assert git_effects.git("log", ["--oneline"], str(repo)).strip()
+    assert not marker.exists()
+
+
+def test_git_never_runs_a_configured_fsmonitor(
+    git_effects: ModuleType, tmp_path: Path
+) -> None:
+    """core.fsmonitor names a program that git status would otherwise run."""
+    repo = tmp_path / "repo"
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    marker = tmp_path / "fsmonitor-ran"
+    monitor = tmp_path / "monitor.sh"
+    monitor.write_text(f"#!/bin/sh\ntouch {marker}\n")
+    monitor.chmod(0o755)
+    subprocess.run(
+        ["git", "-C", str(repo), "config", "core.fsmonitor", str(monitor)], check=True
+    )
+    git_effects.git("status", [], str(repo))
     assert not marker.exists()

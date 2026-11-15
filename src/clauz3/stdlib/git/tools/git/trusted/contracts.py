@@ -62,7 +62,9 @@ def no_git() -> ContractSpec:
         "Git commands are limited to inspection commands (status, log, diff, "
         "show, rev-parse, ls-files, ls-tree, blame, describe, shortlog, "
         "cat-file); nothing is committed, no history is changed and nothing is "
-        "pushed, though these commands may read files outside the repository."
+        "pushed, though these commands may read files outside the repository. "
+        "Programs named in the repository's own git settings, such as a diff "
+        "tool, can still run."
     )
 )
 def read_only() -> ContractSpec:
@@ -98,8 +100,9 @@ def only_subcommands(allowlist: list[str]) -> ContractSpec:
 @contract(
     description=(
         "None of these git commands are run: {blocklist}; pushes are covered "
-        "separately. A git command told to run another program (for example "
-        "rebase --exec) is not covered."
+        "separately. "
+        "A git command told to run another program (for example rebase --exec), or "
+        "a program named in the repository's git settings, is not covered."
     )
 )
 def never_subcommands(blocklist: list[str]) -> ContractSpec:
@@ -116,8 +119,9 @@ def never_subcommands(blocklist: list[str]) -> ContractSpec:
     description=(
         "Git commands, including pushes, run only in folders whose path starts "
         "with {root}. Other folders named in a command (such as where a clone "
-        "or new worktree goes) are not checked, and neither is a git command "
-        "told to run another program (for example rebase --exec)."
+        "or new worktree goes), a git command told to run another program (for "
+        "example rebase --exec) and programs named in the repository's git "
+        "settings are not covered."
     )
 )
 def only_in(root: str) -> ContractSpec:
@@ -143,9 +147,9 @@ def runs_at_most(count: int) -> ContractSpec:
 
 @contract(
     description=(
-        "Nothing is pushed with git. A git command told to run another program "
-        "(for example rebase --exec) is not covered; limiting git to inspection "
-        "commands rules that out."
+        "Nothing is pushed with git. "
+        "A git command told to run another program (for example rebase --exec), or "
+        "a program named in the repository's git settings, is not covered."
     )
 )
 def no_push() -> ContractSpec:
@@ -154,17 +158,19 @@ def no_push() -> ContractSpec:
     Forbids ``git_push``. The general ``git`` effect refuses ``push`` and
     every other pushing command or alias, but commands that can be told to
     run arbitrary programs (``rebase --exec``, ``submodule foreach``,
-    ``bisect run``, ``fetch --upload-pack``, ``grep -O``, or settings that
-    name a program, such as ``core.fsmonitor``) can still push;
-    ``read_only()`` excludes them. Hooks never run: the effects disable them.
+    ``bisect run``, ``fetch --upload-pack``, ``grep -O``) or a program named
+    in the repository's git settings (a diff, merge or filter driver,
+    ``core.sshCommand``) can still push. Hooks and ``core.fsmonitor`` never
+    run: the effects disable them.
     """
     return Push.empty()
 
 
 @contract(
     description=(
-        "Anything pushed with git goes only to the remote {remote}. A git command "
-        "told to run another program (for example rebase --exec) is not covered."
+        "Anything pushed with git goes only to the remote {remote}. "
+        "A git command told to run another program (for example rebase --exec), or "
+        "a program named in the repository's git settings, is not covered."
     )
 )
 def only_push_to_remote(remote: str) -> ContractSpec:
@@ -178,8 +184,9 @@ def only_push_to_remote(remote: str) -> ContractSpec:
 
 @contract(
     description=(
-        "Anything pushed with git goes only to the branch {branch}. A git command "
-        "told to run another program (for example rebase --exec) is not covered."
+        "Anything pushed with git goes only to the branch {branch}. "
+        "A git command told to run another program (for example rebase --exec), or "
+        "a program named in the repository's git settings, is not covered."
     )
 )
 def only_push_to_branch(branch: str) -> ContractSpec:
