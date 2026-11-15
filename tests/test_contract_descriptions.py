@@ -263,7 +263,7 @@ def main() -> None:
         descriptions = contract_descriptions(source=source, target="main")
     assert [entry["text"] for entry in descriptions.values()] == [
         "No filesystem tool modifies anything. "
-        "Effects of other libraries, such as git or rsync, are not covered.",
+        "Changes made by other libraries, such as git or rsync, are not covered.",
         'Every file a filesystem tool reads or lists starts with "test.md".',
         "No filesystem tool deletes or moves anything away.",
     ]

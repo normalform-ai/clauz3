@@ -20,41 +20,50 @@ from clauz3.spec import no_guarantees as core_no_guarantees
 EnvRead = effect(read_env)
 
 
-@contract
+@contract(description="No restrictions are imposed on reading environment variables.")
 def no_guarantees() -> ContractSpec:
-    """Make no guarantees about env-read effects."""
+    """Make no guarantees about reading environment variables."""
     return core_no_guarantees()
 
 
-@contract
+@contract(
+    description=(
+        "The environment tool reads no environment variables (settings such as "
+        "API keys)."
+    )
+)
 def no_env_reads() -> ContractSpec:
-    """Guarantee the program reads no environment variables."""
+    """Guarantee the environment tool reads no environment variables."""
     return EnvRead.empty()
 
 
-@contract
+@contract(description="The environment tool reads only these variables: {allowlist}.")
 def only_vars(allowlist: list[str]) -> ContractSpec:
-    """Guarantee every env-var name read is in ``allowlist``."""
+    """Guarantee every environment variable read is one of the listed names."""
     return EnvRead.all(lambda e: e.name in allowlist)
 
 
-@contract
+@contract(description="The environment tool never reads these variables: {blocklist}.")
 def never_vars(blocklist: list[str]) -> ContractSpec:
-    """Guarantee no env-var name read is in ``blocklist``."""
+    """Guarantee no environment variable read is one of the listed names."""
     return EnvRead.all(lambda e: e.name not in blocklist)
 
 
-@contract
+@contract(
+    description=(
+        "The environment tool never reads a variable whose name starts with {prefix}."
+    )
+)
 def never_var_prefix(prefix: str) -> ContractSpec:
-    """Guarantee no env-var name read starts with ``prefix``.
+    """Guarantee no environment variable read has a name starting with ``prefix``.
 
     Useful for blanket prefixes like ``SECRET_`` or ``AWS_`` without
-    enumerating every variable individually.
+    enumerating every variable individually. The comparison is case-sensitive.
     """
     return EnvRead.all(lambda e: not e.name.startswith(prefix))
 
 
-@contract
+@contract(description="The environment tool reads variables at most {count} times.")
 def env_reads_at_most(count: int) -> ContractSpec:
-    """Guarantee at most ``count`` env-var reads occur."""
+    """Guarantee at most ``count`` environment variable reads occur."""
     return EnvRead.count() <= count

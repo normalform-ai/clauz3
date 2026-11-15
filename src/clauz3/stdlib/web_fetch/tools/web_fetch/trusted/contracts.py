@@ -17,70 +17,109 @@ Fetch = effect(fetch_url, post_url)
 Post = effect(post_url)
 
 
-@contract
+@contract(description="No restrictions are imposed on web requests.")
 def no_guarantees() -> ContractSpec:
-    """Make no guarantees about web-fetch effects."""
+    """Make no guarantees about web requests."""
     return core_no_guarantees()
 
 
-@contract
+@contract(description="The web request tools fetch no pages and send no data.")
 def no_fetches() -> ContractSpec:
-    """Guarantee the program issues no HTTP GETs or POSTs."""
+    """Guarantee the program makes no web requests (neither GET nor POST)."""
     return Fetch.empty()
 
 
-@contract
+@contract(
+    description=(
+        "The web request tools never post data to a website; they can still "
+        "fetch pages, and a page address can itself carry data."
+    )
+)
 def no_posts() -> ContractSpec:
-    """Guarantee the program issues no HTTP POSTs."""
+    """Guarantee the program never posts data to a website (no HTTP POSTs)."""
     return Post.empty()
 
 
-@contract
+@contract(
+    description=(
+        "Every web request is sent to an address starting with {prefix} "
+        "(the site may still redirect elsewhere)."
+    )
+)
 def only_fetch_under(prefix: str) -> ContractSpec:
-    """Guarantee every fetched URL starts with ``prefix``.
+    """Guarantee every requested web address starts with ``prefix``.
 
     Use fully-qualified prefixes (``"https://api.github.com/repos/"``) to
     bound both scheme + host + path. A bare scheme like ``"https://"`` works
     too but admits any host; combine with multiple ``only_fetch_under`` for
-    disjunctive host allowlists.
+    disjunctive host allowlists. Covers GETs and POSTs. Only the requested
+    URL is checked: the HTTP client follows redirects, which are not.
     """
     return Fetch.all(lambda e: e.url.startswith(prefix))
 
 
-@contract
+@contract(
+    description=(
+        "No web request is sent to an address starting with {prefix} "
+        "(redirects are not checked)."
+    )
+)
 def never_fetch_under(prefix: str) -> ContractSpec:
-    """Guarantee no fetched URL starts with ``prefix``."""
+    """Guarantee no requested web address starts with ``prefix``.
+
+    Covers GETs and POSTs. Only the requested URL is checked: the HTTP client
+    follows redirects, which are not.
+    """
     return Fetch.all(lambda e: not e.url.startswith(prefix))
 
 
-@contract
+@contract(
+    description=(
+        "Every web request is sent to an address starting with https:// "
+        "(redirects are not checked)."
+    )
+)
 def https_only() -> ContractSpec:
-    """Guarantee every fetched URL uses HTTPS."""
+    """Guarantee every requested web address uses HTTPS.
+
+    Only the requested URL is checked: the HTTP client follows redirects,
+    which are not.
+    """
     return Fetch.all(lambda e: e.url.startswith("https://"))
 
 
-@contract
+@contract(description="The web request tools make at most {count} requests.")
 def fetches_at_most(count: int) -> ContractSpec:
-    """Guarantee at most ``count`` fetches occur."""
+    """Guarantee at most ``count`` web requests (GETs plus POSTs) occur."""
     return Fetch.count() <= count
 
 
-@contract
+@contract(
+    description=(
+        "No requested web address contains the exact text {substring}; data "
+        "posted to a website is not checked."
+    )
+)
 def no_url_contains(substring: str) -> ContractSpec:
-    """Guarantee no fetched URL contains ``substring`` as a substring.
+    """Guarantee no requested web address contains the given text.
 
     Useful as an exfiltration guard: an agent asked to look up data must not
     smuggle local secrets into the URL path or query string. For example,
     ``no_url_contains("BEGIN PRIVATE KEY")`` rejects any URL with a literal
-    key dumped into a query parameter.
+    key dumped into a query parameter. The comparison is a case-sensitive
+    substring test of the URL only; a POST body is not checked (stack
+    ``no_posts()`` to forbid POSTs).
     """
     return Fetch.all(lambda e: substring not in e.url)
 
 
-@contract
+@contract(
+    description="Every requested web address is at most {max_chars} characters long."
+)
 def url_length_at_most(max_chars: int) -> ContractSpec:
-    """Guarantee every fetched URL is at most ``max_chars`` long.
+    """Guarantee every requested web address is at most ``max_chars`` long.
 
-    Bounds URL size to prevent oversized query-string smuggling.
+    Bounds URL size to prevent oversized query-string smuggling. A POST body
+    is not bounded.
     """
     return Fetch.all(lambda e: len(e.url) <= max_chars)
