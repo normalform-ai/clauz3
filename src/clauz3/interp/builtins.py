@@ -167,7 +167,16 @@ def _b_print(*args: Any, **kwargs: Any) -> None:
             f"{', '.join(sorted(kwargs))}",
         )
     _require_data("print", *args)
-    _py_builtins.print(*args)
+    # A trusted result can carry a lone surrogate (e.g. from JSON); escape
+    # unencodable characters instead of failing a proved program at print().
+    _py_builtins.print(
+        *(
+            arg.encode("utf-8", "backslashreplace").decode("utf-8")
+            if isinstance(arg, str)
+            else arg
+            for arg in args
+        )
+    )
 
 
 _IMPLS: dict[str, Callable[..., Any]] = {

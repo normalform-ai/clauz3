@@ -15,25 +15,25 @@ from clauz3.spec import no_guarantees as core_no_guarantees
 Search = effect(web_search)
 
 
-@contract
+@contract(description="No restrictions are imposed on web searches.")
 def no_guarantees() -> ContractSpec:
-    """Make no guarantees about web-search effects."""
+    """Make no guarantees about web searches."""
     return core_no_guarantees()
 
 
-@contract
+@contract(description="No web searches are made.")
 def no_searches() -> ContractSpec:
-    """Guarantee the program issues no searches."""
+    """Guarantee the program makes no web searches."""
     return Search.empty()
 
 
-@contract
+@contract(description="At most {count} web searches are made.")
 def searches_at_most(count: int) -> ContractSpec:
     """Guarantee at most ``count`` searches occur."""
     return Search.count() <= count
 
 
-@contract
+@contract(description="Every web search query is at most {max_chars} characters long.")
 def query_length_at_most(max_chars: int) -> ContractSpec:
     """Guarantee every search query is at most ``max_chars`` long.
 
@@ -43,12 +43,13 @@ def query_length_at_most(max_chars: int) -> ContractSpec:
     return Search.all(lambda e: len(e.query) <= max_chars)
 
 
-@contract
+@contract(description="No web search query contains the exact text {substring}.")
 def no_query_contains(substring: str) -> ContractSpec:
-    """Guarantee no search query contains ``substring``.
+    """Guarantee no search query contains the given text.
 
     Privacy / exfil guard with the same shape as ``web_fetch``'s
     ``no_url_contains``: an agent asked to look something up cannot smuggle
-    a local secret into the query string.
+    a local secret into the query string. The comparison is a case-sensitive
+    substring test.
     """
     return Search.all(lambda e: substring not in e.query)

@@ -1,7 +1,9 @@
 """Workspace transitions preserve ownership, authority and tutorial isolation."""
 
+import asyncio
 import hashlib
 import sys
+import threading
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, cast
@@ -10,6 +12,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from starlette.testclient import WebSocketTestSession
+from starlette.websockets import WebSocketDisconnect
 
 from clauz3._vendor.deal_solver import Conclusion
 from clauz3.approvals.client import APPROVAL_TOKEN_ENV
@@ -20,7 +23,7 @@ from clauz3.libraries.layout import expand_import_roots
 from clauz3.libraries.manifest import read_manifest
 from clauz3.libraries.mock_metadata import mock_declarations
 from clauz3.prover import prove_text
-from clauz3.sessions.chat import ChatConfig
+from clauz3.sessions.chat import ChatConfig, Conversation
 from clauz3.sessions.history import ConversationStore
 from clauz3.sessions.workspaces import Workspaces
 
@@ -91,6 +94,9 @@ def test_switch_tutorial_and_back_preserves_histories_and_rotates_authority(
         assert tutorial == storage / "tutorials/email"
         assert state["libraries"] == ["email"]
         ready(ws)
+        # The switched-to conversation still publishes to this tab.
+        ws.send_json({"method": "session/prompt", "params": {"prompt": "hi"}})
+        until(ws, "clauz3/user")
         snapshot = client.get("/api/workspaces").json()
         assert snapshot["tutorial"]
         assert snapshot["recent"][0]["path"] == str(project)
@@ -325,7 +331,6 @@ def test_switch_cancels_request_finishing_verification_in_previous_workspace(
     workspace: tuple[TestClient, Path, Path], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     import concurrent.futures
-    import threading
 
     from clauz3.approvals import service
     from clauz3.runner import build_approval_request
@@ -398,3 +403,46 @@ def test_storage_aliases_have_one_canonical_tutorial(tmp_path: Path) -> None:
     registry = Workspaces(alias)
     assert registry.target({"tutorial": "email"}) == storage / "tutorials/email"
     assert registry.prepare_email() == storage / "tutorials/email"
+
+
+@pytest.mark.parametrize(
+    "operation",
+    [
+        {"method": "clauz3/workspace", "params": {"tutorial": "email"}},
+        {"method": "clauz3/new"},
+    ],
+    ids=["workspace", "replace"],
+)
+def test_takeover_waits_for_an_in_flight_switch(
+    workspace: tuple[TestClient, Path, Path],
+    monkeypatch: pytest.MonkeyPatch,
+    operation: dict[str, Any],
+) -> None:
+    client, _, _ = workspace
+    entered, release = threading.Event(), threading.Event()
+    close = Conversation.close
+
+    async def blocking(self: Conversation) -> None:
+        entered.set()
+        while not release.is_set():
+            await asyncio.sleep(0.01)
+        await close(self)
+
+    url = "ws://127.0.0.1/api/chat/acp"
+    with client.websocket_connect(url, headers=ORIGIN) as first:
+        ready(first)
+        # A used chat makes New replace it instead of reusing it.
+        first.send_json({"method": "session/prompt", "params": {"prompt": "hi"}})
+        until(first, "clauz3/turn_end")
+        monkeypatch.setattr(Conversation, "close", blocking)
+        first.send_json(operation)
+        assert entered.wait(10)
+        with client.websocket_connect(f"{url}?takeover=1", headers=ORIGIN) as second:
+            with pytest.raises(WebSocketDisconnect) as refused:
+                second.receive_json()
+            assert refused.value.code == 1013
+        release.set()
+        until(first, "clauz3/restore")
+        ready(first)
+        first.send_json({"method": "session/prompt", "params": {"prompt": "again"}})
+        until(first, "clauz3/user")

@@ -1066,6 +1066,14 @@ def test_print_keyword_arguments_are_refused_not_dropped() -> None:
         run("def main():\n    print('a', 'b', sep='')\n")
 
 
+def test_print_escapes_unencodable_characters(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A lone surrogate from a trusted result must not crash a proved program."""
+    run("def main():\n    print('a\\ud800b', 1)\n")
+    assert capsys.readouterr().out == "a\\ud800b 1\n"
+
+
 def test_row_mediated_cycles_are_refused() -> None:
     """``_marshal_row`` threads the seen-set; every Row hop used to reset it."""
     with pytest.raises(TrustedBoundaryError, match="cyclic"):

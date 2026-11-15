@@ -5,6 +5,13 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="referrer" content="no-referrer" />
     <title>Clauz3 · Workspace</title>
+    <script>
+      try {
+        const t = localStorage.getItem("clauz3-theme");
+        if (["parchment", "indigo", "obsidian", "swiss", "solarized", "sage"].includes(t))
+          document.documentElement.dataset.theme = t;
+      } catch {}
+    </script>
     <link rel="icon" href="/ui/assets/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/ui/assets/workspace.css" />
     <link rel="stylesheet" href="/ui/approval-assets/profile.css" />
@@ -70,6 +77,19 @@
         </label>
         <ul id="conversation-list"></ul>
       </section>
+      <button
+        id="theme-picker"
+        type="button"
+        class="theme-switcher"
+        aria-haspopup="menu"
+        aria-expanded="false"
+        aria-controls="theme-menu"
+        title="Switch color theme"
+      >
+        <span class="theme-swatch" aria-hidden="true"></span>
+        <span>Theme</span>
+        <span id="theme-current" class="nav-count">Parchment</span>
+      </button>
       <div class="sidebar-bottom">
         <span class="proof-dot" aria-hidden="true"></span>
         <div>
@@ -138,6 +158,7 @@
         </div>
         <p id="unrestricted-mode" hidden>Unrestricted mode · Native agent tools can bypass Clauz3 proofs and approval.</p>
         <p id="notice" role="alert" hidden></p>
+        <button id="take-over" hidden>Use here</button>
         <div id="resume-recovery" hidden>
           <button id="libraries-continue" hidden>
             Continue with current libraries
@@ -359,6 +380,10 @@
         disabled
       >Copy handoff</button>
       <a href="/api/chat/transcript" role="menuitem" download>Export transcript</a>
+    </div>
+    <div id="theme-menu" class="menu theme-menu" popover role="menu" aria-label="Color theme">
+      <div class="menu-heading">Color theme</div>
+      <div id="theme-options"></div>
     </div>
     <dialog id="library-review" aria-labelledby="library-review-title">
       <div class="files-heading">

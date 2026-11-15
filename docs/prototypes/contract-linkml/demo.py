@@ -55,7 +55,7 @@ def main() -> None:
     descriptions = [describe(view, name, values) for name, values in CASES]
     expected = [
         "No filesystem tool modifies anything. "
-        "Effects of other libraries, such as git or rsync, are not covered.",
+        "Changes made by other libraries, such as git or rsync, are not covered.",
         'Every file a filesystem tool reads or lists starts with "test.md".',
         "No filesystem tool deletes or moves anything away.",
     ]

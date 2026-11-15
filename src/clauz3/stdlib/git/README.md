@@ -28,10 +28,31 @@ clauz3 prove --trusted-root tools/git/trusted plan.py
 Import with `from tools.git.trusted.effects import git, git_push`:
 
 - `git(subcommand: str, args: list[str], cwd: str) -> str` — run
-  `git <subcommand> <args...>` in `cwd` and return its stdout. Precondition:
-  `subcommand` and `cwd` non-empty.
+  `git <subcommand> <args...>` in `cwd` and return its stdout. Preconditions:
+  `subcommand` and `cwd` non-empty; `subcommand` is an allowed built-in git
+  command (`is_builtin_subcommand`). That leaves out `push` and every other
+  command that pushes or publishes (`send-pack`, `send-email`, `imap-send`,
+  ...), so pushes always go through `git_push`; commands built to run other
+  programs or git commands (`for-each-repo`, `filter-branch`, `difftool`,
+  `mergetool`, `merge-index`, `hook`, `maintenance`); and synonyms (`stage`,
+  `annotate`, `pickaxe`, `init-db`, `fsck-objects`). Aliases and third-party
+  `git-*` commands are refused.
 - `git_push(remote: str, branch: str, cwd: str) -> str` — push `branch` to
-  `remote` from the repo at `cwd`. Precondition: all three non-empty.
+  `remote` from the repo at `cwd`. Preconditions: all three non-empty;
+  `remote` and `branch` do not start with `-`.
+
+Every git command runs with `-c core.hooksPath=/dev/null -c core.fsmonitor=false`,
+so repository hooks never run, even ones the program writes into `.git/hooks`,
+and neither does a configured file-system monitor. Other settings that name a
+program can still run it, even under `read_only()`: `diff.external` with
+`log -p --ext-diff`, or a `diff.<driver>.textconv` on `git diff`, `log -p` or
+`show`.
+
+Preconditions are checked by the prover and again by the effect bodies when
+the program runs. One check happens **only when the program runs**: an
+argument starting with `--output` (which makes `diff`/`log`/`show` write a
+file) raises `ValueError`. The prover cannot see it, so a program refused this
+way may already have run its earlier calls.
 
 ## Contracts
 
@@ -40,13 +61,20 @@ Import with `from tools.git.trusted import contracts as git_rules`:
 - `git_rules.no_guarantees()` — explicit null contract.
 - `git_rules.no_git()` — the program runs no local git subcommands (does not by
   itself forbid `git_push`; stack `no_push()`).
-- `git_rules.read_only()` — every subcommand is a read-only inspection command
-  (`READ_ONLY_SUBCOMMANDS`: `status`, `log`, `diff`, `show`, `branch`, ...).
+- `git_rules.read_only()` — every subcommand only looks at the repository
+  (`READ_ONLY_SUBCOMMANDS`: `status`, `log`, `diff`, `show`, `rev-parse`, ...)
+  and nothing is pushed.
 - `git_rules.only_subcommands(allowlist)` — every subcommand is in `allowlist`.
 - `git_rules.never_subcommands(blocklist)` — no subcommand is in `blocklist`.
-- `git_rules.only_in(root)` — every subcommand runs in a directory under `root`.
+- `git_rules.only_in(root)` — every subcommand and push runs in a directory
+  whose path starts with `root`.
 - `git_rules.runs_at_most(count)` — at most `count` subcommands run.
-- `git_rules.no_push()` — the program performs no pushes.
+- `git_rules.no_push()` — the program performs no pushes. Commands that can be
+  told to run other programs (`rebase --exec`, `submodule foreach`,
+  `bisect run`, `fetch --upload-pack`, `grep -O`) and programs named in git
+  settings, the repository's or the user's (diff, merge or filter drivers,
+  textconv, `core.sshCommand`), are not covered. `git config --global` and
+  `--system` can write the user's settings.
 - `git_rules.only_push_to_remote(remote)` — every push targets `remote`.
 - `git_rules.only_push_to_branch(branch)` — every push targets `branch`.
 

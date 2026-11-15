@@ -1,5 +1,5 @@
 import deal
-from qtrusted.rows import InvoiceRow, UserRow
+from qtrusted.rows import CustomerInvoiceRow, InvoiceRow, UserRow
 
 
 @deal.has("email")
@@ -36,6 +36,26 @@ def db_query_users100(table: str) -> list[UserRow]:
 @deal.post(lambda result: len(result) <= 100)
 def db_query_invoices(table: str) -> list[InvoiceRow]:
     """Trusted DB query returning up to 100 InvoiceRows."""
+    return []
+
+
+@deal.has("db_read")
+@deal.post(lambda result: len(result) <= 3)
+def db_query_invoices3(table: str) -> list[InvoiceRow]:
+    """Trusted DB query returning up to 3 InvoiceRows."""
+    return []
+
+
+@deal.has("db_read")
+@deal.post(lambda result: len(result) <= 100)
+def db_query_customer_invoices(table: str) -> list[CustomerInvoiceRow]:
+    """Trusted DB query returning up to 100 invoices with a str field."""
+    return []
+
+
+@deal.has("db_read")
+def db_query_invoices_uncapped(table: str) -> list[InvoiceRow]:
+    """Trusted DB query with no length postcondition."""
     return []
 
 

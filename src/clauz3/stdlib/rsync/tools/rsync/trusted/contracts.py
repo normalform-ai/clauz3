@@ -19,43 +19,84 @@ from clauz3.spec import no_guarantees as core_no_guarantees
 Rsync = effect(rsync)
 
 
-@contract
+@contract(description="No restrictions are imposed on rsync file copies.")
 def no_guarantees() -> ContractSpec:
-    """Make no guarantees about rsync effects."""
+    """Make no guarantees about rsync file copies."""
     return core_no_guarantees()
 
 
-@contract
+@contract(description="No rsync file copies are run.")
 def no_syncs() -> ContractSpec:
-    """Guarantee the program performs no rsync calls."""
+    """Guarantee the program runs no rsync file copies."""
     return Rsync.empty()
 
 
-@contract
+@contract(
+    description=(
+        "Every rsync copy writes only to a destination whose path starts with {root}."
+    )
+)
 def only_dest_under(root: str) -> ContractSpec:
-    """Guarantee every sync writes to a destination under ``root``."""
+    """Guarantee every rsync copy writes only under a destination starting with root.
+
+    A literal prefix check on ``dest``. The ``rsync`` effect refuses options
+    that write elsewhere (``--backup-dir``, ``--log-file``, ``--temp-dir``,
+    ...), so ``dest`` is the only place a copy writes.
+    """
     return Rsync.all(lambda e: e.dest.startswith(root))
 
 
-@contract
+@contract(
+    description=(
+        "No rsync copy writes to a destination whose path starts with {prefix}."
+    )
+)
 def never_dest_under(prefix: str) -> ContractSpec:
-    """Guarantee no sync writes to a destination under ``prefix``."""
+    """Guarantee no rsync copy writes to a destination starting with ``prefix``.
+
+    A literal prefix check on ``dest``; the ``rsync`` effect refuses options
+    that write elsewhere.
+    """
     return Rsync.all(lambda e: not e.dest.startswith(prefix))
 
 
-@contract
+@contract(
+    description=(
+        "Every rsync copy names a source starting with {root}; extra source "
+        "paths given among the other rsync options are not checked, and "
+        "following links (-L or --copy-links) can read outside it."
+    )
+)
 def only_src_under(root: str) -> ContractSpec:
-    """Guarantee every sync reads from a source under ``root``."""
+    """Guarantee every rsync copy names a source starting with ``root``.
+
+    A literal prefix check on ``src``. The ``rsync`` effect refuses options
+    that read from elsewhere (``--files-from``, ``--link-dest``, ...), but a
+    plain path in ``args`` precedes ``src`` on the command line and is an
+    additional, unchecked source. ``-L``/``--copy-links`` and
+    ``--copy-unsafe-links`` follow symlinks in the source, so they can read
+    files outside ``root``.
+    """
     return Rsync.all(lambda e: e.src.startswith(root))
 
 
-@contract
+@contract(
+    description=(
+        "No rsync copy deletes files; existing destination files can still be "
+        "overwritten."
+    )
+)
 def no_delete() -> ContractSpec:
-    """Guarantee no sync passes ``--delete`` (so none can prune the destination)."""
+    """Guarantee no rsync copy deletes files.
+
+    Checks the ``delete`` parameter of each call; the ``rsync`` effect refuses
+    every deleting option in ``args`` (``--delete*``, ``--del``,
+    ``--remove-source-files``).
+    """
     return Rsync.all(lambda e: not e.delete)
 
 
-@contract
+@contract(description="At most {count} rsync file copies are run.")
 def syncs_at_most(count: int) -> ContractSpec:
-    """Guarantee at most ``count`` rsync calls occur."""
+    """Guarantee at most ``count`` rsync file copies are run."""
     return Rsync.count() <= count

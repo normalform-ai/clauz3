@@ -46,7 +46,7 @@ and `clauz3 test stdlib:<name>` does the same for a single tool.
 | Tool | One-line | Doc |
 |---|---|---|
 | `filesystem` | Read, search, list, write, copy, move, delete and chmod files, with policies over the events each tool performs. | [filesystem](../stdlib/filesystem.md) |
-| `google_workspace` | Save Gmail drafts, preview and send through gog, with recipient, content and count limits. | [Google Workspace](../stdlib/google_workspace.md) |
+| `google_workspace` | Search and read Gmail, save drafts, preview or send email through gog, with read-only, recipient, content and count limits. | [Google Workspace](../stdlib/google_workspace.md) |
 | `db` | Read typed rows from DuckDB, CSV, Parquet, or folders via DuckDB. | [db](../stdlib/db.md) |
 | `web_fetch` | HTTP GET/POST via `urllib`, with URL-prefix, no-POST, and exfil-style URL-content guards. | [web_fetch](../stdlib/web_fetch.md) |
 | `web_search` | Search via a configurable JSON backend, with query-content guards. | [web_search](../stdlib/web_search.md) |

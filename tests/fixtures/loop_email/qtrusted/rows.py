@@ -9,3 +9,8 @@ class UserRow(clauz3.Row):
 
 class InvoiceRow(clauz3.Row):
     amount: int
+
+
+class CustomerInvoiceRow(clauz3.Row):
+    customer: str
+    amount: int

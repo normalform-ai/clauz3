@@ -170,7 +170,7 @@ def _never_under(event: type[FsEvent], prefix: str) -> ContractSpec:
     )
 
 
-@contract(description="No restrictions are imposed on filesystem effects.")
+@contract(description="No restrictions are imposed on filesystem tools.")
 def no_guarantees() -> ContractSpec:
     """Make no guarantees about filesystem effects."""
     return core_no_guarantees()
@@ -338,8 +338,8 @@ def only_pattern(pattern: str) -> ContractSpec:
 
 @contract(
     description=(
-        "No filesystem tool modifies anything. Effects of other libraries, such"
-        " as git or rsync, are not covered."
+        "No filesystem tool modifies anything. Changes made by other libraries,"
+        " such as git or rsync, are not covered."
     )
 )
 def read_only() -> ContractSpec:

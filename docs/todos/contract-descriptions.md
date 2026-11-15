@@ -30,7 +30,7 @@ no LinkML runtime dependency is added to clauz3.
 
 | Expression | Faithful description |
 | --- | --- |
-| `rules.read_only()` | No filesystem tool modifies anything. Effects of other libraries, such as git or rsync, are not covered. |
+| `rules.read_only()` | No filesystem tool modifies anything. Changes made by other libraries, such as git or rsync, are not covered. |
 | `rules.only_read_under('test.md')` | Every file a filesystem tool reads or lists starts with "test.md". |
 | `rules.no_deletes()` | No filesystem tool deletes or moves anything away. |
 
