@@ -5,7 +5,7 @@ WORKSPACE_DIR="${CLAUZ3_WORKSPACE_DIR:-/workspace}"
 PORT="${CLAUZ3_PORT:-8080}"
 HOST="${CLAUZ3_HOST:-0.0.0.0}"
 AGENT="${CLAUZ3_AGENT:-claude}"
-DEFAULT_LIBRARIES="${CLAUZ3_DEFAULT_LIBRARIES:-stdlib:filesystem,stdlib:http}"
+DEFAULT_LIBRARIES="${CLAUZ3_DEFAULT_LIBRARIES:-stdlib:filesystem,stdlib:web_fetch}"
 
 mkdir -p "${WORKSPACE_DIR}"
 cd "${WORKSPACE_DIR}"
@@ -17,7 +17,7 @@ if [ ! -d "${WORKSPACE_DIR}/.clauz3/tools" ] && [ -n "${DEFAULT_LIBRARIES}" ]; t
         lib_trimmed="$(echo "${lib}" | xargs)"
         if [ -n "${lib_trimmed}" ]; then
             echo "[clauz3-dot] Installing library ${lib_trimmed} into ${WORKSPACE_DIR}..." >&2
-            clauz3 install "${lib_trimmed}" || true
+            clauz3 install "${lib_trimmed}"
         fi
     done
 fi

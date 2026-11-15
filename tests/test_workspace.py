@@ -1042,6 +1042,20 @@ def test_cloud_host_allowlist_and_browser_url(config: ChatConfig) -> None:
     cloud_config = config.model_copy(
         update={"browser_url": "https://dot.example.com/browser/vnc.html"}
     )
+    # Default allowed_hosts (127.0.0.1 only) rejects remote clients even with a cookie.
+    default_app = create_approval_app(
+        auth_token="submit",
+        decision_token="approve",
+        chat_config=cloud_config,
+    )
+    with TestClient(
+        default_app,
+        base_url="http://127.0.0.1",
+        client=("172.18.0.2", 50000),
+    ) as remote_on_default:
+        remote_on_default.get("/ui/login?key=approve", follow_redirects=False)
+        assert remote_on_default.get("/api/chat/conversations").status_code == 401
+
     app = create_approval_app(
         auth_token="submit",
         decision_token="approve",
@@ -1053,8 +1067,13 @@ def test_cloud_host_allowlist_and_browser_url(config: ChatConfig) -> None:
         base_url="https://dot.example.com",
         client=("172.18.0.2", 50000),
     ) as client:
+        # Unauthenticated /api/auth/verify is rejected (used by Caddy forward_auth).
+        assert client.get("/api/auth/verify").status_code == 401
         login_res = client.get("/ui/login?key=approve", follow_redirects=False)
         assert login_res.status_code == 303
+        # Cookie minted over HTTPS carries the Secure flag.
+        assert "Secure" in login_res.headers.get("set-cookie", "")
+        assert client.get("/api/auth/verify").status_code == 200
         page = client.get("/ui")
         assert page.status_code == 200
         assert 'id="browser-panel"' in page.text
@@ -1071,12 +1090,21 @@ def test_cloud_host_allowlist_and_browser_url(config: ChatConfig) -> None:
                 restored["params"]["browserUrl"]
                 == "https://dot.example.com/browser/vnc.html"
             )
-        # Cross-origin requests remain rejected even on an allowlisted Host.
+        # Cross-origin and scheme-downgraded requests are rejected.
+        for bad_origin in ("https://evil.example.com", "http://dot.example.com"):
+            assert (
+                client.post(
+                    "/api/chat/handoff",
+                    json={"conversationId": "any"},
+                    headers={"Origin": bad_origin},
+                ).status_code
+                == 401
+            )
+        # Non-allowlisted Host header is rejected by TrustedHostMiddleware.
         assert (
-            client.post(
-                "/api/chat/handoff",
-                json={"conversationId": "any"},
-                headers={"Origin": "https://evil.example.com"},
+            client.get(
+                "/api/chat/conversations",
+                headers={"Host": "untrusted.example.com"},
             ).status_code
-            == 401
+            == 400
         )

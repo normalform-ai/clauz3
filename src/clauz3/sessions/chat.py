@@ -1033,6 +1033,11 @@ def install_chat(
         host = connection.headers.get("host", "")
         origin = connection.headers.get("origin")
         hostname = urlsplit("http://" + host).hostname
+        is_https = (
+            connection.url.scheme in {"https", "wss"}
+            or connection.headers.get("x-forwarded-proto") == "https"
+        )
+        expected_origin = f"{'https' if is_https else 'http'}://{host}"
         return bool(
             is_approver(connection.cookies.get(APPROVER_SESSION_COOKIE))
             and hostname in allowed_hostnames
@@ -1040,7 +1045,7 @@ def install_chat(
             and (connection.client.host == "127.0.0.1" or allow_remote_client)
             and connection.headers.get("sec-fetch-site") != "cross-site"
             and (not mutation or origin)
-            and (not origin or origin in {f"http://{host}", f"https://{host}"})
+            and (not origin or origin == expected_origin)
         )
 
     @app.get("/api/workspaces")

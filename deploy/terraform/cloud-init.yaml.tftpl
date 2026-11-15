@@ -13,7 +13,12 @@ write_files:
     permissions: "0644"
     content: |
       ${domain_name} {
+          header Strict-Transport-Security "max-age=63072000; includeSubDomains"
           handle_path /browser/* {
+              forward_auth 127.0.0.1:8080 {
+                  uri /api/auth/verify
+                  copy_headers Cookie
+              }
               reverse_proxy 127.0.0.1:6080
           }
           handle {
@@ -28,19 +33,28 @@ write_files:
       CLAUZ3_ALLOWED_HOSTS=${domain_name},localhost,127.0.0.1,dot-workspace
       CLAUZ3_BROWSER_URL=https://${domain_name}/browser/vnc.html?autoconnect=true&resize=scale&path=browser/websockify
       CLAUZ3_DOT_DECISION_TOKEN=${decision_token}
+      CLAUZ3_WORKSPACE_VOLUME=/var/lib/clauz3-dot/workspace
+      CLAUZ3_DATA_VOLUME=/var/lib/clauz3-dot/data
+      CLAUZ3_BROWSER_VOLUME=/var/lib/clauz3-dot/browser-profile
 
 runcmd:
   - |
     set -euxo pipefail
-    # Format and mount persistent EBS volume if attached
-    DEV="/dev/nvme1n1"
-    if [ ! -b "$DEV" ] && [ -b "/dev/xvdf" ]; then DEV="/dev/xvdf"; fi
-    if [ -b "$DEV" ]; then
+    # Wait up to 60s for the persistent EBS volume attachment (/dev/nvme1n1 or /dev/xvdf)
+    DEV=""
+    for _ in $(seq 1 30); do
+      if [ -b "/dev/nvme1n1" ]; then DEV="/dev/nvme1n1"; break; fi
+      if [ -b "/dev/xvdf" ]; then DEV="/dev/xvdf"; break; fi
+      sleep 2
+    done
+    if [ -n "$DEV" ]; then
       blkid "$DEV" || mkfs.ext4 -L clauz3-data "$DEV"
       mkdir -p /var/lib/clauz3-dot
       grep -q '/var/lib/clauz3-dot' /etc/fstab || echo "LABEL=clauz3-data /var/lib/clauz3-dot ext4 defaults,nofail 0 2" >> /etc/fstab
       mount -a
     fi
+    mkdir -p /var/lib/clauz3-dot/workspace /var/lib/clauz3-dot/data /var/lib/clauz3-dot/browser-profile
+    chown -R 1000:1000 /var/lib/clauz3-dot
     # Install Docker & Docker Compose plugin
     curl -fsSL https://get.docker.com | sh
     systemctl enable --now docker

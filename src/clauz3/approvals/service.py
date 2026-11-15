@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, cast
 from urllib.parse import urlparse
 
 import uvicorn
-from fastapi import Cookie, FastAPI, Header, HTTPException
+from fastapi import Cookie, FastAPI, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
@@ -345,8 +345,19 @@ def create_approval_app(
     def health() -> dict[str, object]:
         return {"ok": True}
 
+    @app.get("/api/auth/verify")
+    def verify_approver(
+        authorization: str | None = Header(default=None),
+        session: str | None = Cookie(default=None, alias=APPROVER_SESSION_COOKIE),
+    ) -> dict[str, object]:
+        _check_approver(authorization, session)
+        return {"ok": True}
+
     @app.get("/ui/login", response_model=None)
-    def login(key: str = "") -> RedirectResponse | HTMLResponse:
+    def login(
+        request: Request,
+        key: str = "",
+    ) -> RedirectResponse | HTMLResponse:
         # Exchange the approver token (from the operator's terminal) for an
         # HttpOnly session cookie, then drop the key from the address bar.
         if approver_token is None:
@@ -356,11 +367,16 @@ def create_approval_app(
         session = secrets.token_urlsafe(32)
         with condition:
             approver_sessions.add(session)
+        is_https = (
+            request.url.scheme == "https"
+            or request.headers.get("x-forwarded-proto") == "https"
+        )
         response = RedirectResponse("/ui", status_code=303)
         response.set_cookie(
             APPROVER_SESSION_COOKIE,
             session,
             httponly=True,
+            secure=is_https,
             samesite="strict",
             path="/",
         )

@@ -228,7 +228,10 @@ provider and conversation with fresh bridge credentials.
 | Option | Description |
 | --- | --- |
 | `--no-browser` | Print the private approver URL without opening a browser. |
-| `--port PORT` | Bind localhost on this port; default `0` chooses a free port. |
+| `--host HOST` | Bind address for the workspace/approval service; defaults to `127.0.0.1` (or `$CLAUZ3_HOST`). |
+| `--port PORT` | Bind on this port; default `0` chooses a free port (or `$CLAUZ3_PORT`). |
+| `--allowed-host HOST` | Additional allowed `Host` header for container or reverse-proxy deployment (repeatable, or comma-separated in `$CLAUZ3_ALLOWED_HOSTS`). |
+| `--browser-url URL` | Live noVNC URL for the embedded Cloud Browser **Take Over** panel in `clauz3 ui` (or `$CLAUZ3_BROWSER_URL`). |
 | `--policy PATH` | Use an operator-authored approval policy, with the installed roots authorized automatically. |
 | `--model NAME` | Select the agent model (provider-specific name). |
 | `--prompt TEXT` | Start the interactive session with this prompt. |
