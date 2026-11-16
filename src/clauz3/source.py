@@ -249,6 +249,10 @@ def _git_env() -> dict[str, str]:
             "CLAUZ3_UI_CONFIG",
             "CLAUZ3_RUN_STATUS_FILE",
             "CLAUZ3_SESSION_LIFETIME_SOCKET",
+            "CLAUZ3_SERVICE_ALLOWED_HOSTS",
+            "CLAUZ3_BROWSER_URL",
+            "CLAUZ3_ALLOWED_HOSTS",
+            "CLAUZ3_DOT_DECISION_TOKEN",
         }
     }
     env["GIT_TERMINAL_PROMPT"] = "0"

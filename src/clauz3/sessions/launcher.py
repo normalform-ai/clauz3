@@ -408,7 +408,8 @@ def start_session(
     )
     signing, verifying = generate_keypair()
     submission = secrets.token_urlsafe(32)
-    decision = os.environ.get("CLAUZ3_DOT_DECISION_TOKEN") or secrets.token_urlsafe(32)
+    env_decision_token = os.environ.get("CLAUZ3_DOT_DECISION_TOKEN")
+    decision = env_decision_token or secrets.token_urlsafe(32)
     if secrets.compare_digest(decision.encode(), submission.encode()):
         submission = secrets.token_urlsafe(32)
     effective_browser_url = (
@@ -566,14 +567,22 @@ def start_session(
                     raise
                 listener.close()
                 login_url = f"{url}/ui/login?key={decision}"
-                if keep_link(login_url):
+                if not env_decision_token and keep_link(login_url):
                     saved_link = login_url
                 print(f"Approval service: {url}", file=sys.stderr)
-                print(
-                    f"Approver UI (keep private): {login_url}",
-                    file=sys.stderr,
-                    flush=True,
-                )
+                if env_decision_token:
+                    print(
+                        "Approver UI: sign in with your configured "
+                        "CLAUZ3_DOT_DECISION_TOKEN at /ui/login?key=<token>",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                else:
+                    print(
+                        f"Approver UI (keep private): {login_url}",
+                        file=sys.stderr,
+                        flush=True,
+                    )
                 if saved_link is not None:
                     # The key changes on every start, signing out open tabs.
                     print(

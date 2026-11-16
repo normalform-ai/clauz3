@@ -1038,10 +1038,52 @@ def test_handoff_cannot_export_another_project_or_choose_an_output_path(
     assert not (store.path.parent / "handoffs").exists()
 
 
-def test_cloud_host_allowlist_and_browser_url(config: ChatConfig) -> None:
+def test_cloud_host_allowlist_and_browser_url(
+    config: ChatConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from clauz3.source import _git_env
+
+    for scrubbed in (
+        "CLAUZ3_SERVICE_ALLOWED_HOSTS",
+        "CLAUZ3_BROWSER_URL",
+        "CLAUZ3_ALLOWED_HOSTS",
+        "CLAUZ3_DOT_DECISION_TOKEN",
+    ):
+        monkeypatch.setenv(scrubbed, "secret-cloud-value")
+    monkeypatch.setenv("GIT_SSH_COMMAND", "ssh -i /tmp/id")
+    assert "CLAUZ3_DOT_DECISION_TOKEN" in os.environ
+    git_env = _git_env()
+    for scrubbed in (
+        "CLAUZ3_SERVICE_ALLOWED_HOSTS",
+        "CLAUZ3_BROWSER_URL",
+        "CLAUZ3_ALLOWED_HOSTS",
+        "CLAUZ3_DOT_DECISION_TOKEN",
+    ):
+        assert scrubbed not in git_env
+    assert git_env["GIT_SSH_COMMAND"] == "ssh -i /tmp/id"
+
     cloud_config = config.model_copy(
         update={"browser_url": "https://dot.example.com/browser/vnc.html"}
     )
+    # Default allowed_hosts (127.0.0.1 only) rejects remote clients even with a cookie.
+    default_app = create_approval_app(
+        auth_token="submit",
+        decision_token="approve",
+        chat_config=cloud_config,
+    )
+    with TestClient(
+        default_app,
+        base_url="http://127.0.0.1",
+        client=("172.18.0.2", 50000),
+    ) as remote_on_default:
+        http_login = remote_on_default.get(
+            "/ui/login?key=approve", follow_redirects=False
+        )
+        # Plain HTTP login does not set the Secure cookie attribute.
+        assert "Secure" not in http_login.headers.get("set-cookie", "")
+        assert remote_on_default.get("/api/chat/conversations").status_code == 401
+
     app = create_approval_app(
         auth_token="submit",
         decision_token="approve",
@@ -1053,8 +1095,13 @@ def test_cloud_host_allowlist_and_browser_url(config: ChatConfig) -> None:
         base_url="https://dot.example.com",
         client=("172.18.0.2", 50000),
     ) as client:
+        # Unauthenticated /api/auth/verify is rejected (used by Caddy forward_auth).
+        assert client.get("/api/auth/verify").status_code == 401
         login_res = client.get("/ui/login?key=approve", follow_redirects=False)
         assert login_res.status_code == 303
+        # Cookie minted over HTTPS carries the Secure flag.
+        assert "Secure" in login_res.headers.get("set-cookie", "")
+        assert client.get("/api/auth/verify").status_code == 200
         page = client.get("/ui")
         assert page.status_code == 200
         assert 'id="browser-panel"' in page.text
@@ -1071,12 +1118,79 @@ def test_cloud_host_allowlist_and_browser_url(config: ChatConfig) -> None:
                 restored["params"]["browserUrl"]
                 == "https://dot.example.com/browser/vnc.html"
             )
-        # Cross-origin requests remain rejected even on an allowlisted Host.
+        # Chained X-Forwarded-Proto from a TLS proxy sets Secure.
+        chained_login = client.get(
+            "/ui/login?key=approve",
+            headers={"X-Forwarded-Proto": "https, http"},
+            follow_redirects=False,
+        )
+        assert "Secure" in chained_login.headers.get("set-cookie", "")
+        # Cross-origin and scheme-downgraded requests are rejected.
+        for bad_origin in ("https://evil.example.com", "http://dot.example.com"):
+            assert (
+                client.post(
+                    "/api/chat/handoff",
+                    json={"conversationId": "any"},
+                    headers={"Origin": bad_origin},
+                ).status_code
+                == 401
+            )
+        # Non-allowlisted Host header is rejected by TrustedHostMiddleware.
         assert (
-            client.post(
+            client.get(
+                "/api/chat/conversations",
+                headers={"Host": "untrusted.example.com"},
+            ).status_code
+            == 400
+        )
+
+    # Plain-HTTP upstream behind a TLS-terminating proxy (X-Forwarded-Proto: https).
+    with TestClient(
+        app,
+        base_url="http://dot.example.com",
+        client=("172.18.0.2", 50000),
+    ) as proxied:
+        proxied_login = proxied.get(
+            "/ui/login?key=approve",
+            headers={"X-Forwarded-Proto": "https"},
+            follow_redirects=False,
+        )
+        assert "Secure" in proxied_login.headers.get("set-cookie", "")
+        session_val = proxied_login.cookies["clauz3_approver_session"]
+        cookie_header = f"clauz3_approver_session={session_val}"
+        assert (
+            proxied.post(
                 "/api/chat/handoff",
-                json={"conversationId": "any"},
-                headers={"Origin": "https://evil.example.com"},
+                json={"conversationId": "unknown"},
+                headers={
+                    "Cookie": cookie_header,
+                    "X-Forwarded-Proto": "https",
+                    "Origin": "https://dot.example.com",
+                },
+            ).status_code
+            == 404
+        )
+        # Missing X-Forwarded-Proto or mismatched Origin scheme fails.
+        assert (
+            proxied.post(
+                "/api/chat/handoff",
+                json={"conversationId": "unknown"},
+                headers={
+                    "Cookie": cookie_header,
+                    "Origin": "https://dot.example.com",
+                },
+            ).status_code
+            == 401
+        )
+        assert (
+            proxied.post(
+                "/api/chat/handoff",
+                json={"conversationId": "unknown"},
+                headers={
+                    "Cookie": cookie_header,
+                    "X-Forwarded-Proto": "https",
+                    "Origin": "http://dot.example.com",
+                },
             ).status_code
             == 401
         )

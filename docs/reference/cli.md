@@ -142,8 +142,8 @@ Run from the project directory. The command uses the same selected skill
 snapshots, approval policies, and remembered approval profile as `clauz3 start`.
 Library setup happens in the browser; an empty folder or `--setup` opens
 **Libraries** directly. Supported flags are `--setup`, `--skills-dir` (repeatable),
-`--policy`, `--model`, `--prompt`, `--port`, `--unrestricted`, and `--no-browser`. The last flag
-prints the private login URL instead of opening it. The server binds only to
+`--policy`, `--model`, `--prompt`, `--host`, `--port`, `--allowed-host` (repeatable, or `$CLAUZ3_ALLOWED_HOSTS`), `--browser-url` (or `$CLAUZ3_BROWSER_URL`), `--unrestricted`, and `--no-browser`. The last flag
+prints the private login URL instead of opening it. By default the server binds only to
 `127.0.0.1`. Press Ctrl-C in the terminal to stop it.
 
 Each start creates a new sign-in key, so browser tabs opened before a restart
@@ -228,7 +228,9 @@ provider and conversation with fresh bridge credentials.
 | Option | Description |
 | --- | --- |
 | `--no-browser` | Print the private approver URL without opening a browser. |
-| `--port PORT` | Bind localhost on this port; default `0` chooses a free port. |
+| `--host HOST` | Bind address for the approval service; defaults to `127.0.0.1`. |
+| `--port PORT` | Bind on this port; default `0` chooses a free port. |
+| `--allowed-host HOST` | Additional allowed `Host` header for container or reverse-proxy deployment (repeatable, or comma-separated in `$CLAUZ3_ALLOWED_HOSTS`). |
 | `--policy PATH` | Use an operator-authored approval policy, with the installed roots authorized automatically. |
 | `--model NAME` | Select the agent model (provider-specific name). |
 | `--prompt TEXT` | Start the interactive session with this prompt. |

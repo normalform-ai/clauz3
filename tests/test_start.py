@@ -132,6 +132,7 @@ def test_start_real_service_and_bridge(
         "CLAUZ3_UI_CONFIG",
         "CLAUZ3_RUN_STATUS_FILE",
         "CLAUZ3_SESSION_LIFETIME_SOCKET",
+        "CLAUZ3_DOT_DECISION_TOKEN",
     ):
         monkeypatch.setenv(name, "stale-secret")
     monkeypatch.setenv("TEST_CASE", str(EMAIL / "cases/only_bob_pass.py"))
@@ -158,6 +159,7 @@ assert "CLAUZ3_APPROVAL_RECEIPT" not in os.environ
 assert "CLAUZ3_UI_CONFIG" not in os.environ
 assert "CLAUZ3_RUN_STATUS_FILE" not in os.environ
 assert "CLAUZ3_SESSION_LIFETIME_SOCKET" not in os.environ
+assert "CLAUZ3_DOT_DECISION_TOKEN" not in os.environ
 assert os.environ["ENABLE_CLAUDEAI_MCP_SERVERS"] == "false"
 assert not any(v == "stale-secret" for k, v in os.environ.items()
                if k.startswith("CLAUZ3_APPROVAL"))

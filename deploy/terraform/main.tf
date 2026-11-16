@@ -13,7 +13,7 @@ data "aws_ami" "debian" {
   }
 }
 
-data "aws_Availability_zones" "available" {
+data "aws_availability_zones" "available" {
   state = "available"
 }
 
@@ -62,7 +62,7 @@ resource "aws_key_pair" "dot" {
 }
 
 resource "aws_ebs_volume" "workspace" {
-  availability_zone = data.aws_Availability_zones.available.names[0]
+  availability_zone = data.aws_availability_zones.available.names[0]
   size              = var.workspace_volume_size_gb
   type              = "gp3"
   encrypted         = true
@@ -75,7 +75,7 @@ resource "aws_ebs_volume" "workspace" {
 resource "aws_instance" "dot" {
   ami                         = data.aws_ami.debian.id
   instance_type               = var.instance_type
-  availability_zone           = data.aws_Availability_zones.available.names[0]
+  availability_zone           = data.aws_availability_zones.available.names[0]
   vpc_security_group_ids      = [aws_security_group.dot.id]
   key_name                    = var.ssh_public_key != "" ? aws_key_pair.dot[0].key_name : null
   associate_public_ip_address = true
