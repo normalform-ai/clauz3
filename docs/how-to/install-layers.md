@@ -190,7 +190,7 @@ session after installing project libraries.
 | --- | --- |
 | `--into <dir>` | Destination project root. Defaults to the current directory. |
 | `-g`, `--global` | Install in the user-wide store. Mutually exclusive with `--into`. |
-| `--force` | Overwrite an existing trusted layer at the destination. Without it, `install` refuses to clobber an existing `.clauz3/tools/<domain>/`. |
+| `--force` | Replace an existing trusted layer at the destination. The old copy is removed first, so a file deleted upstream does not stay installed. Without it, `install` refuses to clobber an existing `.clauz3/tools/<domain>/`. |
 | `--skills` | Also generate `.clauz3/skills/<domain>/SKILL.md` for each installed domain. |
 
 ```bash
