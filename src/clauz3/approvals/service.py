@@ -236,7 +236,7 @@ def create_approval_app(
         if auth_token is None:
             return
         expected = f"Bearer {auth_token}"
-        if authorization is None or not hmac.compare_digest(authorization, expected):
+        if authorization is None or not _same_secret(authorization, expected):
             raise HTTPException(
                 status_code=401, detail="missing or invalid bearer token"
             )

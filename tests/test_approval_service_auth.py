@@ -259,3 +259,15 @@ def test_non_ascii_credentials_are_rejected_not_crashed() -> None:
     assert client.get("/ui/login", params={"key": "d\u00e9cide"}).status_code == 401
     client.cookies.set("clauz3_approver_session", "s%C3%A9ance")
     assert client.get("/ui").status_code == 401
+
+
+def test_non_ascii_submission_credential_is_rejected_not_crashed() -> None:
+    # The submission route compared ``str`` values, which raises for a header
+    # outside ASCII and answered 500 where the decision route answers 401.
+    app = create_approval_app(auth_token="submit-tok", decision_token="decide-tok")
+    client = TestClient(app, raise_server_exceptions=False)
+    header = {"Authorization": "Bearer dé".encode("latin-1")}
+    for path in ("/requests", "/api/requests"):
+        response = client.post(path, json={"request_id": "clr_utf8"}, headers=header)
+        assert response.status_code == 401, path
+    assert client.get("/requests").json() == []
