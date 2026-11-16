@@ -48,15 +48,18 @@ jobs:
           if [ "$EVENT" != pull_request ]; then
             tier=full
           else
-            changed=$(git diff --name-only HEAD^1 HEAD)
-            # docs/macros.py is linted and the LinkML catalog is checked
-            # against the source, so neither counts as prose.
+            # --no-renames lists both paths of a moved file, so a file moved
+            # out of src/ or tests/ into docs/ still counts as a code change.
+            changed=$(git diff --name-only --no-renames HEAD^1 HEAD)
+            # docs/macros.py is linted, the LinkML catalog is checked against
+            # the source, and tests/test_workspace.py compares the brand
+            # assets with the files the UI serves, so none counts as prose.
             non_ui=$(grep -vE '^(src/clauz3/(sessions|approvals)/web/|tests/web/)' \
               <<< "$changed" || true)
             non_docs=$(grep -vE '^(docs/|[^/]+\.md$|mkdocs\.yml$)' \
               <<< "$changed" || true)
             generated=$(grep -E \
-              '^docs/(.*\.py|reference/contracts\.linkml\.json)$' \
+              '^docs/(.*\.py|reference/contracts\.linkml\.json|assets/(logo|favicon)\.svg)$' \
               <<< "$changed" || true)
             if [ -z "$changed" ]; then
               tier=full
@@ -259,7 +262,7 @@ jobs:
   # failures until someone closes it.
   report-main-failure:
 
-    needs: [changes, test, differential]
+    needs: [changes, test, pi-confinement, differential]
     if: failure() && github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 5
