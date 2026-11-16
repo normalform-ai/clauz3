@@ -55,6 +55,10 @@ def read_rows(
     ``path`` may point to a DuckDB database, one CSV or Parquet file, or a
     directory with files named ``<table>.csv`` / ``<table>.parquet``. CSV and
     Parquet sources are queried through an in-memory DuckDB connection.
+
+    A DuckDB database is opened read-only with external access disabled, so
+    ``table`` names a table or view stored in that file, never another file,
+    and a stored view that reads a file or URL fails instead of reading it.
     """
     if not isinstance(schema, type) or not issubclass(schema, clauz3.Row):
         raise TypeError("schema must be a clauz3.Row subclass")
@@ -176,18 +180,21 @@ def _validate_write_target(path: str, table: str) -> None:
         raise ValueError("table must be a nonempty single path component")
 
 
+def _database_config() -> dict[str, str]:
+    # For every connection to a DuckDB file: no spill files, extension
+    # downloads, replacement scans (a table name such as "passwords.csv" read
+    # as a file) or external file/network access through expressions stored
+    # in an existing database, such as a view over read_csv_auto(...).
+    return {
+        "enable_external_access": "false",
+        "autoload_known_extensions": "false",
+        "autoinstall_known_extensions": "false",
+        "temp_directory": "",
+    }
+
+
 def _write_connection(path: str):
-    # No spill files, extension downloads, replacement scans or external
-    # file/network access through expressions stored in an existing database.
-    return _duckdb().connect(
-        path,
-        config={
-            "enable_external_access": "false",
-            "autoload_known_extensions": "false",
-            "autoinstall_known_extensions": "false",
-            "temp_directory": "",
-        },
-    )
+    return _duckdb().connect(path, config=_database_config())
 
 
 def _duckdb():
@@ -208,7 +215,10 @@ def _connect(duckdb, path: Path, table: str):
 
     suffix = path.suffix.lower()
     if suffix in _DUCKDB_SUFFIXES:
-        return duckdb.connect(str(path), read_only=True), _quote_identifier(table)
+        connection = duckdb.connect(
+            str(path), read_only=True, config=_database_config()
+        )
+        return connection, _quote_identifier(table)
     if suffix in _CSV_SUFFIXES | _PARQUET_SUFFIXES:
         if table != path.stem:
             raise ValueError(
