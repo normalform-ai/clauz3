@@ -22,7 +22,7 @@ from threading import get_ident
 from types import ModuleType, SimpleNamespace
 from typing import Literal
 
-from clauz3.libraries.layout import alternate_tools_module
+from clauz3.libraries.layout import TOOLS_PACKAGE, alternate_tools_module
 
 from .errors import TrustedBoundaryError
 
@@ -326,7 +326,11 @@ def _plan_tools_import(name: str, alt: str, search_paths: list[str]) -> ImportPl
         and alt_head_spec.submodule_search_locations is not None
         else None
     )
-    if primary_top is not None and alt_top is not None:
+    # The canonical head is never ambiguous: a same-named ``tools`` module on
+    # sys.path (e.g. the PyPI ``tools`` distribution) cannot alias, so it does
+    # not compete. Domains duplicated across both project layouts are rejected
+    # by layout/discovery. Only the legacy direction can be shadowed.
+    if primary_top is not None and alt_top is not None and head != TOOLS_PACKAGE:
         raise ModuleNotFoundError(
             f"Ambiguous module {name!r}: {top!r} is provided under both "
             f"{head!r} and {alt_head!r}",

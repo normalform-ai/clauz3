@@ -13,7 +13,6 @@ user has guarantees that the layer is untouched.
 
 import ast
 import json
-import re
 from contextlib import ExitStack
 from dataclasses import dataclass
 from importlib.resources import as_file, files
@@ -41,7 +40,6 @@ from clauz3.libraries.layout import (
     TOOLS_PACKAGES,
     ensure_project_dir,
     has_symlink_component,
-    installed_tools,
     project_dir,
     tools_dirs,
     trusted_dirs,
@@ -102,9 +100,11 @@ def install_layer(
     - a project directory containing a ``tools/`` folder, or
     - a ``tools/`` folder itself.
 
-    Each ``tools/<domain>/`` that contains a ``trusted/`` package is copied to
-    ``into/.clauz3/tools/<domain>/``, or to ``into/tools/<domain>/`` for the
-    user-wide store (``globally``), which is already clauz3's own directory.
+    Each ``cz3tools/<domain>/`` that contains a ``trusted/`` package is copied
+    to ``into/.clauz3/cz3tools/<domain>/``, or to ``into/cz3tools/<domain>/`` for
+    the user-wide store (``globally``), which is already clauz3's own directory.
+    A legacy ``tools/<domain>/`` source is copied byte-for-byte under ``tools/``
+    instead; trusted source is never rewritten.
     """
 
     with ExitStack() as stack:
@@ -141,7 +141,13 @@ def install_layer(
                     "and setup guidance are unavailable."
                 )
             packages[domain] = source_package(source_tools, domain)
-        dest_tools = _dest_tools(into, globally=globally)
+        # A legacy ``tools/`` source installs unchanged under ``tools/``: trusted
+        # source is never rewritten, and the import alias lets canonical
+        # ``cz3tools.<domain>`` entries reach it.
+        package = source_tools.name
+        assert package in TOOLS_PACKAGES, source_tools
+        (other_package,) = (pkg for pkg in TOOLS_PACKAGES if pkg != package)
+        dest_tools = _dest_tools(into, globally=globally, package=package)
         skills: list[Path] = []
         for domain in domains:
             src_domain = source_tools / domain
@@ -154,18 +160,18 @@ def install_layer(
                             f"{authored} already provides this domain as a "
                             "project-authored layer; remove it to install the library"
                         )
-            legacy_dst = (
-                into / LEGACY_TOOLS_PACKAGE / domain
-                if globally
-                else project_dir(into) / LEGACY_TOOLS_PACKAGE / domain
+            other_dst = (
+                _dest_tools(into, globally=globally, package=other_package) / domain
             )
-            if (dst_domain.exists() or legacy_dst.exists()) and not force:
-                existing = dst_domain if dst_domain.exists() else legacy_dst
+            if (dst_domain.exists() or other_dst.exists()) and not force:
+                existing = dst_domain if dst_domain.exists() else other_dst
                 raise InstallError(
                     f"{existing} already exists (use --force to overwrite)"
                 )
-            if force and legacy_dst.exists() and legacy_dst != dst_domain:
-                rmtree(legacy_dst)
+            if force and other_dst.exists():
+                # One installed copy per domain: --force replaces the copy
+                # under the other package directory too.
+                rmtree(other_dst)
             # The reject-then-copy below is two independent walks of the same
             # tree, so the check is advisory, not atomic (TOCTOU): a local writer
             # racing the install could present a regular file at check time and a
@@ -184,8 +190,6 @@ def install_layer(
                 dirs_exist_ok=force,
                 ignore=ignore_patterns("__pycache__", "*.pyc"),
             )
-            if source_tools.name == LEGACY_TOOLS_PACKAGE:
-                _rewrite_legacy_trusted_imports(dst_domain)
             if force and not (src_domain / MANIFEST).exists():
                 (dst_domain / MANIFEST).unlink(missing_ok=True)
             package_path = dst_domain / PACKAGE_SNAPSHOT
@@ -358,21 +362,8 @@ def _global_tools_dir(domain: str) -> Path:
     return found[0] if found else root / TOOLS_PACKAGE
 
 
-_LEGACY_TRUSTED_IMPORT_RE = re.compile(
-    r"\b(from|import)\s+tools\.([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)?\.trusted)\b"
-)
-
-
-def _rewrite_legacy_trusted_imports(domain_dir: Path) -> None:
-    for py_file in domain_dir.rglob("*.py"):
-        text = py_file.read_text(encoding="utf-8")
-        updated = _LEGACY_TRUSTED_IMPORT_RE.sub(rf"\1 {TOOLS_PACKAGE}.\2", text)
-        if updated != text:
-            py_file.write_text(updated, encoding="utf-8")
-
-
-def _dest_tools(into: Path, *, globally: bool) -> Path:
-    return into / TOOLS_PACKAGE if globally else installed_tools(into)
+def _dest_tools(into: Path, *, globally: bool, package: str = TOOLS_PACKAGE) -> Path:
+    return into / package if globally else project_dir(into) / package
 
 
 def _has_domain(into: Path, domain: str, *, globally: bool) -> bool:

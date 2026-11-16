@@ -254,13 +254,18 @@ def global_catalog() -> list[Library]:
     # Do not read or execute library source to list user-wide installations.
     # Sidecar metadata is written by the operator's install command.
     result = []
-    seen: set[str] = set()
+    seen: dict[str, str] = {}
     for pkg in TOOLS_PACKAGES:
         tools_root = global_library_root() / pkg
         for domain in sorted(_domains(tools_root)):
             if domain in seen:
-                continue
-            seen.add(domain)
+                # Same state that makes ``global:<domain>`` installs fail.
+                raise ValueError(
+                    f"global library {domain!r} is present under both "
+                    f"{seen[domain]}/ and {pkg}/ in {global_library_root()}; "
+                    "keep one copy"
+                )
+            seen[domain] = pkg
             metadata = global_library_root() / "metadata" / domain / "library.json"
             data = json.loads(metadata.read_text()) if metadata.is_file() else {}
             if not isinstance(data, dict):

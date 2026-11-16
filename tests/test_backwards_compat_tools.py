@@ -13,7 +13,11 @@ from clauz3.guarantees import (
     guarantee_texts,
 )
 from clauz3.imports_policy import build_policy
-from clauz3.libraries.discovery import installed_domains
+from clauz3.libraries.discovery import (
+    global_catalog,
+    global_library_root,
+    installed_domains,
+)
 from clauz3.libraries.install import InstallError, install_layer
 from clauz3.libraries.layout import (
     LayoutError,
@@ -170,18 +174,21 @@ def test_legacy_tools_directory_supports_both_import_prefixes(
 
 
 @pytest.mark.parametrize("import_pkg", ["cz3tools", "tools"])
-def test_install_from_legacy_tools_source_rewrites_internal_imports(
+def test_install_from_legacy_tools_source_keeps_trusted_source_unchanged(
     tmp_path: Path, import_pkg: str
 ) -> None:
-    """Installing a legacy ``tools/`` library into ``.clauz3/cz3tools/`` proves."""
+    """A legacy ``tools/`` library installs verbatim under ``.clauz3/tools/``."""
     source_repo = tmp_path / "legacy_repo"
-    _write_legacy_layer(source_repo / "tools", domain="demo")
+    source = _write_legacy_layer(source_repo / "tools", domain="demo")
 
     project = tmp_path / "project"
     project.mkdir()
     installed = install_layer(source_repo, into=project)
     assert installed.domains == ["demo"]
-    assert (project / ".clauz3/cz3tools/demo/trusted/contracts.py").is_file()
+    assert not (project / ".clauz3/cz3tools/demo").exists()
+    dest = project / ".clauz3/tools/demo/trusted"
+    for name in ("effects.py", "contracts.py", "policy.py"):
+        assert (dest / name).read_bytes() == (source / name).read_bytes()
     assert any("missing tools/demo/clauz3.yaml" in w for w in installed.warnings)
 
     case = project / "plan.py"
@@ -203,6 +210,72 @@ def test_install_from_legacy_tools_source_rewrites_internal_imports(
     assert [r.proof.conclusion for r in results] == [deal_solver.Conclusion.OK]
 
 
+@pytest.mark.parametrize("import_pkg", ["cz3tools", "tools"])
+def test_legacy_library_depending_on_authored_legacy_layer_proves(
+    tmp_path: Path, import_pkg: str
+) -> None:
+    """A legacy library keeps resolving a legacy layer the project authored.
+
+    The library imports its dependency both as ``from tools... import`` and as
+    a bare ``import tools...`` used by its dotted name; neither may break.
+    """
+    project = tmp_path / "project"
+    _write_legacy_layer(project / "tools", domain="base")
+
+    library = tmp_path / "lib" / "tools" / "search" / "trusted"
+    library.mkdir(parents=True)
+    (library / "effects.py").write_text(
+        "import clauz3\n"
+        "from tools.base.trusted.effects import ping\n\n"
+        "@clauz3.trusted\n"
+        "def search(query: str) -> None:\n"
+        '    """Search for a query."""\n'
+        "    pass\n\n"
+        "BASE_PING = ping\n"
+    )
+    (library / "contracts.py").write_text(
+        "import tools.base.trusted.effects\n"
+        "from tools.search.trusted.effects import search\n"
+        "from clauz3.spec import ContractSpec, contract, effect\n\n"
+        "Search = effect(search)\n"
+        "BASE_PING = tools.base.trusted.effects.ping\n\n"
+        "@contract\n"
+        "def only_query(allowed: str) -> ContractSpec:\n"
+        '    """Allow only one query."""\n'
+        "    return Search.all(lambda call: call.query == allowed)\n"
+    )
+    install_layer(tmp_path / "lib", into=project)
+
+    case = project / "plan.py"
+    case.write_text(
+        "import clauz3\n"
+        f"from {import_pkg}.search.trusted import contracts as rules\n"
+        f"from {import_pkg}.search.trusted.effects import search\n\n"
+        '@clauz3.guarantee(rules.only_query("cats"))\n'
+        "def main() -> None:\n"
+        '    search("cats")\n'
+    )
+    import_roots = expand_import_roots([project])
+    trusted_roots = discover_trusted_roots(import_roots=import_roots)
+    results = prove_path(case, trusted_roots=trusted_roots, import_roots=import_roots)
+    assert [r.proof.conclusion for r in results] == [deal_solver.Conclusion.OK]
+
+
+def test_global_catalog_rejects_domain_under_both_packages(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """The catalogue surfaces the duplicate that makes ``global:`` installs fail."""
+    monkeypatch.setenv("CLAUZ3_HOME", str(tmp_path / "data"))
+    root = global_library_root()
+    assert root.is_relative_to(tmp_path)
+    _write_legacy_layer(root / "cz3tools", domain="demo")
+    _write_legacy_layer(root / "tools", domain="demo")
+    with pytest.raises(ValueError, match="present under both"):
+        global_catalog()
+    with pytest.raises(InstallError, match="present under both"):
+        install_layer("global:demo", into=tmp_path / "project")
+
+
 def test_check_project_detects_collision_between_cz3tools_and_legacy_tools(
     tmp_path: Path,
 ) -> None:
@@ -213,14 +286,21 @@ def test_check_project_detects_collision_between_cz3tools_and_legacy_tools(
         check_project(tmp_path)
 
 
+@pytest.mark.parametrize("regular", [True, False], ids=["pypi-package", "namespace"])
 def test_pypi_tools_package_on_sys_path_does_not_shadow_cz3tools(
-    tmp_path: Path, monkeypatch: MonkeyPatch
+    tmp_path: Path, monkeypatch: MonkeyPatch, regular: bool
 ) -> None:
-    """A regular ``tools`` package in site-packages cannot shadow ``cz3tools``."""
+    """A ``tools`` package on sys.path cannot shadow or block ``cz3tools``.
+
+    It ships a same-named ``filesystem`` submodule, so both heads resolve the
+    domain; only a namespace portion inside an import root is ambiguous.
+    """
     site_pkgs = tmp_path / "site_packages"
     pypi_tools = site_pkgs / "tools"
     pypi_tools.mkdir(parents=True)
-    (pypi_tools / "__init__.py").write_text(" VERSION = '1.0'\n")
+    if regular:
+        (pypi_tools / "__init__.py").write_text("VERSION = '1.0'\n")
+    (pypi_tools / "filesystem.py").write_text("def read_file(path): ...\n")
     monkeypatch.syspath_prepend(str(site_pkgs))
 
     project = tmp_path / "project"
@@ -260,7 +340,11 @@ def test_untrusted_alternate_tools_dir_cannot_shadow_trusted_layer(
     shadow_pkg: str,
     import_pkg: str,
 ) -> None:
-    """An untrusted alternate tools directory never shadows or aliases."""
+    """An untrusted alternate tools directory never shadows or aliases.
+
+    Every combination fails closed except a canonical ``cz3tools`` import of a
+    trusted ``cz3tools`` layer, which cannot be redirected to the alternate.
+    """
     project = tmp_path / "project"
     trusted = _write_legacy_layer(project / trusted_pkg, domain="demo")
     cases = project / "cases"
@@ -288,6 +372,14 @@ def test_untrusted_alternate_tools_dir_cannot_shadow_trusted_layer(
     entry = cases / "entry.py"
     entry.write_text(source)
     import_roots = [project, cases]
+
+    if import_pkg == trusted_pkg == "cz3tools":
+        # A canonical import resolves only to the trusted cz3tools layer; an
+        # untrusted ``tools/`` directory neither aliases nor blocks it.
+        results = prove_path(entry, trusted_roots=[trusted], import_roots=import_roots)
+        assert [r.proof.conclusion for r in results] == [deal_solver.Conclusion.OK]
+        assert not marker.exists()
+        return
 
     with pytest.raises(ProverConfigError):
         prove_path(entry, trusted_roots=[trusted], import_roots=import_roots)
