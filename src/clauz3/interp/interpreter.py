@@ -3,12 +3,13 @@
 Motivation
 ----------
 
-``clauz3.runner`` proves a program and then hands it to CPython via ``exec``.
-Everything between those two steps -- the forbidden-builtin list, the forbidden-
-attribute list, the guarded ``__import__``, the module-level validator, the
-AST rewrite before ``exec`` -- exists to stop the *rest of Python* from being
-reachable once the proved program is running. That is an open-ended denylist
-against a language that keeps offering new paths back to ``os``.
+``clauz3.runner`` used to prove a program and then hand it to CPython via
+``exec``. Everything between those two steps -- the forbidden-builtin list, the
+forbidden-attribute list, the guarded ``__import__``, the module-level
+validator, the AST rewrite before ``exec`` -- existed to stop the *rest of
+Python* from being reachable once the proved program was running. That was an
+open-ended denylist against a language that keeps offering new paths back to
+``os``.
 
 This module inverts it. The program is never handed to CPython at all: the same
 astroid tree the prover walks symbolically is walked here concretely. A
@@ -21,7 +22,11 @@ TrustedCallable` -- the trusted-layer functions carrying ``@clauz3.trusted``,
 which are full-expressivity Python on purpose. The values crossing that call are
 marshalled in both directions.
 
-Status: prototype. See ``docs/todos/subset-interpreter.md``.
+Status: landed. This is the runtime for ``clauz3 run``
+(``runner._execute_source`` calls :func:`execute`); the ``exec`` path and its
+containment machinery are deleted. ``clauz3 prove`` and the runner's pre-flight
+reuse the module-level pass through :func:`check_module_level` and
+:func:`target_node`. See ``docs/todos/subset-interpreter.md`` for the rationale.
 """
 
 from __future__ import annotations
@@ -842,20 +847,19 @@ def _exec_module(module: astroid.Module, frame: Frame) -> None:
     module level is perfectly contained and still unproved.
 
     Concretely, assignment values, assignment targets and default arguments
-    must all be inert. That mirrors ``runner._validate_module_level`` but is
-    not identical to it. The interpreter is the more permissive side by exactly
-    two inert cases:
+    must all be inert. This is the only module-level gate: the validator
+    ``clauz3.runner`` ran ahead of ``exec`` is deleted, and :func:`execute`,
+    :func:`target_node` (the runner's pre-flight) and :func:`check_module_level`
+    (``prover.validate_module_level``) all load the module through here. Two
+    cases are inert without being a bare literal:
 
     - a signed numeric literal (``OFFSET = -3``), which CPython parses as a
-      ``UnaryOp`` and ``runner._is_constant_expr`` therefore rejects; PR #106
-      moves ``runner`` the same way;
-    - a bare module-level ``pass``, which ``runner``'s catch-all rejects.
+      ``UnaryOp`` and :func:`_is_constant_expr` admits over a constant operand;
+    - a bare module-level ``pass``.
 
-    Both evaluate nothing, so neither is a soundness difference -- but this
-    docstring exists to say the two gates are *not* interchangeable, and that
-    only means anything if the enumeration is exact.
+    Both evaluate nothing, so neither is a soundness difference.
 
-    An earlier version of this prototype evaluated values and defaults with
+    An earlier version evaluated values and defaults with
     the full expression evaluator, on the reasoning that "the interpreter
     evaluates it, so it is just more interpreted code" -- which confuses the two
     rules. It does not matter *who* evaluates an effect outside the proved body;
@@ -924,8 +928,7 @@ def _require_inert_target(target: astroid.NodeNG, frame: Frame) -> None:
     constant value and a subscript target, and ``_assign_to`` evaluates both
     ``target.value`` and ``target.slice`` -- so the trusted call fires at module
     level, before the proved function is entered. That was live in the first
-    version of this gate, and ``runner._validate_module_level`` has the same
-    blind spot on the ``exec`` path.
+    version of this gate.
 
     Plain names, and tuple/list destructuring of plain names, evaluate nothing.
     """
@@ -944,8 +947,7 @@ def _is_inert_target(target: astroid.NodeNG) -> bool:
     """True for targets that evaluate nothing: names and destructuring of names.
 
     ``Starred`` is unwrapped -- ``A, *B = (1, 2, 3)`` binds names and evaluates
-    no subexpression. ``runner._is_inert_target`` says the same thing about the
-    ``exec`` path; both had to learn it.
+    no subexpression.
     """
     if isinstance(target, astroid.AssignName):
         return True
@@ -1273,9 +1275,9 @@ def _eval_defaults(arguments: astroid.Arguments, frame: Frame) -> dict[str, Any]
             "positional-only parameters with defaults are not in the proved subset",
         )
     if any(node is not None for node in arguments.kw_defaults or ()):
-        # ``runner._check_defaults`` covered these and this did not. Never
-        # evaluated today (``_bind_arguments`` refuses keyword-only parameters
-        # at call time), so it was fail-closed by accident rather than by rule.
+        # Refused by rule. ``_bind_arguments`` refuses keyword-only parameters
+        # at call time, so these defaults would never be evaluated anyway, but
+        # relying on that alone is fail-closed by accident.
         raise UnsupportedNode(
             "keyword-only defaults are not in the proved subset",
         )
@@ -1386,10 +1388,8 @@ def _require_import_form(name: str, alias: str | None, *, source_name: str) -> N
 @eval_stmt.register(astroid.ImportFrom)
 def _stmt_import_from(node: astroid.ImportFrom, frame: Frame) -> None:
     if node.modname == "__future__":
-        # A compiler pragma, not a value. ``runner._sanitize_for_exec`` injects
-        # exactly this line into every executed module, and the interpreter
-        # never evaluates an annotation, so accepting it as a no-op keeps a
-        # program that proves and runs today running here too.
+        # A compiler pragma, not a value. The interpreter never evaluates an
+        # annotation, so the import binds nothing and is accepted as a no-op.
         return
     if node.level:
         raise UnsupportedNode("relative imports are not in the subset")
@@ -1669,10 +1669,10 @@ def _lookup(name: str, frame: Frame) -> Any:
             "associated with a value",
             kind="UnboundLocalError",
         )
+    # Every scope chain is rooted at ``frame.program.globals`` (frames start
+    # there, and calls and comprehensions only add layers over a captured
+    # ``frame.scope``), so this walk covers module-level bindings too.
     value = frame.scope.get(name)
-    if value is not _MISSING:
-        return value
-    value = frame.program.globals.get(name)
     if value is not _MISSING:
         return value
     builtin = BUILTINS.get(name)

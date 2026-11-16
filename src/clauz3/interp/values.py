@@ -261,16 +261,6 @@ class BuiltinFunction:
     impl: Callable[..., Any]
 
 
-CallableValue = (
-    UserFunction
-    | LambdaFunction
-    | TrustedCallable
-    | BuiltinFunction
-    | BoundMethod
-    | RowClass
-)
-
-
 def wrap_trusted(qualname: str, value: Any, *, trusted: bool = False) -> Any:
     """Wrap a value pulled out of a trusted module for interpreted use.
 
