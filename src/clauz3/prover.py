@@ -682,6 +682,12 @@ def _resolve_required_module(policy: DomainPolicy, name: str) -> str:
     Searched over the ``@contract`` registry rather than deal-solver's whole
     ``FUNCTIONS`` table, so a required obligation resolves to the same kind of
     helper an agent-written guarantee is allowed to name.
+
+    The name must resolve to exactly one helper. Several modules of a domain
+    can each define a contract of the same name, and they need not agree:
+    choosing one, by sort order or otherwise, is a guess about which the layer
+    meant, and a wrong guess conjoins the weaker contract. As with an
+    ambiguous ``when_used``, ambiguity is refused rather than resolved.
     """
 
     prefix = f"{policy.domain_package}." if policy.domain_package else ""
@@ -694,6 +700,13 @@ def _resolve_required_module(policy: DomainPolicy, name: str) -> str:
         raise ProverConfigError(
             f"required contract {name!r} for domain {policy.domain_package!r} "
             "is not a registered @contract",
+        )
+    if len(matches) > 1:
+        raise ProverConfigError(
+            f"required contract {name!r} for domain {policy.domain_package!r} "
+            f"names several registered @contract helpers: {matches!r}. A "
+            "required name must identify one contract; rename the others so "
+            "the policy cannot enforce the wrong one.",
         )
     return matches[0].rsplit(".", 1)[0]
 
