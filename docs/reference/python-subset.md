@@ -270,6 +270,12 @@ imports are refused. The raw `prove_text` API enforces the import allowlist but
 does not load module-level imports through the interpreter; its result alone
 does not certify that a whole entry file is runnable.
 
+Identifiers starting with `_clauz3_` are reserved and refused wherever they
+appear in an entry file, as a binding or as a use. clauz3 imports the contracts
+it conjoins into the proved copy (a domain's `required` contracts and
+approval-policy clauses) under such names, and a program that could rebind one
+could have a different module's same-named contract proved instead.
+
 For Python API callers, `run_source` normalizes source and configuration refusals
 to `RunConfigError`, including `ProverConfigError` raised by trusted-layer loading
 or proof setup (such as invalid condition signatures, relations, or guarantees).

@@ -154,6 +154,10 @@ decorator (and the import it needs) so the obligation resolves through the same
 inference-and-registry path as an agent-written guarantee. The executed program
 and the approval request keep the original, unmodified source.
 
+The injected import is bound to a reserved `_clauz3_` name. A program that
+spells such a name is refused with a `ProverConfigError`, so it cannot rebind
+the import and move the obligation onto another module's contract.
+
 Conjoining is sound even for domains that are not used: a relational contract
 over an empty fact set (`all`, `distinct`, `empty`, bounded `count`/`sum`) is
 vacuously true. Gating on use keeps the behaviour predictable and matches the

@@ -46,6 +46,12 @@ from clauz3.policy import (
     load_trusted_effects,
     transitive_calls,
 )
+from clauz3.reserved_names import (
+    InjectedImports,
+    ReservedNameError,
+    reserved_message,
+    reserved_names,
+)
 from clauz3.row import RowSchemaError
 from clauz3.spec import REGISTERED_CONTRACTS
 
@@ -500,14 +506,17 @@ def prove_text(
         # Refusal diagnostics use source locations even without a monitor.
         # An injected/unparsed copy must never masquerade as submitted text.
         locations: proof_monitor.SourceLocations | None = {}
-        source = _inject_required_guarantees(
-            source,
-            target=target,
-            policies=policies,
-            trusted_roots=trusted_root_list,
-            import_roots=import_path_list,
-            locations=locations,
-        )
+        try:
+            source = _inject_required_guarantees(
+                source,
+                target=target,
+                policies=policies,
+                trusted_roots=trusted_root_list,
+                import_roots=import_path_list,
+                locations=locations,
+            )
+        except ReservedNameError as exc:
+            raise ProverConfigError(f"{source_name}: {exc}") from exc
         if source == submitted_source:
             locations = None
         results = []
@@ -554,6 +563,11 @@ def _inject_required_guarantees(
     agent-written guarantee. The executed program and the approval request keep
     using the original, unmodified source.
 
+    The imports are bound to reserved names (:mod:`clauz3.reserved_names`). A
+    source that spells one is refused, and the rewritten copy is checked before
+    it is returned, so the program cannot rebind an alias and have a different
+    module's same-named contract proved in the required one's place.
+
     Triggering resolves calls transitively through local and imported helpers, so
     helper indirection cannot silently drop the obligation while the effect
     still executes, and a ``when_used`` naming something that is not a trusted
@@ -577,7 +591,7 @@ def _inject_required_guarantees(
         if locations is not None
         else {}
     )
-    module_aliases: dict[str, str] = {}
+    injected = InjectedImports(tree, kind="required")
     changed = False
 
     for node in tree.body:
@@ -592,25 +606,14 @@ def _inject_required_guarantees(
             if not domain_triggered(used, policy.when_used):
                 continue
             for name in policy.required:
-                module = _resolve_required_module(policy, name)
-                alias = module_aliases.setdefault(
-                    module,
-                    f"_clauz3_required_{len(module_aliases)}",
-                )
+                alias = injected.alias(_resolve_required_module(policy, name))
                 node.decorator_list.insert(0, _guarantee_decorator(alias, name))
                 changed = True
 
     if not changed:
         return source
 
-    imports: list[ast.stmt] = [ast.Import(names=[ast.alias(name="clauz3")])]
-    imports += [
-        ast.Import(names=[ast.alias(name=module, asname=alias)])
-        for module, alias in module_aliases.items()
-    ]
-    tree.body[0:0] = imports
-    ast.fix_missing_locations(tree)
-    rendered = ast.unparse(tree)
+    rendered = injected.render()
     if locations is not None:
         rebuilt = ast.parse(rendered)
         # Match structural positions in the very same injected tree, not
@@ -1206,6 +1209,11 @@ def validate_untrusted_source(
 ) -> None:
     """Require an unambiguous entry binding and gate agent-authored decorators.
 
+    Names starting with the prefix clauz3 keeps for the imports it injects into
+    a proved copy are refused wherever they appear (see
+    :mod:`clauz3.reserved_names`): a program that could bind one could move a
+    ``required`` contract or an approval-policy clause onto another module.
+
     After entry-binding validation, two decorator rules apply:
 
     1. **Trusted-only decorators are refused.** ``@clauz3.trusted`` and
@@ -1227,6 +1235,9 @@ def validate_untrusted_source(
     """
     module = ast.parse(source, filename=str(path))
     _validate_target_binding(module=module, path=path, target=target)
+    reserved = reserved_names(module)
+    if reserved:
+        raise ProverConfigError(f"{path}: {reserved_message(reserved)}")
     aliases = decorators_mod.import_aliases(module)
     for node in ast.walk(module):
         for decorator in getattr(node, "decorator_list", ()):
