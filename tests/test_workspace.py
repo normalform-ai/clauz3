@@ -748,9 +748,13 @@ for line in sys.stdin:
     message = json.loads(line)
     method, identifier = message.get("method"), message.get("id")
     if method == "initialize":
-        emit({"id": identifier, "result": {"protocolVersion": 1}})
+        capabilities = {"loadSession": True}
+        emit({"id": identifier,
+              "result": {"protocolVersion": 1, "agentCapabilities": capabilities}})
     elif method == "session/new":
         emit({"id": identifier, "result": {"sessionId": "scripted"}})
+    elif method == "session/load":
+        pass  # Never answers.
     elif method == "session/prompt":
         text = message["params"]["prompt"][0]["text"]
         if text == "limited":
@@ -793,6 +797,31 @@ def test_prompt_error_is_cleared_by_the_next_prompt(config: ChatConfig) -> None:
         with pytest.raises(ValueError, match="not ready"):
             conversation.submit("more")
         assert "Agent disconnected" in conversation.state()["error"]
+
+    asyncio.run(check())
+
+
+def test_session_load_timeout_is_a_resume_failure(
+    config: ChatConfig, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config.command = [sys.executable, "-c", SCRIPTED_AGENT]
+    monkeypatch.setattr("clauz3.sessions.chat.LOAD_TIMEOUT", 0.2)
+    saved = {
+        "id": "saved",
+        "state": {"turn": 1, "sessionId": "scripted"},
+        "history": [],
+    }
+
+    async def check() -> None:
+        conversation = Conversation(config, None, saved)
+        await asyncio.wait_for(conversation.start(), 10)
+        assert conversation.closed
+        assert conversation.process and conversation.process.returncode is not None
+        # The UI's resume-recovery panel is driven by resumeError.
+        state = conversation.state()
+        assert state["resumeError"] == "Session loading timed out"
+        assert "Couldn’t resume this conversation" in state["error"]
+        assert state["sessionId"] is None
 
     asyncio.run(check())
 

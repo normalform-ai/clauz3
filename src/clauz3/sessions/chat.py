@@ -41,6 +41,8 @@ from clauz3.source import SourceError
 ADAPTER_VERSION = "0.89.1"
 MAX_MESSAGE = 2_000_000
 MAX_HISTORY = 8_000_000
+# Seconds an adapter may take to load a saved session.
+LOAD_TIMEOUT = 60.0
 HISTORY_NOTICE = (
     "Transcript storage limit reached. This action can finish, but later output "
     "will not be saved. Start a new conversation before sending another prompt."
@@ -615,7 +617,7 @@ class Conversation:
                     asyncio.create_task(self.read_agent()),
                     asyncio.create_task(self.drain_stderr()),
                 ]
-                async with asyncio.timeout(60):
+                async with asyncio.timeout(60) as startup:
                     result = await self.call(
                         "initialize",
                         {
@@ -637,10 +639,15 @@ class Conversation:
                                 raise ValueError(
                                     "This adapter cannot resume saved conversations"
                                 )
-                            await self.call(
-                                "session/load",
-                                {**parameters, "sessionId": self.resume_id},
-                            )
+                            # Loading has its own deadline. The startup one would
+                            # cancel it, reporting an agent that did not start
+                            # instead of a conversation that did not resume.
+                            startup.reschedule(None)
+                            async with asyncio.timeout(LOAD_TIMEOUT):
+                                await self.call(
+                                    "session/load",
+                                    {**parameters, "sessionId": self.resume_id},
+                                )
                         except Exception as exc:
                             # A local transcript can outlive the adapter's session.
                             # Never silently give a fresh agent the old chat's identity.
