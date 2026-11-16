@@ -142,22 +142,19 @@ def install_layer(
                     "and setup guidance are unavailable."
                 )
             packages[domain] = source_package(source_tools, domain)
+        # Likewise every destination: a refusal must leave nothing installed.
+        _check_destination(into, source_tools, domains, force=force, globally=globally)
         dest_tools = _dest_tools(into, globally=globally)
         skills: list[Path] = []
         for domain in domains:
             src_domain = source_tools / domain
             dst_domain = dest_tools / domain
-            authored = authored_tools(into) / domain
-            if not globally and authored.exists():
-                raise InstallError(
-                    f"{authored} already provides this domain as a project-authored "
-                    "layer; remove it to install the library"
-                )
+            # Checked again because an earlier domain of this source may have
+            # just been copied over this one (``acme`` holds ``acme/lims``).
             if dst_domain.exists() and not force:
                 raise InstallError(
                     f"{dst_domain} already exists (use --force to overwrite)"
                 )
-            _reject_nested_installs(src_domain, dst_domain, dest_tools, domains)
             # The reject-then-copy below is two independent walks of the same
             # tree, so the check is advisory, not atomic (TOCTOU): a local writer
             # racing the install could present a regular file at check time and a
@@ -285,6 +282,19 @@ def install_library(
                 ]
                 if stale:
                     raise InstallError(superseded_message(domain, stale))
+        # Every destination of every planned library is checked before the
+        # first copy, so a refusal leaves no dependency or sibling domain behind.
+        claimed: dict[str, str] = {}
+        for selected, _library in plan:
+            tools, domains = resolved[selected]
+            replace = force and selected == key
+            _check_destination(into, tools, domains, force=replace, globally=globally)
+            for domain in domains:
+                if domain in claimed and not replace:
+                    raise InstallError(
+                        f"{domain} is provided by both {claimed[domain]} and {selected}"
+                    )
+                claimed.setdefault(domain, selected)
         results = []
         for selected, _library in plan:
             tools, domains = resolved[selected]
@@ -309,6 +319,36 @@ def install_library(
                 cache_library(selected, tools, domains, revision)
             results.append(result)
         return results
+
+
+def _check_destination(
+    into: Path,
+    source_tools: Path,
+    domains: list[str],
+    *,
+    force: bool,
+    globally: bool,
+) -> None:
+    """Refuse an install whose destination is taken, before anything is copied.
+
+    Run for every domain of every planned library ahead of the first copy:
+    checking each destination only as its turn came left the earlier domains,
+    and a library's dependencies, installed when a later one was refused.
+    """
+    dest_tools = _dest_tools(into, globally=globally)
+    for domain in domains:
+        dst_domain = dest_tools / domain
+        authored = authored_tools(into) / domain
+        if not globally and authored.exists():
+            raise InstallError(
+                f"{authored} already provides this domain as a project-authored "
+                "layer; remove it to install the library"
+            )
+        if dst_domain.exists() and not force:
+            raise InstallError(
+                f"{dst_domain} already exists (use --force to overwrite)"
+            )
+        _reject_nested_installs(source_tools / domain, dst_domain, dest_tools, domains)
 
 
 def _replace_domain(

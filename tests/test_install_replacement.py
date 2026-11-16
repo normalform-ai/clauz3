@@ -17,6 +17,11 @@ EFFECT = "import clauz3\n\n\n@clauz3.trusted\ndef {name}(x: str) -> None:\n    p
 GENERATED = {".clauz3-origin.json", ".clauz3-package.yaml", ".gitignore"}
 
 
+@pytest.fixture(autouse=True)
+def isolated_store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CLAUZ3_HOME", str(tmp_path / "store"))
+
+
 def _domain(
     root: Path,
     domain: str,
@@ -125,3 +130,103 @@ def test_force_refuses_to_delete_a_library_installed_inside_the_domain(
 
     assert (project / ".clauz3/tools/acme/lims/trusted/effects.py").is_file()
     assert (project / ".clauz3/tools/acme/trusted/effects.py").is_file()
+
+
+def test_an_occupied_second_domain_leaves_the_first_uninstalled(
+    tmp_path: Path,
+) -> None:
+    source = _domain(
+        tmp_path / "source", "alpha", {"effects.py": EFFECT.format(name="a")}
+    )
+    _domain(source, "beta", {"effects.py": EFFECT.format(name="b")})
+    project = tmp_path / "project"
+    (project / ".clauz3/tools/beta/trusted").mkdir(parents=True)
+
+    with pytest.raises(InstallError, match="beta already exists"):
+        install_library(str(source), into=project)
+
+    assert _tree(project / ".clauz3") == []
+    assert not (project / ".clauz3/tools/alpha").exists()
+
+
+def test_an_authored_second_domain_leaves_the_first_uninstalled(
+    tmp_path: Path,
+) -> None:
+    source = _domain(
+        tmp_path / "source", "alpha", {"effects.py": EFFECT.format(name="a")}
+    )
+    _domain(source, "beta", {"effects.py": EFFECT.format(name="b")})
+    project = tmp_path / "project"
+    (project / "tools/beta").mkdir(parents=True)
+
+    with pytest.raises(InstallError, match="project-authored"):
+        install_layer(source, into=project)
+
+    assert not (project / ".clauz3").exists()
+
+
+def test_a_refused_library_leaves_its_dependencies_uninstalled(
+    tmp_path: Path,
+) -> None:
+    source = _domain(
+        tmp_path / "source",
+        "mylib",
+        {"effects.py": EFFECT.format(name="a")},
+        dependencies=("stdlib:env",),
+    )
+    project = tmp_path / "project"
+    (project / ".clauz3/tools/mylib/trusted").mkdir(parents=True)
+
+    with pytest.raises(InstallError, match="mylib already exists"):
+        install_library(str(source), into=project)
+
+    assert not (project / ".clauz3/tools/env").exists()
+    assert _tree(project / ".clauz3") == []
+
+
+def test_a_refused_dependency_leaves_the_other_dependencies_uninstalled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    occupied = _domain(
+        tmp_path / "occupied", "taken", {"effects.py": EFFECT.format(name="t")}
+    )
+    _domain(occupied, "fresh", {"effects.py": EFFECT.format(name="f")})
+    source = _domain(
+        tmp_path / "source",
+        "mylib",
+        {"effects.py": EFFECT.format(name="a")},
+        dependencies=("stdlib:env", "gh:test/occupied"),
+    )
+    monkeypatch.setattr(
+        "clauz3.libraries.install.resolve_remote_source", lambda _: occupied
+    )
+    project = tmp_path / "project"
+    (project / ".clauz3/tools/taken/trusted").mkdir(parents=True)
+
+    with pytest.raises(InstallError, match="taken already exists"):
+        install_library(str(source), into=project)
+
+    assert _tree(project / ".clauz3") == []
+
+
+def test_two_planned_libraries_providing_one_domain_are_refused_before_copy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dependency = _domain(
+        tmp_path / "dependency", "shared", {"effects.py": EFFECT.format(name="d")}
+    )
+    source = _domain(
+        tmp_path / "source",
+        "shared",
+        {"effects.py": EFFECT.format(name="a")},
+        dependencies=("stdlib:env", "gh:test/dependency"),
+    )
+    monkeypatch.setattr(
+        "clauz3.libraries.install.resolve_remote_source", lambda _: dependency
+    )
+    project = tmp_path / "project"
+
+    with pytest.raises(InstallError, match="shared"):
+        install_library(str(source), into=project)
+
+    assert not (project / ".clauz3").exists()
