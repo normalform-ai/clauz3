@@ -186,13 +186,15 @@ class Frame:
         return ((self.scope, self.local_names), *self.enclosing)
 
     def unbound_local(self, name: str) -> bool:
-        """True when ``name`` is statically local to a body that has not bound it."""
-        if name in self.local_names and self.scope.get_own(name) is _MISSING:
-            return True
-        return any(
-            name in names and scope.get_own(name) is _MISSING
-            for scope, names in self.enclosing
-        )
+        """True when the nearest scope that owns ``name`` has not bound it.
+
+        Innermost first, stopping at the first owner: a nearer scope that binds
+        the name shadows a farther body that assigns it later.
+        """
+        for scope, names in ((self.scope, self.local_names), *self.enclosing):
+            if name in names:
+                return scope.get_own(name) is _MISSING
+        return False
 
     def child(
         self,
@@ -2001,6 +2003,9 @@ def _comprehend(node: astroid.ListComp, frame: Frame) -> Iterable[Any]:
             scope=frame.scope.child(),
             trace=frame.trace,
             module_scope=frame.module_scope,
+            # The comprehension's own targets, so that it is a link in the
+            # chain a nested comprehension or lambda resolves names through.
+            local_names=frozenset(node.locals),
             enclosing=frame.nested(),
         )
         _assign_to(generator.target, item, inner)

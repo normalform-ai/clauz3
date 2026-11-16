@@ -831,6 +831,89 @@ def test_closures_and_comprehensions_still_read_enclosing_names() -> None:
 
 
 @pytest.mark.parametrize(
+    ("label", "source", "expected"),
+    [
+        (
+            "nearer-def-shadows-later-outer-def",
+            "def main():\n"
+            "    def a():\n"
+            "        def h():\n"
+            "            return 1\n"
+            "        def b():\n"
+            "            return h()\n"
+            "        return b()\n"
+            "    r = a()\n"
+            "    def h():\n"
+            "        return 2\n"
+            "    return r\n",
+            1,
+        ),
+        (
+            "nearer-local-shadows-later-outer-local",
+            "def main():\n"
+            "    def a():\n"
+            "        x = 1\n"
+            "        def b():\n"
+            "            return x\n"
+            "        return b()\n"
+            "    r = a()\n"
+            "    x = 2\n"
+            "    return r\n",
+            1,
+        ),
+        (
+            "outer-comprehension-target",
+            "def main():\n"
+            "    ys = [[x for y in [1]] for x in [1, 2]]\n"
+            "    x = 5\n"
+            "    return ys\n",
+            [[1], [2]],
+        ),
+        (
+            "lambda-in-comprehension",
+            "def main():\n"
+            "    fs = [(lambda: x)() for x in [1, 2]]\n"
+            "    x = 9\n"
+            "    return fs\n",
+            [1, 2],
+        ),
+    ],
+)
+def test_a_nearer_binding_shadows_an_unbound_outer_local(
+    label: str,
+    source: str,
+    expected: Any,
+) -> None:
+    """A name belongs to the *nearest* scope that binds it, as in CPython.
+
+    The unbound-local check asked whether any enclosing body assigns the name
+    and has not bound it yet, so a farther body that assigns it later raised
+    ``UnboundLocalError`` although a nearer scope -- a function body or a
+    comprehension -- owns the name and has a value for it. These all prove.
+    """
+    assert run(source).value == expected
+
+
+def test_an_unbound_nearer_local_still_hides_a_bound_outer_one() -> None:
+    """The nearest owner decides in both directions: unbound there is an error."""
+    with pytest.raises(ProgramError) as excinfo:
+        run(
+            "def main():\n"
+            "    def h():\n"
+            "        return 2\n"
+            "    def a():\n"
+            "        def b():\n"
+            "            return h()\n"
+            "        r = b()\n"
+            "        def h():\n"
+            "            return 1\n"
+            "        return r\n"
+            "    return a()\n"
+        )
+    assert excinfo.value.kind == "UnboundLocalError"
+
+
+@pytest.mark.parametrize(
     ("body", "expected"),
     [
         ("x = 7\n    x += 3", 10),
