@@ -1,3 +1,5 @@
+import hashlib
+import json
 import threading
 import time
 
@@ -5,7 +7,26 @@ import pytest
 from fastapi.testclient import TestClient
 
 from clauz3.approvals.decisions import USER_DECISIONS, Decision
+from clauz3.approvals.receipts import (
+    SIGNING_KEY_ENV,
+    consent_digest,
+    generate_keypair,
+    verify_receipt,
+)
 from clauz3.approvals.service import create_approval_app
+
+SHOWN = "def main() -> None:\n    pass\n"
+OTHER = "def main() -> None:\n    other()\n"
+OTHER_SHA = hashlib.sha256(OTHER.encode()).hexdigest()
+#: The request id the service derives for ``SHOWN`` when none is submitted.
+SHOWN_ID = f"clr_{hashlib.sha256(SHOWN.encode()).hexdigest()[:12]}"
+
+
+def _hashed(program: str, **extra: object) -> dict[str, object]:
+    """A submission whose ``program_sha256`` is the hash of its ``program``."""
+
+    digest = hashlib.sha256(program.encode()).hexdigest()
+    return {"program": program, "program_sha256": digest, **extra}
 
 
 def test_approval_service_waits_for_user_approval() -> None:
@@ -16,11 +37,11 @@ def test_approval_service_waits_for_user_approval() -> None:
     def submit() -> None:
         response = client.post(
             "/requests",
-            json={
-                "request_id": "clr_test",
-                "program_sha256": "abc123",
-                "guarantees": ["emails.only(['bob@example.com'])"],
-            },
+            json=_hashed(
+                SHOWN,
+                request_id="clr_test",
+                guarantees=["emails.only(['bob@example.com'])"],
+            ),
         )
         responses.append(response.json())
 
@@ -56,15 +77,15 @@ def test_approval_service_can_request_more() -> None:
     responses: list[dict[str, object]] = []
 
     def submit() -> None:
-        response = client.post("/requests", json={"program_sha256": "abc123"})
+        response = client.post("/requests", json=_hashed(SHOWN))
         responses.append(response.json())
 
     thread = threading.Thread(target=submit)
     thread.start()
-    _wait_for_record(client, "clr_abc123")
+    _wait_for_record(client, SHOWN_ID)
 
     response = client.post(
-        "/requests/clr_abc123/decision",
+        f"/requests/{SHOWN_ID}/decision",
         json={"decision": "request_more", "feedback": "prove nobody twice"},
     )
 
@@ -72,12 +93,12 @@ def test_approval_service_can_request_more() -> None:
     assert response.json() == {
         "decision": "request_more",
         "feedback": "prove nobody twice",
-        "request_id": "clr_abc123",
+        "request_id": SHOWN_ID,
     }
     thread.join(timeout=5)
     assert not thread.is_alive()
     assert responses == [response.json()]
-    assert client.get("/requests/clr_abc123").json()["request_id"] == "clr_abc123"
+    assert client.get(f"/requests/{SHOWN_ID}").json()["request_id"] == SHOWN_ID
 
 
 def test_approval_service_ui_lists_and_shows_requests() -> None:
@@ -438,3 +459,65 @@ def test_decision_summary_shows_kind_note_and_receipt(
     assert '<details data-panel="receipt">' in block
     assert "<pre>&lt;receipt&gt;</pre>" in block
     assert " open" not in block
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"program": SHOWN, "program_sha256": OTHER_SHA},
+        {"program_sha256": OTHER_SHA},
+        {"program": None, "program_sha256": OTHER_SHA},
+        {"program": 7, "program_sha256": OTHER_SHA},
+        {"program": SHOWN, "program_sha256": 7},
+        {"program": SHOWN, "program_sha256": ""},
+        # A lone surrogate has no UTF-8 encoding, so no hash can describe it.
+        {"program": "\ud800", "program_sha256": OTHER_SHA},
+    ],
+)
+def test_approval_service_refuses_a_hash_that_is_not_the_shown_program(
+    payload: dict[str, object],
+) -> None:
+    # The receipt signs the submitted hash, so the hash must be the hash of
+    # the source the approver is shown.
+    client = TestClient(create_approval_app(max_wait_seconds=0.2))
+    # ``json.dumps`` escapes the surrogate that an HTTP client would refuse.
+    body = json.dumps(payload)
+
+    for path in ("/requests", "/api/requests"):
+        refused = client.post(
+            path, content=body, headers={"Content-Type": "application/json"}
+        )
+        assert refused.status_code == 400, path
+        assert "program_sha256" in refused.json()["detail"]
+    assert client.get("/requests").json() == []
+
+
+def test_approval_service_signs_the_hash_of_the_shown_program(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    signing, verifying = generate_keypair()
+    monkeypatch.setenv(SIGNING_KEY_ENV, signing)
+    client = TestClient(create_approval_app())
+    payload = _hashed(SHOWN, request_id="clr_match", guarantees=[], coverage=[])
+    responses: list[dict[str, object]] = []
+
+    thread = threading.Thread(
+        target=lambda: responses.append(client.post("/requests", json=payload).json())
+    )
+    thread.start()
+    _wait_for_record(client, "clr_match")
+    assert "pass" in client.get("/ui/requests/clr_match").text
+    client.post("/requests/clr_match/decision", json={"decision": "approved_once"})
+    thread.join(timeout=5)
+
+    digest = str(payload["program_sha256"])
+    verify_receipt(
+        verify_key_b64=verifying,
+        receipt=str(responses[0]["receipt"]),
+        request_id="clr_match",
+        program_sha256=digest,
+        consent_sha256=consent_digest(
+            program_sha256=digest, guarantees=[], coverage=[]
+        ),
+        now=time.time(),
+    )

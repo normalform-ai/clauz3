@@ -430,6 +430,7 @@ def create_approval_app(
             request_profile = profile
             request_policy = policy
             request_layers = authorized_layers
+        _check_program_hash(payload)
         selected_layer: ApprovedLayer | None = None
         if request_policy is not None or request_profile is not None:
             try:
@@ -787,6 +788,31 @@ def _same_secret(given: str, expected: str) -> bool:
     # Compare as bytes: ``hmac.compare_digest`` raises on non-ASCII ``str``,
     # which would turn a crafted header, cookie, or key into a 500.
     return hmac.compare_digest(given.encode(), expected.encode())
+
+
+def _check_program_hash(payload: Mapping[str, object]) -> None:
+    """Refuse a submitted hash that is not the hash of the submitted program.
+
+    The receipt signs ``program_sha256`` while the approver reads ``program``,
+    so the two must describe the same source. A submission that names no hash
+    is left alone: its receipt binds the empty hash, which no program has.
+    """
+
+    claimed = payload.get("program_sha256")
+    if claimed is None:
+        return
+    program = payload.get("program")
+    try:
+        actual = (
+            sha256(program.encode()).hexdigest() if isinstance(program, str) else None
+        )
+    except UnicodeEncodeError:
+        actual = None
+    if actual is None or claimed != actual:
+        raise HTTPException(
+            status_code=400,
+            detail="program_sha256 is not the SHA-256 of the submitted program",
+        )
 
 
 def _approver_login_required() -> HTMLResponse:

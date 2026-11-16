@@ -4,6 +4,7 @@ defeat DNS-rebinding via host allow-listing, and bound the blocking wait.
 
 from __future__ import annotations
 
+import hashlib
 import threading
 import time
 
@@ -11,6 +12,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from clauz3.approvals.service import create_approval_app
+
+PROGRAM = "def main() -> None:\n    pass\n"
+PROGRAM_SHA = hashlib.sha256(PROGRAM.encode()).hexdigest()
+#: The service refuses a hash that is not the hash of the submitted program.
+PAYLOAD: dict[str, object] = {"program": PROGRAM, "program_sha256": PROGRAM_SHA}
+#: The request id derived from the hash when the submission names none.
+REQUEST_ID = f"clr_{PROGRAM_SHA[:12]}"
 
 
 def _wait_for_record(
@@ -35,27 +43,27 @@ def test_decision_rejected_without_token() -> None:
     threading.Thread(
         target=lambda: client.post(
             "/requests",
-            json={"program_sha256": "abc123"},
+            json=PAYLOAD,
             headers={"Authorization": "Bearer sekret"},
         ),
         daemon=True,
     ).start()
-    _wait_for_record(client, "clr_abc123", token="sekret")
+    _wait_for_record(client, REQUEST_ID, token="sekret")
 
     unauth = client.post(
-        "/requests/clr_abc123/decision", json={"decision": "approved_once"}
+        f"/requests/{REQUEST_ID}/decision", json={"decision": "approved_once"}
     )
     assert unauth.status_code == 401
 
     wrong = client.post(
-        "/requests/clr_abc123/decision",
+        f"/requests/{REQUEST_ID}/decision",
         json={"decision": "approved_once"},
         headers={"Authorization": "Bearer nope"},
     )
     assert wrong.status_code == 401
 
     ok = client.post(
-        "/requests/clr_abc123/decision",
+        f"/requests/{REQUEST_ID}/decision",
         json={"decision": "approved_once"},
         headers={"Authorization": "Bearer sekret"},
     )
@@ -65,7 +73,7 @@ def test_decision_rejected_without_token() -> None:
 def test_create_rejected_without_token() -> None:
     app = create_approval_app(auth_token="sekret")
     client = TestClient(app)
-    resp = client.post("/requests", json={"program_sha256": "abc123"})
+    resp = client.post("/requests", json=PAYLOAD)
     assert resp.status_code == 401
 
 
@@ -73,12 +81,12 @@ def test_no_token_keeps_open_access() -> None:
     app = create_approval_app()
     client = TestClient(app)
     threading.Thread(
-        target=lambda: client.post("/requests", json={"program_sha256": "abc123"}),
+        target=lambda: client.post("/requests", json=PAYLOAD),
         daemon=True,
     ).start()
-    _wait_for_record(client, "clr_abc123")
+    _wait_for_record(client, REQUEST_ID)
     resp = client.post(
-        "/requests/clr_abc123/decision", json={"decision": "approved_once"}
+        f"/requests/{REQUEST_ID}/decision", json={"decision": "approved_once"}
     )
     assert resp.status_code == 200
 
@@ -102,7 +110,7 @@ def test_cross_origin_post_rejected() -> None:
     client = TestClient(app)
     resp = client.post(
         "/requests",
-        json={"program_sha256": "abc123"},
+        json=PAYLOAD,
         headers={"Origin": "http://evil.example.com"},
     )
     assert resp.status_code == 403
@@ -118,7 +126,7 @@ def test_same_origin_post_allowed() -> None:
     client = TestClient(app)
     resp = client.post(
         "/requests",
-        json={"program_sha256": "abc123"},
+        json=PAYLOAD,
         headers={"Origin": "http://127.0.0.1:8765"},
     )
     assert resp.status_code == 503  # past the origin check, into the bounded wait
@@ -131,7 +139,7 @@ def test_create_request_times_out_and_frees_worker() -> None:
     app = create_approval_app(max_wait_seconds=0.2)
     client = TestClient(app)
     start = time.monotonic()
-    resp = client.post("/requests", json={"program_sha256": "abc123"})
+    resp = client.post("/requests", json=PAYLOAD)
     elapsed = time.monotonic() - start
     assert resp.status_code == 503
     assert elapsed < 5  # the worker was freed, not pinned indefinitely
@@ -141,11 +149,10 @@ def test_create_request_times_out_and_frees_worker() -> None:
 
 
 def _seed(client: TestClient, request_id: str, token: str) -> None:
-    sha = request_id.removeprefix("clr_")
     threading.Thread(
         target=lambda: client.post(
             "/requests",
-            json={"program_sha256": sha},
+            json={**PAYLOAD, "request_id": request_id},
             headers={"Authorization": f"Bearer {token}"},
         ),
         daemon=True,
