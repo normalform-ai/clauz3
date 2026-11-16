@@ -59,12 +59,15 @@ def read_rows(
     A DuckDB database is opened read-only with external access disabled, so
     ``table`` names a table or view stored in that file, never another file,
     and a stored view that reads a file or URL fails instead of reading it.
+
+    ``path`` is used as written, with no tilde expansion: ``~/data`` is a
+    folder named ``~`` in the working directory, not the home directory.
     """
     if not isinstance(schema, type) or not issubclass(schema, clauz3.Row):
         raise TypeError("schema must be a clauz3.Row subclass")
 
     duckdb = _duckdb()
-    connection, relation_sql = _connect(duckdb, Path(path).expanduser(), table)
+    connection, relation_sql = _connect(duckdb, Path(path), table)
     try:
         columns = tuple(schema.__annotations__)
         if not columns:
@@ -194,7 +197,18 @@ def _database_config() -> dict[str, str]:
 
 
 def _write_connection(path: str):
-    return _duckdb().connect(path, config=_database_config())
+    return _duckdb().connect(_duckdb_path(path), config=_database_config())
+
+
+def _duckdb_path(path: Path | str) -> str:
+    """Spell ``path`` so DuckDB opens it as written.
+
+    DuckDB replaces a leading ``~`` with the home directory. Paths here are
+    lexical, as the path contracts compare them, so ``~/x`` is given to DuckDB
+    as ``./~/x``: the same relative path, which DuckDB leaves alone.
+    """
+    text = str(path)
+    return "./" + text if text.startswith("~") else text
 
 
 def _duckdb():
@@ -216,7 +230,7 @@ def _connect(duckdb, path: Path, table: str):
     suffix = path.suffix.lower()
     if suffix in _DUCKDB_SUFFIXES:
         connection = duckdb.connect(
-            str(path), read_only=True, config=_database_config()
+            _duckdb_path(path), read_only=True, config=_database_config()
         )
         return connection, _quote_identifier(table)
     if suffix in _CSV_SUFFIXES | _PARQUET_SUFFIXES:
@@ -248,7 +262,7 @@ def _table_file(root: Path, table: str) -> Path:
 
 def _file_relation(path: Path) -> str:
     suffix = path.suffix.lower()
-    literal = _quote_literal(str(path))
+    literal = _quote_literal(_duckdb_path(path))
     if suffix in _CSV_SUFFIXES:
         return f"read_csv_auto({literal})"
     if suffix in _PARQUET_SUFFIXES:

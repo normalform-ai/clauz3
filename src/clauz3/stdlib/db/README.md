@@ -45,8 +45,11 @@ Writes support `.duckdb`, `.ddb` and `.db` files with existing parent folders.
 There is no arbitrary SQL API: identifiers are quoted and values are bound
 parameters. Connections to a DuckDB file, for reads and writes alike, disable
 external access, extension loading and temporary spill files. DuckDB may
-write an adjacent `.wal` journal. Paths are lexical, without tilde expansion
-or physical symlink confinement.
+write an adjacent `.wal` journal.
+
+Read and write paths are lexical, without tilde expansion or physical symlink
+confinement: `~/data` is a folder named `~` in the working directory, not the
+home directory, and DuckDB is not left to expand it either.
 
 The schema argument is the type-system hook. The function is generic at runtime,
 but the prover uses the concrete `Row` subclass passed at the call site to type

@@ -90,3 +90,53 @@ def test_csv_and_parquet_sources_still_read(
     for source, email in sources:
         rows = db_effects.read_rows(User, source, "users", {})
         assert [row.email for row in rows] == [email]
+
+
+@pytest.fixture
+def home_and_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path]:
+    """A home directory and a separate working directory."""
+    home = tmp_path / "home"
+    cwd = tmp_path / "cwd"
+    (home / "secrets").mkdir(parents=True)
+    cwd.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.chdir(cwd)
+    return home, cwd
+
+
+def test_reads_do_not_expand_a_tilde(
+    db_effects: ModuleType, home_and_cwd: tuple[Path, Path]
+) -> None:
+    """``~/x`` is the relative path the path contracts compare, not $HOME/x."""
+    home, cwd = home_and_cwd
+    (home / "secrets" / "users.csv").write_text("email\nhome@example.com\n")
+    db_effects.create_table(User, str(home / "app.duckdb"), "users")
+    with pytest.raises(duckdb.IOException):
+        db_effects.read_rows(User, "~/secrets/users.csv", "users", {})
+    with pytest.raises(duckdb.IOException):
+        db_effects.read_rows(User, "~/app.duckdb", "users", {})
+    with pytest.raises(ValueError, match="unsupported database source"):
+        db_effects.read_rows(User, "~/secrets", "users", {})
+
+    (cwd / "~" / "secrets").mkdir(parents=True)
+    (cwd / "~" / "secrets" / "users.csv").write_text("email\nliteral@example.com\n")
+    for source in ("~/secrets/users.csv", "~/secrets"):
+        rows = db_effects.read_rows(User, source, "users", {})
+        assert [row.email for row in rows] == ["literal@example.com"]
+
+
+def test_writes_do_not_expand_a_tilde(
+    db_effects: ModuleType, home_and_cwd: tuple[Path, Path]
+) -> None:
+    home, cwd = home_and_cwd
+    with pytest.raises(duckdb.IOException):
+        db_effects.create_table(User, "~/new.duckdb", "users")
+    assert not (home / "new.duckdb").exists()
+
+    (cwd / "~").mkdir()
+    db_effects.create_table(User, "~/new.duckdb", "users")
+    db_effects.insert_row("~/new.duckdb", "users", User(email="literal@example.com"))
+    assert (cwd / "~" / "new.duckdb").is_file()
+    assert not (home / "new.duckdb").exists()
+    rows = db_effects.read_rows(User, "~/new.duckdb", "users", {})
+    assert [row.email for row in rows] == ["literal@example.com"]
