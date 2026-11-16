@@ -725,6 +725,9 @@ class Conversation:
             raise ValueError(HISTORY_NOTICE)
         self.publish(message)
         self.turn += 1
+        # A failed prompt's error describes that prompt only. Startup and fatal
+        # errors end the conversation, so they never reach this point.
+        self.error = ""
         self.saw_turn_output = False
         self.bridge_calls.clear()
         self.busy = True

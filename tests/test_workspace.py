@@ -738,6 +738,65 @@ def test_malformed_adapter_startup_is_visible_and_reaped(
     asyncio.run(check())
 
 
+SCRIPTED_AGENT = """
+import json, sys
+
+def emit(value):
+    print(json.dumps({"jsonrpc": "2.0", **value}), flush=True)
+
+for line in sys.stdin:
+    message = json.loads(line)
+    method, identifier = message.get("method"), message.get("id")
+    if method == "initialize":
+        emit({"id": identifier, "result": {"protocolVersion": 1}})
+    elif method == "session/new":
+        emit({"id": identifier, "result": {"sessionId": "scripted"}})
+    elif method == "session/prompt":
+        text = message["params"]["prompt"][0]["text"]
+        if text == "limited":
+            error = {"message": "Rate limited, retry shortly"}
+            emit({"id": identifier, "error": error})
+        elif text == "exit":
+            sys.exit(0)
+        else:
+            emit({"id": identifier, "result": {"stopReason": "end_turn"}})
+"""
+
+
+def test_prompt_error_is_cleared_by_the_next_prompt(config: ChatConfig) -> None:
+    config.command = [sys.executable, "-c", SCRIPTED_AGENT]
+
+    async def settle(conversation: Conversation) -> None:
+        async with asyncio.timeout(10):
+            while conversation.busy:
+                await asyncio.sleep(0.01)
+
+    async def check() -> None:
+        conversation = Conversation(config)
+        await conversation.start()
+        conversation.submit("limited")
+        await settle(conversation)
+        assert conversation.state()["error"] == "Rate limited, retry shortly"
+        assert not conversation.ended
+        # The failure belonged to that prompt; it must not shadow later notices.
+        conversation.submit("again")
+        assert conversation.state()["error"] == ""
+        await settle(conversation)
+        assert conversation.state()["error"] == ""
+        assert conversation.history[-1]["method"] == "clauz3/turn_end"
+        # A fatal error ends the conversation and stays visible.
+        conversation.submit("exit")
+        async with asyncio.timeout(10):
+            while not conversation.closed:
+                await asyncio.sleep(0.01)
+        assert "Agent disconnected" in conversation.error
+        with pytest.raises(ValueError, match="not ready"):
+            conversation.submit("more")
+        assert "Agent disconnected" in conversation.state()["error"]
+
+    asyncio.run(check())
+
+
 def test_detached_bridge_exits_on_workspace_lifetime_socket(config: ChatConfig) -> None:
     async def check() -> None:
         conversation = Conversation(config)
