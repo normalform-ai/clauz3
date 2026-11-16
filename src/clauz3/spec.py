@@ -692,10 +692,10 @@ def _distinct_same_fact_clause(
         *[z3.substitute(q.bounds_expr(), subs_left) for q in fact.quantifiers],
         *[z3.substitute(q.bounds_expr(), subs_right) for q in fact.quantifiers],
     )
-    cond_left_z3 = cond_left.expr if hasattr(cond_left, "expr") else cond_left
-    cond_right_z3 = cond_right.expr if hasattr(cond_right, "expr") else cond_right
+    cond_left_z3 = _z3_expr(cond_left)
+    cond_right_z3 = _z3_expr(cond_right)
     key_diff = key_left.m_ne(key_right, ctx=ctx)
-    key_diff_z3 = key_diff.expr if hasattr(key_diff, "expr") else key_diff
+    key_diff_z3 = _z3_expr(key_diff)
 
     body = z3.Implies(
         z3.And(different_iteration, bounds, cond_left_z3, cond_right_z3),
@@ -915,8 +915,8 @@ def _promotion_bound(
                 "docs/todos/quantified-aggregates.md"
             )
     zero = z3.IntVal(0)
-    cond_z3 = cond.expr if hasattr(cond, "expr") else cond
-    base_z3 = base.expr if hasattr(base, "expr") else base
+    cond_z3 = _z3_expr(cond)
+    base_z3 = _z3_expr(base)
     # The fresh total is an Int, so the real sum must be an Int too: a Real
     # term could make the axioms unsatisfiable and prove a bound vacuously.
     if not isinstance(base_z3, z3.ExprRef) or not base_z3.sort().eq(z3.IntSort()):
@@ -1022,7 +1022,7 @@ def _literal_upper_bounds(expr: z3.ArithRef, *, ctx: Any) -> list[int]:
                 walk(child)
 
     for given in ctx.given:
-        raw = given.expr if hasattr(given, "expr") else given
+        raw = _z3_expr(given)
         if isinstance(raw, z3.BoolRef):
             walk(z3.simplify(raw))
     return sorted(found)
@@ -1481,7 +1481,7 @@ def _compare_column_ref(arg_proxy: Any, column_ref: ColumnRef, *, ctx: Any) -> B
     """
     from clauz3._vendor.deal_solver._proxies._row import z3_datatype_for_row
 
-    expr = arg_proxy.expr if hasattr(arg_proxy, "expr") else arg_proxy
+    expr = _z3_expr(arg_proxy)
     if not isinstance(expr, z3.ExprRef):
         return types.bool.val(False, ctx=ctx)
 
@@ -1526,7 +1526,7 @@ def _expr_uses_any_bound_var(proxy: Any, bound_vars: list[Any]) -> bool:
     >>> _expr_uses_any_bound_var(z3.IntVal(42), [i])
     False
     """
-    expr = proxy.expr if hasattr(proxy, "expr") else proxy
+    expr = _z3_expr(proxy)
     if not isinstance(expr, z3.ExprRef):
         return False
 
