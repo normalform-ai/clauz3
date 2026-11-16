@@ -567,13 +567,13 @@ def start_session(
                     raise
                 listener.close()
                 login_url = f"{url}/ui/login?key={decision}"
-                if keep_link(login_url):
+                if not env_decision_token and keep_link(login_url):
                     saved_link = login_url
                 print(f"Approval service: {url}", file=sys.stderr)
                 if env_decision_token:
                     print(
-                        f"Approver UI: {url}/ui/login "
-                        "(using CLAUZ3_DOT_DECISION_TOKEN)",
+                        "Approver UI: sign in with your configured "
+                        "CLAUZ3_DOT_DECISION_TOKEN at /ui/login?key=<token>",
                         file=sys.stderr,
                         flush=True,
                     )

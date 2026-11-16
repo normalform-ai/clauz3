@@ -347,9 +347,26 @@ def create_approval_app(
 
     @app.get("/api/auth/verify")
     def verify_approver(
+        request: Request,
         authorization: str | None = Header(default=None),
+        origin: str | None = Header(default=None),
         session: str | None = Cookie(default=None, alias=APPROVER_SESSION_COOKIE),
     ) -> dict[str, object]:
+        if request.headers.get("sec-fetch-site") == "cross-site":
+            raise HTTPException(status_code=403, detail="cross-site request")
+        _check_origin(origin)
+        if origin is not None:
+            host = request.headers.get("host", "")
+            forwarded_proto = (
+                request.headers.get("x-forwarded-proto", "")
+                .partition(",")[0]
+                .strip()
+                .lower()
+            )
+            is_https = request.url.scheme == "https" or forwarded_proto == "https"
+            expected = f"{'https' if is_https else 'http'}://{host}"
+            if origin != expected:
+                raise HTTPException(status_code=403, detail="origin not allowed")
         _check_approver(authorization, session)
         return {"ok": True}
 

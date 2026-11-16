@@ -1038,7 +1038,31 @@ def test_handoff_cannot_export_another_project_or_choose_an_output_path(
     assert not (store.path.parent / "handoffs").exists()
 
 
-def test_cloud_host_allowlist_and_browser_url(config: ChatConfig) -> None:
+def test_cloud_host_allowlist_and_browser_url(
+    config: ChatConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from clauz3.source import _git_env
+
+    for scrubbed in (
+        "CLAUZ3_SERVICE_ALLOWED_HOSTS",
+        "CLAUZ3_BROWSER_URL",
+        "CLAUZ3_ALLOWED_HOSTS",
+        "CLAUZ3_DOT_DECISION_TOKEN",
+    ):
+        monkeypatch.setenv(scrubbed, "secret-cloud-value")
+    monkeypatch.setenv("GIT_SSH_COMMAND", "ssh -i /tmp/id")
+    assert "CLAUZ3_DOT_DECISION_TOKEN" in os.environ
+    git_env = _git_env()
+    for scrubbed in (
+        "CLAUZ3_SERVICE_ALLOWED_HOSTS",
+        "CLAUZ3_BROWSER_URL",
+        "CLAUZ3_ALLOWED_HOSTS",
+        "CLAUZ3_DOT_DECISION_TOKEN",
+    ):
+        assert scrubbed not in git_env
+    assert git_env["GIT_SSH_COMMAND"] == "ssh -i /tmp/id"
+
     cloud_config = config.model_copy(
         update={"browser_url": "https://dot.example.com/browser/vnc.html"}
     )
@@ -1118,4 +1142,55 @@ def test_cloud_host_allowlist_and_browser_url(config: ChatConfig) -> None:
                 headers={"Host": "untrusted.example.com"},
             ).status_code
             == 400
+        )
+
+    # Plain-HTTP upstream behind a TLS-terminating proxy (X-Forwarded-Proto: https).
+    with TestClient(
+        app,
+        base_url="http://dot.example.com",
+        client=("172.18.0.2", 50000),
+    ) as proxied:
+        proxied_login = proxied.get(
+            "/ui/login?key=approve",
+            headers={"X-Forwarded-Proto": "https"},
+            follow_redirects=False,
+        )
+        assert "Secure" in proxied_login.headers.get("set-cookie", "")
+        session_val = proxied_login.cookies["clauz3_approver_session"]
+        cookie_header = f"clauz3_approver_session={session_val}"
+        assert (
+            proxied.post(
+                "/api/chat/handoff",
+                json={"conversationId": "unknown"},
+                headers={
+                    "Cookie": cookie_header,
+                    "X-Forwarded-Proto": "https",
+                    "Origin": "https://dot.example.com",
+                },
+            ).status_code
+            == 404
+        )
+        # Missing X-Forwarded-Proto or mismatched Origin scheme fails.
+        assert (
+            proxied.post(
+                "/api/chat/handoff",
+                json={"conversationId": "unknown"},
+                headers={
+                    "Cookie": cookie_header,
+                    "Origin": "https://dot.example.com",
+                },
+            ).status_code
+            == 401
+        )
+        assert (
+            proxied.post(
+                "/api/chat/handoff",
+                json={"conversationId": "unknown"},
+                headers={
+                    "Cookie": cookie_header,
+                    "X-Forwarded-Proto": "https",
+                    "Origin": "http://dot.example.com",
+                },
+            ).status_code
+            == 401
         )

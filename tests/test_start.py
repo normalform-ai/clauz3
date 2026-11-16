@@ -160,8 +160,6 @@ assert "CLAUZ3_UI_CONFIG" not in os.environ
 assert "CLAUZ3_RUN_STATUS_FILE" not in os.environ
 assert "CLAUZ3_SESSION_LIFETIME_SOCKET" not in os.environ
 assert "CLAUZ3_DOT_DECISION_TOKEN" not in os.environ
-from clauz3.source import _git_env
-assert "CLAUZ3_DOT_DECISION_TOKEN" not in _git_env()
 assert os.environ["ENABLE_CLAUDEAI_MCP_SERVERS"] == "false"
 assert not any(v == "stale-secret" for k, v in os.environ.items()
                if k.startswith("CLAUZ3_APPROVAL"))
