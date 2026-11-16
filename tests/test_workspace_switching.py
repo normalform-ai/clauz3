@@ -172,6 +172,48 @@ def test_busy_requires_explicit_stop_and_destination_lease(
             pass
 
 
+def test_unopenable_destination_leaves_the_source_running(
+    workspace: tuple[TestClient, Path, Path],
+) -> None:
+    client, project, storage = workspace
+    other = project.parent / "other"
+    trusted = other / "tools/demo/trusted"
+    trusted.mkdir(parents=True)
+    (trusted / "effects.py").write_text(
+        "import clauz3\n\n\n@clauz3.trusted\ndef ping() -> None:\n    pass\n"
+    )
+    (trusted / "contracts.py").write_text("")
+    # An installed library containing a link cannot be selected.
+    (trusted / "alias.py").symlink_to(trusted / "effects.py")
+    database = storage / "conversations.sqlite"
+    with client.websocket_connect("ws://127.0.0.1/api/chat/acp", headers=ORIGIN) as ws:
+        original = until(ws, "clauz3/restore")
+        ready(ws)
+        ws.send_json({"method": "clauz3/workspace", "params": {"path": str(other)}})
+        assert "symbolic links" in until(ws, "clauz3/notice")["text"]
+        conversation = cast(FastAPI, client.app).state.conversation
+        assert conversation.identifier == original["conversationId"]
+        assert not conversation.ended
+        assert conversation.config.cwd == str(project)
+        assert client.get("/api/workspaces").json()["current"] == str(project)
+        # The source agent still answers.
+        ws.send_json({"method": "session/prompt", "params": {"prompt": "hi"}})
+        until(ws, "clauz3/turn_end")
+        # The refused destination's lease is released; the source's is kept.
+        with ConversationStore(database, str(other)).lease():
+            pass
+        with (
+            pytest.raises(ValueError, match="already has"),
+            ConversationStore(database, str(project)).lease(),
+        ):
+            pass
+        (trusted / "alias.py").unlink()
+        switched = switch(ws, path=str(other))
+        assert switched["cwd"] == str(other)
+        assert switched["libraries"] == ["demo"]
+        ready(ws)
+
+
 def test_reset_scoped_to_tutorial(workspace: tuple[TestClient, Path, Path]) -> None:
     client, project, storage = workspace
     original_profile = ProfileStore(

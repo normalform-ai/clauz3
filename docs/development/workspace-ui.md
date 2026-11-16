@@ -155,6 +155,9 @@ explicit stop confirmation when work is active, and refuses switches while a
 library operation is mutating or preparing the workspace.
 
 The destination's project lease is acquired before stopping the source agent.
+Its tutorial copy and library selection are prepared first too, so a destination
+that cannot be opened leaves the source running and releases that lease; only
+resetting the current workspace waits for the agent to stop.
 Switching rebinds conversation storage, libraries, file browsing, and the
 approval profile, then releases the previous lease. Submission credentials
 rotate, pending approval requests are cancelled, and requests that finish
