@@ -732,3 +732,34 @@ def test_native_stream_translation(
             await adapter.close()
 
     asyncio.run(check())
+
+
+def test_native_adapter_reads_the_longest_prompt_the_host_accepts() -> None:
+    from clauz3.sessions import chat, native_adapter
+
+    def request(identifier: int, method: str, params: dict[str, Any]) -> str:
+        # The host writes ASCII JSON, so each character below takes six bytes.
+        return json.dumps(
+            {"jsonrpc": "2.0", "id": identifier, "method": method, "params": params}
+        )
+
+    prompt = request(
+        2,
+        "session/prompt",
+        {"sessionId": "none", "prompt": [{"type": "text", "text": "日" * 20_000}]},
+    )
+    assert len(prompt) > 2**16  # Over asyncio's default stream limit.
+    result = subprocess.run(
+        [sys.executable, "-P", "-m", "clauz3.sessions.native_adapter", "agy", "agy"],
+        input=request(1, "initialize", {}) + "\n" + prompt + "\n",
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stderr
+    replies = [json.loads(line) for line in result.stdout.splitlines()]
+    # The long line is parsed and answered rather than ending the adapter.
+    assert [reply["id"] for reply in replies] == [1, 2]
+    assert replies[1]["error"]["message"] == "Unknown session"
+    # Both ends of the pipe accept the same line length.
+    assert native_adapter.MAX_MESSAGE == chat.MAX_MESSAGE

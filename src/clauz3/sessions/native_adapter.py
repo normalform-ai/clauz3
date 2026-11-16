@@ -19,6 +19,9 @@ from uuid import UUID, uuid4
 from clauz3.libraries.discovery import global_library_root
 from clauz3.sessions.providers import PI_VERSION, pi_sdk
 
+# The host reads this adapter's output with the same limit (chat.MAX_MESSAGE).
+# asyncio's 64 KiB default is less than one JSON-escaped 20,000-character prompt.
+MAX_MESSAGE = 2_000_000
 PI_TOOLS = [
     f"mcp__clauz3__{name}"
     for name in ("run", "status", "tools", "libraries", "list_skills", "read_skill")
@@ -420,7 +423,7 @@ class NativeAdapter:
 
 async def main() -> None:
     adapter = NativeAdapter(*sys.argv[1:])
-    reader = asyncio.StreamReader()
+    reader = asyncio.StreamReader(limit=MAX_MESSAGE)
     transport, _ = await asyncio.get_running_loop().connect_read_pipe(
         lambda: asyncio.StreamReaderProtocol(reader), sys.stdin
     )
