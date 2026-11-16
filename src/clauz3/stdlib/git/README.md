@@ -37,9 +37,15 @@ Import with `from tools.git.trusted.effects import git, git_push`:
   `mergetool`, `merge-index`, `hook`, `maintenance`); and synonyms (`stage`,
   `annotate`, `pickaxe`, `init-db`, `fsck-objects`). Aliases and third-party
   `git-*` commands are refused.
-- `git_push(remote: str, branch: str, cwd: str) -> str` — push `branch` to
-  `remote` from the repo at `cwd`. Preconditions: all three non-empty;
-  `remote` and `branch` do not start with `-`.
+- `git_push(remote: str, branch: str, cwd: str) -> str` — push the local
+  branch `branch` to the same branch on `remote` from the repo at `cwd`. It
+  runs `git push <remote> refs/heads/<branch>:refs/heads/<branch>`, so a
+  `remote.<name>.push` setting cannot send the branch to a different one, and
+  only branches are pushed (not tags or `HEAD`). Preconditions: all three
+  non-empty; `remote` and `branch` do not start with `-`; `branch` is a plain
+  branch name (`is_plain_branch_name`): no leading `+` (force), and no `:`
+  (another destination, or a deletion), `*` (a pattern), `^`, `~`, `?`, `[`,
+  backslash or whitespace.
 
 Every git command runs with `-c core.hooksPath=/dev/null -c core.fsmonitor=false`,
 so repository hooks never run, even ones the program writes into `.git/hooks`,

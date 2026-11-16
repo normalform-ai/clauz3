@@ -245,6 +245,46 @@ def git(subcommand: str, args: list[str], cwd: str) -> str:
     return completed.stdout
 
 
+def is_plain_branch_name(branch: str) -> bool:
+    """Whether ``branch`` names one branch and nothing else.
+
+    ``git_push`` pushes the refspec ``refs/heads/<branch>:refs/heads/<branch>``,
+    so anything git reads as refspec syntax is refused: a leading ``+``
+    (force), ``:`` (a different destination, or a deletion when nothing
+    precedes it), ``*`` (a pattern matching many branches) and ``^`` (a
+    negative refspec). A leading ``-`` would be an option. Whitespace, ``~``,
+    ``?``, ``[`` and a backslash cannot appear in a branch name at all.
+    Written inline because preconditions cannot read module-level constants.
+
+    >>> [is_plain_branch_name(b) for b in ("main", "feature/c++-port", "v1.2_x")]
+    [True, True, True]
+    >>> [is_plain_branch_name(b) for b in ("+main", ":main", "a:b", "*", "--all")]
+    [False, False, False, False, False]
+    """
+    return (
+        not branch.startswith("-")
+        and not branch.startswith("+")
+        and ":" not in branch
+        and "*" not in branch
+        and "^" not in branch
+        and "~" not in branch
+        and "?" not in branch
+        and "[" not in branch
+        and "\\" not in branch
+        and " " not in branch
+        and "\t" not in branch
+        and "\n" not in branch
+        and "\r" not in branch
+    )
+
+
+@clauz3.requires(
+    lambda remote, branch, cwd: is_plain_branch_name(branch),
+    message=(
+        "branch must be a plain branch name: no leading '+' or '-', and no "
+        "':', '*', '^', '~', '?', '[', backslash or whitespace"
+    ),
+)
 @clauz3.requires(
     lambda remote, branch, cwd: (
         not remote.startswith("-") and not branch.startswith("-")
@@ -262,14 +302,21 @@ def git(subcommand: str, args: list[str], cwd: str) -> str:
 @deal.has("network", "io", "syscall")
 @clauz3.trusted
 def git_push(remote: str, branch: str, cwd: str) -> str:
-    """Push ``branch`` to ``remote`` from the repository at ``cwd``.
+    """Push the local branch ``branch`` to the same branch on ``remote``.
 
     Recorded as its own effect so ``contracts.no_push()`` can forbid
     pushing entirely, while ``only_push_to_remote`` / ``only_push_to_branch``
-    pin the destination an agent is allowed to publish to. ``remote`` and
+    pin the destination an agent is allowed to publish to.
+
+    The push names both ends, ``refs/heads/<branch>:refs/heads/<branch>``,
+    so a ``remote.<name>.push`` setting cannot send the branch to a different
+    one, and only a branch is pushed, never a tag or ``HEAD``. ``remote`` and
     ``branch`` may not start with ``-``, so neither can become an option such
-    as ``--mirror`` or ``--force``. Preconditions are checked again in the
-    body, because Deal's runtime checks are optional.
+    as ``--mirror`` or ``--force``, and ``branch`` must pass
+    ``is_plain_branch_name``, so it cannot force (``+main``), delete
+    (``:main``), push to another branch (``a:b``) or match several (``*``).
+    Preconditions are checked again in the body, because Deal's runtime
+    checks are optional.
     """
     if not (len(remote) > 0 and len(branch) > 0 and len(cwd) > 0):
         raise ValueError("remote, branch, and cwd must be non-empty")
@@ -277,8 +324,11 @@ def git_push(remote: str, branch: str, cwd: str) -> str:
         raise ValueError("cwd must not contain parent-directory segments")
     if remote.startswith("-") or branch.startswith("-"):
         raise ValueError("remote and branch must not start with '-'")
+    if not is_plain_branch_name(branch):
+        raise ValueError(f"branch {branch!r} is not a plain branch name")
+    refspec = f"refs/heads/{branch}:refs/heads/{branch}"
     completed = subprocess.run(  # noqa: S603
-        ["git", *NO_HOOKS, "-C", cwd, "push", remote, branch],
+        ["git", *NO_HOOKS, "-C", cwd, "push", remote, refspec],
         capture_output=True,
         text=True,
         timeout=DEFAULT_TIMEOUT_SECONDS,

@@ -145,6 +145,10 @@ FAILS_BY: dict[str, dict[str, str]] = {
         "only_push_to_branch_fail": "guarantee",
         "only_push_to_remote_fail": "guarantee",
         "only_subcommands_fail": "guarantee",
+        "push_delete_fail": "assertion",  # ':main' deletes the branch
+        "push_force_fail": "assertion",  # '+main' forces the push
+        "push_pattern_fail": "assertion",  # '*' matches every branch
+        "push_refspec_fail": "assertion",  # 'a:b' pushes to another branch
         "read_only_branch_fail": "guarantee",
         "read_only_fail": "guarantee",
         "runs_at_most_fail": "guarantee",
