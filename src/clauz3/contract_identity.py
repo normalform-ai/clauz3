@@ -44,6 +44,26 @@ def _value(value: object) -> str:
     return repr(value)
 
 
+def _namespace(module: str) -> str:
+    """The library a trusted module belongs to: what precedes its ``trusted`` package.
+
+    Matched as a whole path component. Cutting at the text ``.trusted`` also
+    cut inside a domain whose own name starts with it, and labelled
+    ``tools.trusted_mail.trusted.contracts`` as the library ``tools``.
+
+    >>> _namespace("tools.google_workspace.gmail.trusted.contracts")
+    'google_workspace.gmail'
+    >>> _namespace("tools.trusted_mail.trusted.contracts")
+    'trusted_mail'
+    >>> _namespace("tools.email.trusted"), _namespace("plain.contracts")
+    ('email', 'plain.contracts')
+    """
+    parts = module.split(".")
+    if "trusted" in parts[1:]:
+        parts = parts[: parts.index("trusted", 1)]
+    return ".".join(parts).removeprefix("tools.")
+
+
 def identify_call(
     owner: Callable[..., object],
     expression: ast.Call,
@@ -68,7 +88,7 @@ def identify_call(
     if root is None:
         raise ValueError("Contract is outside the selected trusted roots")
     symbol = f"{owner.__module__}.{owner.__name__}"
-    namespace = owner.__module__.split(".trusted", 1)[0].removeprefix("tools.")
+    namespace = _namespace(owner.__module__)
     signature = inspect.signature(owner)
     bound = signature.bind(
         *[_argument(arg, aliases) for arg in expression.args],

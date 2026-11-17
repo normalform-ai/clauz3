@@ -8,6 +8,8 @@ branch guards thread through correctly, and effects inside loops fail closed.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import pytest
 import z3
 
@@ -15,7 +17,7 @@ from clauz3._vendor.deal_solver._context import Context
 from clauz3._vendor.deal_solver._context._layer import FactInfo
 from clauz3._vendor.deal_solver._exceptions import UnsupportedError
 from clauz3._vendor.deal_solver._proxies import BoolSort, types
-from clauz3.fluent import Fluent, _ParamRef, effect, fluent
+from clauz3.fluent import Fluent, FluentUpdate, _ParamRef, effect, fluent
 from clauz3.spec import ContractSpec
 
 
@@ -190,3 +192,162 @@ def test_int_valued_fluent_final_compare() -> None:
 def test_unsupported_value_type_rejected() -> None:
     with pytest.raises(UnsupportedError):
         fluent("bad", key=str, value=float, initial=1.0)
+
+
+# ── Computed keys and values are refused, not folded to a constant ──────────
+#
+# A builder runs once, at import, with a placeholder for each parameter. The
+# placeholder was an ordinary object, so Python evaluated an expression over
+# it immediately: ``not locked`` to False and ``state == "locked"`` to False.
+# The axiom then recorded that constant and every proof over the fluent
+# reasoned about a tool that always writes it.
+
+
+def test_effect_builder_refuses_not_over_a_parameter() -> None:
+    door_locked = fluent("door_locked", value=bool, initial=True)
+
+    with pytest.raises(UnsupportedError, match="locked"):
+        effect(lambda door, locked: door_locked.set(door, not locked))
+
+    assert door_locked._effects == {}
+
+
+@pytest.mark.parametrize(
+    "builder",
+    [
+        lambda fl: lambda door, state: fl.set(door, state == "locked"),
+        lambda fl: lambda door, state: fl.set(door, state != "open"),
+        lambda fl: lambda door, state: fl.set(door, "locked" == state),  # noqa: SIM300
+        lambda fl: lambda door, state: fl.set(door, state in ("locked", "shut")),
+        lambda fl: lambda door, state: fl.set(door, state == door),
+    ],
+    ids=["eq", "ne", "reflected-eq", "in", "two-parameters"],
+)
+def test_effect_builder_refuses_comparing_a_parameter(
+    builder: Callable[[Fluent], Callable[..., FluentUpdate]],
+) -> None:
+    door_locked = fluent("door_locked", value=bool, initial=True)
+
+    with pytest.raises(UnsupportedError, match="state"):
+        effect(builder(door_locked))
+
+    assert door_locked._effects == {}
+
+
+@pytest.mark.parametrize(
+    "builder",
+    [
+        lambda fl: lambda door, locked: fl.set(door, True if locked else False),  # noqa: SIM210
+        lambda fl: lambda door, locked: fl.set(door, locked and True),
+        lambda fl: lambda door, locked: fl.set(door, locked or False),
+        lambda fl: lambda door, locked: [fl.set(door, True)] if locked else [],
+    ],
+    ids=["conditional", "and", "or", "conditional-update"],
+)
+def test_effect_builder_refuses_truth_testing_a_parameter(
+    builder: Callable[[Fluent], Callable[..., FluentUpdate | list[FluentUpdate]]],
+) -> None:
+    door_locked = fluent("door_locked", value=bool, initial=True)
+
+    with pytest.raises(UnsupportedError, match="locked"):
+        effect(builder(door_locked))
+
+    assert door_locked._effects == {}
+
+
+def test_parameter_placeholders_still_compare_outside_a_builder() -> None:
+    assert _ParamRef("zone") == _ParamRef("zone")
+    assert _ParamRef("zone") != _ParamRef("temp")
+    assert _ParamRef("zone") != "zone"
+    assert len({_ParamRef("zone"), _ParamRef("zone"), _ParamRef("temp")}) == 2
+
+
+def test_a_refused_builder_does_not_leave_comparison_disabled() -> None:
+    door_locked = fluent("door_locked", value=bool, initial=True)
+    with pytest.raises(UnsupportedError):
+        effect(lambda door, state: door_locked.set(door, state == "locked"))
+
+    assert _ParamRef("door") == _ParamRef("door")
+
+
+@pytest.mark.parametrize(
+    ("value", "literal"),
+    [
+        (bool, "yes"),
+        (bool, 1),
+        (bool, None),
+        (int, "5"),
+        (int, 2.5),
+        (str, 5),
+        (str, True),
+    ],
+    ids=[
+        "str-for-bool",
+        "int-for-bool",
+        "none-for-bool",
+        "str-for-int",
+        "float-for-int",
+        "int-for-str",
+        "bool-for-str",
+    ],
+)
+def test_a_literal_value_must_have_the_fluents_value_type(
+    value: type, literal: object
+) -> None:
+    initial = {bool: True, int: 0, str: ""}[value]
+    cell = fluent("cell", value=value, initial=initial)
+
+    with pytest.raises(UnsupportedError, match="cell"):
+        effect(lambda name: cell.set(name, literal))
+
+    assert cell._effects == {}
+
+
+@pytest.mark.parametrize(
+    ("key", "literal"),
+    [(str, 7), (int, "7"), (int, None)],
+    ids=["int-for-str", "str-for-int", "none-for-int"],
+)
+def test_a_literal_key_must_have_the_fluents_key_type(
+    key: type, literal: object
+) -> None:
+    cell = fluent("cell", key=key, value=bool, initial=False)
+
+    with pytest.raises(UnsupportedError, match="cell"):
+        effect(lambda flag: cell.set(literal, flag))
+
+    assert cell._effects == {}
+
+
+def test_literals_of_the_declared_types_are_recorded() -> None:
+    by_name = fluent("by_name", key=str, value=int, initial=0)
+    by_id = fluent("by_id", key=int, value=str, initial="")
+
+    @effect(lambda: [by_name.set("front", 3), by_id.set(7, "open")])
+    def reset() -> None: ...
+
+    (named,) = by_name._effects["reset"]
+    (numbered,) = by_id._effects["reset"]
+    assert (named.key, named.value) == ("front", 3)
+    assert (numbered.key, numbered.value) == (7, "open")
+
+
+def test_a_mistyped_literal_in_a_recorded_update_fails_at_solve_time() -> None:
+    """The fold checks again, for an update that did not come through ``set``."""
+    door_locked = fluent("door_locked", value=bool, initial=True)
+    door_locked._register_effect(
+        func_name="unlock_door",
+        update=FluentUpdate(fluent=door_locked, key=_ParamRef("door"), value="yes"),
+    )
+    ctx = _ctx()
+    ctx.facts.add(
+        FactInfo(
+            name="unlock_door",
+            markers=("trusted",),
+            args={"door": types.str.val("front", ctx=ctx)},
+            cond=types.bool.val(True, ctx=ctx),
+        )
+    )
+
+    with pytest.raises(UnsupportedError, match="door_locked"):
+        (door_locked.final["front"] == True).solve(ctx=ctx)  # noqa: E712

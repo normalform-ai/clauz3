@@ -364,3 +364,41 @@ def test_an_unresolvable_call_is_refused_not_read_as_no_events(
     monkeypatch.setattr("clauz3.events._resolve", lambda qualified_name: None)
     conclusion = _prove(tmp_path, 'remove("/a")', "read_only()")
     assert conclusion == Conclusion.SKIP
+
+
+class Quiet(Event):
+    to: str
+
+
+@pytest.mark.parametrize(
+    "builder",
+    [
+        lambda addr, urgent: Sent(addr) if urgent else Quiet(addr),
+        lambda addr, urgent: [Sent(addr)] if not urgent else [Quiet(addr)],
+        lambda addr, urgent: Sent(addr) if addr == "ceo@example.org" else Quiet(addr),
+        lambda addr, urgent: Sent(addr) if addr != urgent else Quiet(addr),
+        lambda addr, urgent: Sent(urgent and addr),
+    ],
+    ids=["conditional", "not", "eq", "ne", "and"],
+)
+def test_performs_refuses_choosing_events_by_a_parameter(
+    builder: Callable[..., Event | list[Event]],
+) -> None:
+    """Not folded to one branch.
+
+    The builder runs once, at import, with a placeholder per parameter. Read
+    as an ordinary object, the placeholder is true and equal to nothing, so a
+    conditional declared only one of its branches for every call.
+    """
+    with pytest.raises(RelationError, match="computed"):
+        performs(builder)
+
+
+def test_parameter_placeholders_still_compare_after_a_refused_builder() -> None:
+    with pytest.raises(RelationError):
+        performs(lambda addr: Sent(addr) if addr == "x" else Quiet(addr))
+
+    assert _ParamRef("addr") == _ParamRef("addr")
+    assert _ParamRef("addr") != _ParamRef("body")
+    assert Sent(_ParamRef("addr")) == Sent(_ParamRef("addr"))  # type: ignore[arg-type]
+    assert hash(_ParamRef("addr")) == hash(_ParamRef("addr"))

@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Callable
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any
 
@@ -94,7 +95,11 @@ def effect(
     """
     param_names = list(inspect.signature(builder).parameters)
     refs = {pname: _ParamRef(pname) for pname in param_names}
-    result = builder(**refs)
+    building = _IN_BUILDER.set(True)
+    try:
+        result = builder(**refs)
+    finally:
+        _IN_BUILDER.reset(building)
     updates = list(result) if isinstance(result, (list, tuple)) else [result]
     for update in updates:
         if not isinstance(update, FluentUpdate):
@@ -110,11 +115,53 @@ def effect(
     return decorate
 
 
-@dataclass(frozen=True)
+#: Set while :func:`effect` is running a builder, which is when comparing a
+#: parameter placeholder is an expression over the parameter, not a test of
+#: which placeholder it is.
+_IN_BUILDER: ContextVar[bool] = ContextVar(
+    "clauz3_fluent_effect_builder", default=False
+)
+
+
+@dataclass(frozen=True, eq=False)
 class _ParamRef:
-    """A reference to a trusted-function parameter inside an ``@effect`` axiom."""
+    """A reference to a trusted-function parameter inside an ``@effect`` axiom.
+
+    It stands for a value that is only known per call, so the builder may pass
+    it to ``SomeFluent.set`` and nothing else. Python would otherwise evaluate
+    an expression over it on the spot, at import: ``not locked`` and
+    ``state == "locked"`` are both simply ``False`` for an ordinary object,
+    and the axiom would record that constant for every call. Truth-testing a
+    placeholder and comparing one inside a builder are refused instead.
+
+    Outside a builder two placeholders are equal when they name the same
+    parameter, which is how recorded updates are compared.
+    """
 
     name: str
+
+    def __bool__(self) -> bool:
+        raise UnsupportedError(
+            f"an @effect axiom cannot test the truth of parameter {self.name!r} "
+            "(`not`, `and`, `or`, or a conditional): a fluent key or value "
+            "must be a parameter or a literal, not a computed value; see "
+            "docs/todos/fluents.md"
+        )
+
+    def __eq__(self, other: object) -> bool:
+        if _IN_BUILDER.get():
+            raise UnsupportedError(
+                f"an @effect axiom cannot compare parameter {self.name!r} "
+                "(`==`, `!=`, or `in`): a fluent key or value must be a "
+                "parameter or a literal, not a computed value; see "
+                "docs/todos/fluents.md"
+            )
+        if not isinstance(other, _ParamRef):
+            return NotImplemented
+        return self.name == other.name
+
+    def __hash__(self) -> int:
+        return hash((_ParamRef, self.name))
 
 
 @dataclass(frozen=True)
@@ -146,7 +193,25 @@ class Fluent:
 
     def set(self, key: Any, value: Any) -> FluentUpdate:
         """Build a successor-state assignment for use inside ``@effect``."""
+        self._check_literal(key, self.key_type, "key")
+        self._check_literal(value, self.value_type, "value")
         return FluentUpdate(fluent=self, key=key, value=value)
+
+    def _check_literal(self, spec: Any, py_type: type, role: str) -> None:
+        """Refuse a literal that is not of the declared key or value type.
+
+        The Z3 conversion coerces (``bool("yes")``, ``int("5")``, ``str(5)``),
+        so a mistyped literal became a different, well-typed constant rather
+        than an error. The test is the one :func:`fluent` applies to
+        ``initial``.
+        """
+        if isinstance(spec, (_ParamRef, py_type)):
+            return
+        raise UnsupportedError(
+            f"fluent {self.name!r} {role} {spec!r} is not a {py_type.__name__}; "
+            "an @effect axiom assigns a parameter or a literal of the declared "
+            "type"
+        )
 
     @property
     def final(self) -> FluentFinal:
@@ -183,6 +248,7 @@ class Fluent:
                 )
             proxy = args[spec.name]
             return proxy.expr if hasattr(proxy, "expr") else proxy
+        self._check_literal(spec, py_type, "update")
         return _literal_z3(py_type, spec)
 
     def _final_array(self, ctx: Any) -> z3.ArrayRef:

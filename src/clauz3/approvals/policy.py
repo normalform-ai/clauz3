@@ -49,6 +49,7 @@ from clauz3.prover import (
     validate_module_level,
     validate_untrusted_source,
 )
+from clauz3.reserved_names import InjectedImports
 
 _CLAUSE_KEY = {
     Decision.AUTO_APPROVED: "when_proven",
@@ -253,14 +254,17 @@ def _conjoin(
 ) -> str:
     """Add ``@clauz3.guarantee(<clause>)`` decorators to the target function.
 
-    Policy aliases are rewritten to collision-proof internal names so a clause
-    cannot be captured by a same-named binding in the agent's program.
+    Policy aliases are rewritten to reserved internal names. Renaming alone is
+    not enough: the agent's program could import another module under the same
+    name and have that module's contract proved instead. ``InjectedImports``
+    therefore refuses a program that spells one of these names, and checks the
+    rewritten copy before returning it. The refusal reaches ``_entails_all`` as
+    a clause it cannot evaluate, so the request goes to a human.
     """
 
     tree = ast.parse(program)
-    alias_map = {
-        alias: f"_clauz3_pol_{index}" for index, (alias, _) in enumerate(imports)
-    }
+    injected = InjectedImports(tree, kind="pol")
+    alias_map = {alias: injected.alias(module) for alias, module in imports}
     rewriter = _AliasRewriter(alias_map)
 
     found = False
@@ -274,14 +278,7 @@ def _conjoin(
     if not found:
         raise ApprovalPolicyError(f"target {target!r} not found in program")
 
-    statements: list[ast.stmt] = [ast.Import(names=[ast.alias(name="clauz3")])]
-    statements += [
-        ast.Import(names=[ast.alias(name=module, asname=alias_map[alias])])
-        for alias, module in imports
-    ]
-    tree.body[0:0] = statements
-    ast.fix_missing_locations(tree)
-    return ast.unparse(tree)
+    return injected.render()
 
 
 class _AliasRewriter(ast.NodeTransformer):

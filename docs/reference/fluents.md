@@ -126,6 +126,8 @@ so the executor itself is unchanged.
 - **Key/value types** are limited to `str`, `int`, and `bool`.
 - **Successor-state axioms** assign a parameter or a literal to a key that is a
   parameter or a literal. Computed keys/values (arithmetic, conditionals) are
-  not supported yet.
+  not supported yet. A builder that negates, truth-tests or compares a
+  parameter, or passes a literal of another type than the fluent declares,
+  raises `UnsupportedError` when the trusted layer is imported.
 - Like all `@contract` helpers, fluent contract bodies are still executed as
   Python; see [What is still trusted](effect-specs.md#what-is-still-trusted).
