@@ -11,6 +11,9 @@
   const QUOTE = /^ {0,3}> ?/;
   const ITEM = /^( *)([-*+]|\d{1,9}[.)])\s+/;
   const DELIMITER = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
+  // Quotes and lists nest by recursion. Past this depth the rest of a block is
+  // shown as one paragraph, so hostile or runaway nesting cannot overflow the stack.
+  const MAX_DEPTH = 32;
   const blank = (line) => !line.trim();
   const indent = (line) => line.match(/^ */)[0].length;
   const startsBlock = (line) =>
@@ -29,7 +32,13 @@
       .map((cell) => cell.trim().replaceAll("\\|", "|"));
   }
 
-  function parseLines(lines) {
+  function nested(lines, depth) {
+    if (depth < MAX_DEPTH) return parseLines(lines, depth + 1);
+    const text = lines.map((line) => line.trim()).join("\n").trim();
+    return text ? [{ type: "paragraph", text }] : [];
+  }
+
+  function parseLines(lines, depth = 0) {
     const blocks = [];
     let i = 0;
     while (i < lines.length) {
@@ -79,7 +88,7 @@
         const body = [];
         while (i < lines.length && QUOTE.test(lines[i]))
           body.push(lines[i++].replace(QUOTE, ""));
-        blocks.push({ type: "quote", children: parseLines(body) });
+        blocks.push({ type: "quote", children: nested(body, depth) });
         continue;
       }
       const item = line.match(ITEM);
@@ -116,7 +125,7 @@
             } else break;
             i++;
           }
-          list.items.push(parseLines(body));
+          list.items.push(nested(body, depth));
           while (i < lines.length && blank(lines[i])) {
             const following = lines.slice(i).find((l) => !blank(l));
             const sibling = following?.match(ITEM);

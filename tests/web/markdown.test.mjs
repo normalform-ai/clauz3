@@ -133,3 +133,38 @@ test("bare URLs link without trailing punctuation", () => {
     { type: "text", text: "." },
   ]);
 });
+
+// Follow the only child down a chain of quotes or single-item lists.
+function nesting(source) {
+  let [block] = parse(source);
+  let depth = 0;
+  while (block && (block.type === "quote" || block.type === "list")) {
+    const children = block.type === "quote" ? block.children : block.items[0];
+    assert.ok(children.length <= 1);
+    [block] = children;
+    depth++;
+  }
+  return { depth, block };
+}
+
+test("ordinary nesting is unchanged", () => {
+  for (const marker of ["> ", "- "])
+    assert.deepEqual(nesting(marker.repeat(8) + "deep"), {
+      depth: 8,
+      block: { type: "paragraph", text: "deep" },
+    });
+});
+
+test("runaway nesting becomes plain text instead of overflowing the stack", () => {
+  for (const marker of ["> ", "- "]) {
+    const { depth, block } = nesting(marker.repeat(5000) + "x");
+    // 33 containers: the outermost block plus 32 nested levels.
+    assert.equal(depth, 33);
+    assert.deepEqual(block, {
+      type: "paragraph",
+      text: marker.repeat(5000 - depth) + "x",
+    });
+  }
+  // An empty block at the limit stays empty.
+  assert.deepEqual(nesting("> ".repeat(33)), { depth: 33, block: undefined });
+});
