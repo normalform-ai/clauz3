@@ -99,6 +99,44 @@ def main() -> None:
     )
 
 
+@pytest.mark.parametrize("domain", ["trusted_mail", "mail.trustedness"])
+def test_a_domain_name_that_starts_with_trusted_keeps_its_namespace(
+    tmp_path: Path, domain: str
+) -> None:
+    """The namespace ends at the ``trusted`` package, not at that spelling."""
+    root = tmp_path / "tools" / Path(*domain.split(".")) / "trusted"
+    root.mkdir(parents=True)
+    (root / "effects.py").write_text(
+        "import clauz3\n\n@clauz3.trusted\ndef send(addr: str) -> None: ...\n"
+    )
+    (root / "contracts.py").write_text(
+        "from clauz3.spec import ContractSpec, contract, effect\n\n"
+        "@contract\n"
+        "def nothing_sent() -> ContractSpec:\n"
+        '    return effect("send").empty()\n'
+    )
+    source = f"""import clauz3
+from tools.{domain}.trusted import contracts as rules
+
+@clauz3.guarantee(rules.nothing_sent())
+def main() -> None:
+    pass
+"""
+    with _selected_layer_context([root], [tmp_path]) as layer:
+        proofs = prove_text(source, trusted_roots=[root], import_paths=[tmp_path])
+        assert all(p.proof.conclusion == Conclusion.OK for p in proofs)
+        identities = contract_identities(
+            source=source,
+            target="main",
+            roots=[root],
+            sources=layer.profile_source_identity(),
+        )
+    identity = identities["rules.nothing_sent()"]
+    assert identity["symbol"] == f"tools.{domain}.trusted.contracts.nothing_sent"
+    assert identity["library"] == domain
+    assert identity["call"] == f"{domain}.nothing_sent()"
+
+
 def test_identity_binds_defaults_and_typed_path_aliases_without_executing() -> None:
     @contract
     def helper(path: str, *, count: int = 2) -> ContractSpec:
