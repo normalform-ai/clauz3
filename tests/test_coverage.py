@@ -142,6 +142,102 @@ def test_required_gap_takes_precedence() -> None:
     assert entry["missing_required"] == ["only"]
 
 
+def _two_domain_source(*guarantee_calls: str) -> str:
+    return _source(*guarantee_calls).replace(
+        "from tools.email.trusted.effects import send_email\n",
+        "from tools.email.trusted.effects import send_email\n"
+        "from tools.fs.trusted import contracts as fs\n",
+    )
+
+
+def test_another_domains_same_named_contract_is_not_the_required_one() -> None:
+    """``fs.only(...)`` says nothing about who may be emailed."""
+    policy = DomainPolicy(
+        when_used=("send_email",),
+        required=("only",),
+        recommended=("unique_recipients",),
+        domain_package="tools.email.trusted",
+        label="email",
+    )
+    guarantees = ["fs.only(['/tmp'])", "emails.unique_recipients()"]
+    entry = _email_entry(
+        compute_coverage(
+            source=_two_domain_source(*guarantees),
+            guarantees=guarantees,
+            policies=[policy],
+        )
+    )
+    assert entry == {
+        "domain": "email",
+        "status": "required_gap",
+        "missing_required": ["only"],
+        "missing_recommended": [],
+    }
+
+
+def test_another_domains_same_named_contract_is_not_a_recommended_one() -> None:
+    guarantees = ["fs.only(['/tmp'])", "emails.unique_recipients()"]
+    entry = _email_entry(
+        compute_coverage(
+            source=_two_domain_source(*guarantees),
+            guarantees=guarantees,
+            policies=[EMAIL_POLICY],
+        )
+    )
+    assert entry["status"] == "recommended_gap"
+    assert entry["missing_recommended"] == ["only"]
+
+
+def test_a_contract_in_a_submodule_of_the_domain_package_counts() -> None:
+    policy = DomainPolicy(
+        when_used=("send_email",),
+        required=("only",),
+        domain_package="tools.email",
+        label="email",
+    )
+    guarantees = ["emails.only(['bob@example.com'])"]
+    entry = _email_entry(
+        compute_coverage(
+            source=_source(*guarantees), guarantees=guarantees, policies=[policy]
+        )
+    )
+    assert entry["status"] == "covered"
+
+
+def test_a_sibling_package_sharing_a_prefix_is_another_domain() -> None:
+    policy = DomainPolicy(
+        when_used=("send_email",),
+        required=("only",),
+        domain_package="tools.email.trust",
+        label="email",
+    )
+    guarantees = ["emails.only(['bob@example.com'])"]
+    entry = _email_entry(
+        compute_coverage(
+            source=_source(*guarantees), guarantees=guarantees, policies=[policy]
+        )
+    )
+    assert entry["missing_required"] == ["only"]
+
+
+def test_a_policy_without_a_domain_package_still_matches_by_name() -> None:
+    """A hand-built policy names no package, so there is none to match against."""
+    policy = DomainPolicy(
+        when_used=("send_email",),
+        required=("only",),
+        recommended=("unique_recipients",),
+        label="email",
+    )
+    guarantees = ["emails.only(['bob@example.com'])"]
+    entry = _email_entry(
+        compute_coverage(
+            source=_source(*guarantees), guarantees=guarantees, policies=[policy]
+        )
+    )
+    assert entry["missing_required"] == []
+    assert entry["missing_recommended"] == ["unique_recipients"]
+
+
 def test_load_domain_policies_from_example() -> None:
     policies = load_domain_policies(
         trusted_roots=[TRUSTED_ROOT],

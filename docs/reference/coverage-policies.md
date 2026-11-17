@@ -138,6 +138,9 @@ Alias resolution is what stops a false `silent_gap` when the agent used a real
 but unlisted contract such as `emails.only(...)`. Guarantee names resolve
 through module imports, including renamed contract helpers; local imports in
 function or class bodies cannot change which domain an entry guarantee covers.
+A contract counts toward a policy's `required` and `recommended` lists only when
+it is defined in that policy's trusted package: `fs.only(...)` does not state an
+email policy's `only`.
 
 The report is attached to the approval request under a `coverage` key, alongside
 `guarantees` and `proofs`. The approval service renders it as a **Coverage**
