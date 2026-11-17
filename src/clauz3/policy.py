@@ -182,8 +182,9 @@ def compute_coverage(
     # function or class. Share that resolution with guarantee validation.
     aliases = decorators_mod.import_aliases(tree)
 
-    addressed_names: set[str] = set()
-    addressed_packages: set[str] = set()
+    # ``(module, name)`` of every stated contract: a name alone does not say
+    # which domain it constrains, and two domains may each define ``only``.
+    addressed: set[tuple[str, str]] = set()
     for guarantee in guarantees:
         expression = ast.parse(guarantee, mode="eval").body
         if not isinstance(expression, ast.Call):
@@ -192,24 +193,24 @@ def compute_coverage(
             decorators_mod.dotted_name(expression), aliases
         )
         module, _, name = callee.rpartition(".")
-        addressed_names.add(name)
-        if module:
-            addressed_packages.add(module)
+        addressed.add((module, name))
 
     report: list[dict[str, object]] = []
     for policy in policies:
         if not domain_triggered(called, policy.when_used):
             continue
 
-        in_domain = policy.domain_package is not None and any(
-            module == policy.domain_package
-            or module.startswith(policy.domain_package + ".")
-            for module in addressed_packages
-        )
-        missing_required = [c for c in policy.required if c not in addressed_names]
-        missing_recommended = [
-            c for c in policy.recommended if c not in addressed_names
-        ]
+        package = policy.domain_package
+        # A policy built without a package has none to match against, so it
+        # keeps matching by name alone.
+        stated = {
+            name
+            for module, name in addressed
+            if package is None or module == package or module.startswith(package + ".")
+        }
+        in_domain = package is not None and bool(stated)
+        missing_required = [c for c in policy.required if c not in stated]
+        missing_recommended = [c for c in policy.recommended if c not in stated]
 
         if missing_required:
             status = "required_gap"

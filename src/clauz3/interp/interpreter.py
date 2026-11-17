@@ -186,13 +186,15 @@ class Frame:
         return ((self.scope, self.local_names), *self.enclosing)
 
     def unbound_local(self, name: str) -> bool:
-        """True when ``name`` is statically local to a body that has not bound it."""
-        if name in self.local_names and self.scope.get_own(name) is _MISSING:
-            return True
-        return any(
-            name in names and scope.get_own(name) is _MISSING
-            for scope, names in self.enclosing
-        )
+        """True when the nearest scope that owns ``name`` has not bound it.
+
+        Innermost first, stopping at the first owner: a nearer scope that binds
+        the name shadows a farther body that assigns it later.
+        """
+        for scope, names in ((self.scope, self.local_names), *self.enclosing):
+            if name in names:
+                return scope.get_own(name) is _MISSING
+        return False
 
     def child(
         self,
@@ -543,7 +545,10 @@ def _imported_names(module: ModuleType) -> frozenset[str] | None:
 
 @functools.lru_cache(maxsize=128)
 def _import_bindings(source: str) -> frozenset[str] | None:
-    r"""Names the ``import`` statements in ``source`` bind; ``None`` if unparsable.
+    r"""Names the ``import`` statements in ``source`` bind; ``None`` if unknown.
+
+    Unknown means unparsable, or containing a star import: what ``from m
+    import *`` binds is not in the source, so no name can be called local.
 
     Memoised on the source *text*, not the module object. ``exposed_names``
     reaches :func:`_imported_names` once per public constant of a trusted
@@ -557,6 +562,8 @@ def _import_bindings(source: str) -> frozenset[str] | None:
     ['c', 'os']
     >>> _import_bindings("import (") is None
     True
+    >>> _import_bindings("from settings import *\nX = 1\n") is None
+    True
     """
     try:
         tree = astroid.parse(source)
@@ -565,6 +572,8 @@ def _import_bindings(source: str) -> frozenset[str] | None:
     bound: set[str] = set()
     for statement in tree.nodes_of_class((astroid.Import, astroid.ImportFrom)):
         for name, alias in statement.names:
+            if name == "*":
+                return None
             bound.add(alias or name.split(".", 1)[0])
     return frozenset(bound)
 
@@ -1772,9 +1781,10 @@ def _binop(op: str, left: Any, right: Any) -> Any:
     _require_operand(op, right)
     try:
         return _require_in_domain(impl(left, right))
-    except (TypeError, ArithmeticError) as exc:
+    except (TypeError, ValueError, ArithmeticError) as exc:
         # ArithmeticError covers ZeroDivisionError and OverflowError alike:
-        # ``10 ** 400 * 1.0`` overflows without dividing by zero.
+        # ``10 ** 400 * 1.0`` overflows without dividing by zero. ValueError
+        # is ``1 << -1`` and a malformed or oversized ``"%d" % n``.
         raise ProgramError(str(exc), kind=type(exc).__name__) from exc
 
 
@@ -1872,8 +1882,9 @@ def _expr_compare(node: astroid.Compare, frame: Frame) -> Any:
         try:
             if not impl(left, right):
                 return False
-        except TypeError as exc:
-            raise ProgramError(str(exc), kind="TypeError") from exc
+        except (TypeError, RecursionError) as exc:
+            # RecursionError: two self-containing lists compared elementwise.
+            raise ProgramError(str(exc), kind=type(exc).__name__) from exc
         left = right
     return True
 
@@ -1994,15 +2005,20 @@ def _comprehend(node: astroid.ListComp, frame: Frame) -> Iterable[Any]:
     iterable = eval_expr(generator.iter, frame)
     if not isinstance(iterable, (list, tuple, set, frozenset, str)):
         raise UnsupportedNode(f"cannot iterate over {type_name(iterable)}")
+    # One scope for the whole comprehension, as in CPython: a closure made in
+    # the element sees the target's latest value, not the item it was made for.
+    inner = Frame(
+        program=frame.program,
+        scope=frame.scope.child(),
+        trace=frame.trace,
+        module_scope=frame.module_scope,
+        # The comprehension's own targets, so that it is a link in the chain a
+        # nested comprehension or lambda resolves names through.
+        local_names=frozenset(node.locals),
+        enclosing=frame.nested(),
+    )
     for item in list(iterable):
         frame.step()
-        inner = Frame(
-            program=frame.program,
-            scope=frame.scope.child(),
-            trace=frame.trace,
-            module_scope=frame.module_scope,
-            enclosing=frame.nested(),
-        )
         _assign_to(generator.target, item, inner)
         if all(_truth(eval_expr(cond, inner)) for cond in generator.ifs or ()):
             yield eval_expr(node.elt, inner)

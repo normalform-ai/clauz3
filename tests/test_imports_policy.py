@@ -86,10 +86,21 @@ def test_validate_imports_rejects_disallowed_module() -> None:
         )
 
 
-def test_validate_imports_rejects_relative_import() -> None:
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from . import sibling\n",
+        # ``module`` names an allowlisted library here, so checking it alone
+        # let a sibling ``math.py`` through under the stdlib module's name.
+        "from .math import sin\n",
+        "from ..json import loads\n",
+        "def main() -> None:\n    from .math import sin\n",
+    ],
+)
+def test_validate_imports_rejects_relative_import(source: str) -> None:
     with pytest.raises(DisallowedImportError, match="relative imports"):
         validate_imports(
-            source="from . import sibling\n",
+            source=source,
             source_name="<test>",
             policy=build_policy(),
         )

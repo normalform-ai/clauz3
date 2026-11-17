@@ -6,6 +6,7 @@ Companion to ``tests/test_interp_escapes.py`` (which covers containment) and
 
 from __future__ import annotations
 
+import enum
 from pathlib import Path
 from typing import Any
 
@@ -674,6 +675,45 @@ def test_dotted_unaliased_import_is_refused_by_name() -> None:
             "import math\ndef main():\n    return math.isclose(1, 2, rel_tol=-1)\n",
             ProgramError,
         ),
+        # Operators raise ``ValueError`` too, which is neither a ``TypeError``
+        # nor an ``ArithmeticError``; comparing two self-containing lists
+        # exhausts the native stack.
+        (
+            "negative-shift",
+            "def main():\n    n = 0 - 1\n    return 1 << n\n",
+            ProgramError,
+        ),
+        (
+            "negative-shift-augmented",
+            "def main():\n    n = 1\n    n >>= 0 - 1\n    return n\n",
+            ProgramError,
+        ),
+        ("incomplete-format", "def main():\n    return '%' % 1\n", ProgramError),
+        (
+            "format-int-too-large",
+            "def main():\n    return '%d' % (10 ** 5000)\n",
+            ProgramError,
+        ),
+        (
+            "cyclic-compare",
+            "def main():\n"
+            "    xs = []\n"
+            "    xs.append(xs)\n"
+            "    ys = []\n"
+            "    ys.append(ys)\n"
+            "    return xs == ys\n",
+            ProgramError,
+        ),
+        (
+            "cyclic-membership",
+            "def main():\n"
+            "    xs = []\n"
+            "    xs.append(xs)\n"
+            "    ys = []\n"
+            "    ys.append(ys)\n"
+            "    return xs in [ys]\n",
+            ProgramError,
+        ),
     ],
 )
 def test_error_contract_is_total(
@@ -689,6 +729,19 @@ def test_error_contract_is_total(
     """
     with pytest.raises(expected):
         run(source)
+
+
+def test_dict_of_none_is_a_type_error() -> None:
+    """``None`` was ``dict``'s "no argument" marker, so ``dict(None)`` was ``{}``."""
+    with pytest.raises(ProgramError, match="NoneType") as excinfo:
+        run("def main():\n    return dict(None)\n")
+    assert excinfo.value.kind == "TypeError"
+    with pytest.raises(ProgramError, match="NoneType"):
+        run("def main():\n    return dict(None, a=1)\n")
+    outcome = run(
+        "def main():\n    return [dict(), dict(a=1), dict([('b', 2)], c=3)]\n"
+    )
+    assert outcome.value == [{}, {"a": 1}, {"b": 2, "c": 3}]
 
 
 def test_row_fields_are_marshalled_outbound() -> None:
@@ -828,6 +881,113 @@ def test_closures_and_comprehensions_still_read_enclosing_names() -> None:
         1,
         1,
     ]
+
+
+@pytest.mark.parametrize(
+    ("label", "source", "expected"),
+    [
+        (
+            "nearer-def-shadows-later-outer-def",
+            "def main():\n"
+            "    def a():\n"
+            "        def h():\n"
+            "            return 1\n"
+            "        def b():\n"
+            "            return h()\n"
+            "        return b()\n"
+            "    r = a()\n"
+            "    def h():\n"
+            "        return 2\n"
+            "    return r\n",
+            1,
+        ),
+        (
+            "nearer-local-shadows-later-outer-local",
+            "def main():\n"
+            "    def a():\n"
+            "        x = 1\n"
+            "        def b():\n"
+            "            return x\n"
+            "        return b()\n"
+            "    r = a()\n"
+            "    x = 2\n"
+            "    return r\n",
+            1,
+        ),
+        (
+            "outer-comprehension-target",
+            "def main():\n"
+            "    ys = [[x for y in [1]] for x in [1, 2]]\n"
+            "    x = 5\n"
+            "    return ys\n",
+            [[1], [2]],
+        ),
+        (
+            "lambda-in-comprehension",
+            "def main():\n"
+            "    fs = [(lambda: x)() for x in [1, 2]]\n"
+            "    x = 9\n"
+            "    return fs\n",
+            [1, 2],
+        ),
+    ],
+)
+def test_a_nearer_binding_shadows_an_unbound_outer_local(
+    label: str,
+    source: str,
+    expected: Any,
+) -> None:
+    """A name belongs to the *nearest* scope that binds it, as in CPython.
+
+    The unbound-local check asked whether any enclosing body assigns the name
+    and has not bound it yet, so a farther body that assigns it later raised
+    ``UnboundLocalError`` although a nearer scope -- a function body or a
+    comprehension -- owns the name and has a value for it. These all prove.
+    """
+    assert run(source).value == expected
+
+
+def test_an_unbound_nearer_local_still_hides_a_bound_outer_one() -> None:
+    """The nearest owner decides in both directions: unbound there is an error."""
+    with pytest.raises(ProgramError) as excinfo:
+        run(
+            "def main():\n"
+            "    def h():\n"
+            "        return 2\n"
+            "    def a():\n"
+            "        def b():\n"
+            "            return h()\n"
+            "        r = b()\n"
+            "        def h():\n"
+            "            return 1\n"
+            "        return r\n"
+            "    return a()\n"
+        )
+    assert excinfo.value.kind == "UnboundLocalError"
+
+
+def test_a_comprehension_has_one_scope_for_all_its_items() -> None:
+    """Closures made in a comprehension share its scope, so they bind late.
+
+    Each item used to get a scope of its own, which froze the target per
+    closure: ``fs[0]()`` returned 1 where CPython returns 2.
+    """
+    outcome = run(
+        "def main():\n"
+        "    fs = [lambda: x for x in [1, 2]]\n"
+        "    return [fs[0](), fs[1]()]\n"
+    )
+    assert outcome.value == [2, 2]
+
+
+def test_comprehension_targets_still_do_not_leak() -> None:
+    outcome = run(
+        "def main():\n"
+        "    x = 7\n"
+        "    ys = [x * 2 for x in [1, 2] if x > 1]\n"
+        "    return [x, ys]\n"
+    )
+    assert outcome.value == [7, [4]]
 
 
 @pytest.mark.parametrize(
@@ -1181,6 +1341,71 @@ def test_frozenset_subclass_crosses_the_boundary_as_a_frozenset() -> None:
     assert outcome.value == frozenset({1, 2})
 
 
+class _Colour(str, enum.Enum):  # noqa: UP042 - the mixin form is the point
+    RED = "red"
+
+
+class _Shade(enum.StrEnum):
+    DARK = "dark"
+
+
+class _Priority(enum.IntEnum):
+    HIGH = 3
+
+
+class _SelfStr(str):  # noqa: FURB189 - subclassing is the point
+    def __str__(self) -> str:
+        return self
+
+
+class _LoudInt(int):
+    def __int__(self) -> int:
+        return 99
+
+    def __index__(self) -> int:
+        return 99
+
+
+class _LoudFloat(float):
+    def __float__(self) -> float:
+        return 99.0
+
+
+@pytest.mark.parametrize(
+    ("returned", "expected"),
+    [
+        pytest.param(_Colour.RED, "red", id="str-enum-mixin"),
+        pytest.param(_Shade.DARK, "dark", id="strenum"),
+        pytest.param(_Priority.HIGH, 3, id="intenum"),
+        pytest.param(_SelfStr("x"), "x", id="str-returning-self"),
+        pytest.param(_LoudInt(7), 7, id="int-overriding-int"),
+        pytest.param(_LoudFloat(1.5), 1.5, id="float-overriding-float"),
+        pytest.param(True, True, id="bool"),
+    ],
+)
+def test_scalar_subclasses_cross_the_boundary_with_their_payload(
+    returned: Any,
+    expected: Any,
+) -> None:
+    """Narrowing to the exact builtin must not dispatch an overridable dunder.
+
+    ``str(Colour.RED)`` is ``'Colour.RED'`` for a ``(str, Enum)`` member, so a
+    trusted effect returning one handed the program a different string from
+    the one it compares equal to; a ``__str__`` returning ``self`` kept the
+    subclass alive in the value domain.
+    """
+    outcome = run(
+        "from tools.email.trusted.effects import send_email\n"
+        "def main():\n    return send_email('bob@example.com', 'x')\n",
+        dispatch=lambda q, f, a, k: [returned, {returned: returned}],
+    )
+    value, mapping = outcome.value
+    assert value == expected
+    assert type(value) is type(expected)
+    assert mapping == {expected: expected}
+    assert [type(key) for key in mapping] == [type(expected)]
+
+
 def test_step_budget_exhaustion_names_the_effects_already_performed() -> None:
     """Exhaustion aborts a proved, approved program mid-run, not before it.
 
@@ -1343,6 +1568,72 @@ def test_unreadable_layer_source_exposes_no_constants(tmp_path: Path) -> None:
             _run_against(root, trusted, source)
     finally:
         interpreter._imported_names = original
+
+
+_STAR_IMPORTING_LAYER = (
+    "import deal\n"
+    "from tools.demo.trusted.settings import *\n"
+    "\n"
+    "LIMIT = 3\n"
+    "\n"
+    "\n"
+    '@deal.has("network")\n'
+    "def ship(msg: str) -> None:\n"
+    "    return None\n"
+)
+
+
+@pytest.mark.parametrize("constant", ["API_TOKEN", "LIMIT"])
+def test_a_star_import_makes_a_layers_constants_unexposed(
+    tmp_path: Path,
+    constant: str,
+) -> None:
+    """``from settings import *`` binds names the source does not list.
+
+    The provenance check recorded the literal ``*`` as the one bound name, so
+    every star-imported constant counted as locally defined and
+    ``effects.API_TOKEN`` -- defined outside the module, possibly outside every
+    trusted root -- was readable from the interpreted program. What a star
+    import binds is unknown from the source, so provenance is unknown and no
+    constant of that module is exposed.
+    """
+    root, trusted = _trusted_layer(tmp_path, _STAR_IMPORTING_LAYER)
+    (trusted / "settings.py").write_text("API_TOKEN = 's3cret'\n")
+    with pytest.raises(TrustedBoundaryError, match=constant):
+        _run_against(
+            root,
+            trusted,
+            "from tools.demo.trusted import effects\n"
+            "\n"
+            "def main():\n"
+            f"    return effects.{constant}\n",
+        )
+
+
+def test_a_star_importing_layer_still_exposes_its_effects(tmp_path: Path) -> None:
+    root, trusted = _trusted_layer(tmp_path, _STAR_IMPORTING_LAYER)
+    (trusted / "settings.py").write_text("API_TOKEN = 's3cret'\n")
+    outcome = _run_against(
+        root,
+        trusted,
+        "from tools.demo.trusted.effects import ship\n"
+        "\n"
+        "def main() -> None:\n"
+        "    ship('hi')\n",
+        trusted_dispatch=lambda q, f, a, k: None,
+    )
+    assert [name for name, _a, _k in outcome.effects] == [
+        "tools.demo.trusted.effects.ship"
+    ]
+
+
+def test_star_import_bindings_are_unknown() -> None:
+    import clauz3.interp.interpreter as interpreter
+
+    assert interpreter._import_bindings("from settings import *\nX = 1\n") is None
+    assert interpreter._import_bindings(
+        "def f():\n    pass\nfrom settings import a\n"
+    ) == frozenset({"a"})
 
 
 @pytest.mark.parametrize(

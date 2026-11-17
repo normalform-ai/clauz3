@@ -359,10 +359,20 @@ def normalise_scalar(value: Any) -> Any:
 
     ``bool`` is tested first: it subclasses ``int``, and collapsing it would
     turn ``True`` into ``1``.
+
+    A subclass instance is copied through the *base* type's slot, never through
+    ``exact(value)``: that dispatches the subclass's own ``__str__``/``__int__``/
+    ``__float__``, and ``str(Color.RED)`` is ``'Color.RED'`` for a ``(str,
+    Enum)`` member -- a different string from the one the member equals.
     """
-    for exact in (bool, int, float, str):
-        if isinstance(value, exact):
-            return value if type(value) is exact else exact(value)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return value if type(value) is int else int.__index__(value)
+    if isinstance(value, float):
+        return value if type(value) is float else float.__float__(value)
+    if isinstance(value, str):
+        return value if type(value) is str else str.__str__(value)
     return None
 
 
