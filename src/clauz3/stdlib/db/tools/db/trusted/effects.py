@@ -55,12 +55,23 @@ def read_rows(
     ``path`` may point to a DuckDB database, one CSV or Parquet file, or a
     directory with files named ``<table>.csv`` / ``<table>.parquet``. CSV and
     Parquet sources are queried through an in-memory DuckDB connection.
+
+    A DuckDB database is opened read-only with external access disabled, so
+    ``table`` names a table or view stored in that file, never another file,
+    and a stored view that reads a file or URL fails instead of reading it.
+
+    ``path`` is used as written, with no tilde expansion: ``~/data`` is a
+    folder named ``~`` in the working directory, not the home directory.
+
+    An ``int`` or ``bool`` field must be stored as that type; a text or
+    decimal column raises ``TypeError`` instead of being converted. A NULL
+    raises ``ValueError``.
     """
     if not isinstance(schema, type) or not issubclass(schema, clauz3.Row):
         raise TypeError("schema must be a clauz3.Row subclass")
 
     duckdb = _duckdb()
-    connection, relation_sql = _connect(duckdb, Path(path).expanduser(), table)
+    connection, relation_sql = _connect(duckdb, Path(path), table)
     try:
         columns = tuple(schema.__annotations__)
         if not columns:
@@ -176,18 +187,32 @@ def _validate_write_target(path: str, table: str) -> None:
         raise ValueError("table must be a nonempty single path component")
 
 
+def _database_config() -> dict[str, str]:
+    # For every connection to a DuckDB file: no spill files, extension
+    # downloads, replacement scans (a table name such as "passwords.csv" read
+    # as a file) or external file/network access through expressions stored
+    # in an existing database, such as a view over read_csv_auto(...).
+    return {
+        "enable_external_access": "false",
+        "autoload_known_extensions": "false",
+        "autoinstall_known_extensions": "false",
+        "temp_directory": "",
+    }
+
+
 def _write_connection(path: str):
-    # No spill files, extension downloads, replacement scans or external
-    # file/network access through expressions stored in an existing database.
-    return _duckdb().connect(
-        path,
-        config={
-            "enable_external_access": "false",
-            "autoload_known_extensions": "false",
-            "autoinstall_known_extensions": "false",
-            "temp_directory": "",
-        },
-    )
+    return _duckdb().connect(_duckdb_path(path), config=_database_config())
+
+
+def _duckdb_path(path: Path | str) -> str:
+    """Spell ``path`` so DuckDB opens it as written.
+
+    DuckDB replaces a leading ``~`` with the home directory. Paths here are
+    lexical, as the path contracts compare them, so ``~/x`` is given to DuckDB
+    as ``./~/x``: the same relative path, which DuckDB leaves alone.
+    """
+    text = str(path)
+    return "./" + text if text.startswith("~") else text
 
 
 def _duckdb():
@@ -208,7 +233,10 @@ def _connect(duckdb, path: Path, table: str):
 
     suffix = path.suffix.lower()
     if suffix in _DUCKDB_SUFFIXES:
-        return duckdb.connect(str(path), read_only=True), _quote_identifier(table)
+        connection = duckdb.connect(
+            _duckdb_path(path), read_only=True, config=_database_config()
+        )
+        return connection, _quote_identifier(table)
     if suffix in _CSV_SUFFIXES | _PARQUET_SUFFIXES:
         if table != path.stem:
             raise ValueError(
@@ -238,7 +266,7 @@ def _table_file(root: Path, table: str) -> Path:
 
 def _file_relation(path: Path) -> str:
     suffix = path.suffix.lower()
-    literal = _quote_literal(str(path))
+    literal = _quote_literal(_duckdb_path(path))
     if suffix in _CSV_SUFFIXES:
         return f"read_csv_auto({literal})"
     if suffix in _PARQUET_SUFFIXES:
@@ -275,17 +303,28 @@ def _row_from_tuple(
     for column, value in zip(columns, values, strict=True):
         if value is None:
             raise ValueError(f"column {column!r} was NULL")
-        data[column] = _coerce_value(value, schema.__annotations__[column])
+        data[column] = _typed_value(column, value, schema.__annotations__[column])
     return schema(**data)
 
 
-def _coerce_value(value: object, expected: type) -> object:
+def _typed_value(column: str, value: object, expected: type) -> object:
+    """Return ``value`` as the declared field type, or refuse it.
+
+    An ``int`` or ``bool`` field takes only a value DuckDB returns as exactly
+    that type. Converting would invent data: ``bool("false")`` is ``True``
+    for a text column, and ``int(3.9)`` is ``3``. ``bool`` is a subclass of
+    ``int``, so the exact type is compared and neither stands in for the
+    other. A ``str`` field renders any value as text.
+    """
     if expected is str:
         return str(value)
-    if expected is int:
-        return int(value)
-    if expected is bool:
-        return bool(value)
+    if expected is int or expected is bool:
+        if type(value) is not expected:
+            raise TypeError(
+                f"column {column!r} must contain {expected.__name__}, "
+                f"but the source holds {type(value).__name__}"
+            )
+        return value
     raise TypeError(f"unsupported Row field type {expected!r}")
 
 

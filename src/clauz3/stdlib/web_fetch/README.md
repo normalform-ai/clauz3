@@ -47,6 +47,13 @@ Import with `from tools.web_fetch.trusted import contracts as web`:
 `str.startswith` over the symbolic URL argument; use fully-qualified prefixes
 (`"https://api.github.com/repos/"`) for tight scoping.
 
+An `only_fetch_under` prefix that names a host must end the host with `/`.
+`only_fetch_under("https://api.github.com")` is refused when the program is
+proved, because `https://api.github.com.evil.example/` starts with that text
+too; write `"https://api.github.com/"`. A bare scheme (`"https://"`) is
+accepted and admits any host. `never_fetch_under` takes any prefix: a
+host-only prefix there blocks more addresses, not fewer.
+
 ## The exfil-guard angle
 
 `no_url_contains` is the unusual contract here. Static substring guards on

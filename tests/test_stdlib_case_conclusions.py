@@ -145,6 +145,10 @@ FAILS_BY: dict[str, dict[str, str]] = {
         "only_push_to_branch_fail": "guarantee",
         "only_push_to_remote_fail": "guarantee",
         "only_subcommands_fail": "guarantee",
+        "push_delete_fail": "assertion",  # ':main' deletes the branch
+        "push_force_fail": "assertion",  # '+main' forces the push
+        "push_pattern_fail": "assertion",  # '*' matches every branch
+        "push_refspec_fail": "assertion",  # 'a:b' pushes to another branch
         "read_only_branch_fail": "guarantee",
         "read_only_fail": "guarantee",
         "runs_at_most_fail": "guarantee",
@@ -178,6 +182,7 @@ FAILS_BY: dict[str, dict[str, str]] = {
     },
     "rsync": {
         "never_dest_under_fail": "guarantee",
+        "no_delete_after_fail": "assertion",  # --delete-after is refused
         "no_delete_fail": "guarantee",
         "no_delete_force_fail": "assertion",  # --force is refused
         "no_delete_option_dest_fail": "assertion",  # dest starts with '-'
@@ -216,6 +221,11 @@ REFUSED_BY: dict[str, dict[str, str]] = {
         # The runtime default dry_run=True is not in the recorded effect, so
         # dry_run_only() cannot be discharged without an explicit kwarg.
         "dry_run_only_default_fail": "unknown effect field dry_run",
+    },
+    "web_fetch": {
+        # An allowed prefix that stops inside the host also matches other
+        # hosts, so only_fetch_under refuses it instead of proving.
+        "only_fetch_under_bare_host_fail": "must end its host name with '/'",
     },
 }
 

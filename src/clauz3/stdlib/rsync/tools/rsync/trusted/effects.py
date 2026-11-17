@@ -45,13 +45,27 @@ DEFAULT_TIMEOUT_SECONDS = 600
 #:
 #: openrsync accepts unambiguous abbreviations (``--remove-sou``), so an
 #: option is refused when its name starts with, or abbreviates, one of these.
+#: Longer option names that start with another entry are listed as well
+#: (``--delete-after``, and ``--log-file-format``, which is harmless but
+#: starts with ``--log-file``), although the shorter entry already refuses
+#: them when the program runs: every complete name here is also spelled out
+#: in ``has_no_refused_option_names``, so the prover refuses it before
+#: anything runs. ``tests/test_rsync_runtime.py`` checks the two against each
+#: other and against the options rsync documents.
 REFUSED_LONG_OPTIONS = [
     "--delete",
+    "--delete-before",
+    "--delete-during",
+    "--delete-delay",
+    "--delete-after",
+    "--delete-excluded",
+    "--delete-missing-args",
     "--remove-source-files",
     "--remove-sent-files",
     "--force",
     "--backup-dir",
     "--log-file",
+    "--log-file-format",
     "--write-batch",
     "--only-write-batch",
     "--partial-dir",
@@ -88,16 +102,24 @@ def has_no_refused_option_names(args: list[str]) -> bool:
     The precondition form of the body's check: exact names only, because the
     prover cannot match prefixes inside a list. Abbreviations, ``=value``
     forms and short-option groups are refused by the body when the program
-    runs.
+    runs. Every name in ``REFUSED_LONG_OPTIONS`` is spelled out here, because
+    preconditions cannot read module-level constants.
     """
     return (
         "--del" not in args
         and "--delete" not in args
+        and "--delete-before" not in args
+        and "--delete-during" not in args
+        and "--delete-delay" not in args
+        and "--delete-after" not in args
+        and "--delete-excluded" not in args
+        and "--delete-missing-args" not in args
         and "--remove-source-files" not in args
         and "--remove-sent-files" not in args
         and "--force" not in args
         and "--backup-dir" not in args
         and "--log-file" not in args
+        and "--log-file-format" not in args
         and "--write-batch" not in args
         and "--only-write-batch" not in args
         and "--partial-dir" not in args

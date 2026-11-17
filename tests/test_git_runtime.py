@@ -134,6 +134,51 @@ def test_git_push_refuses_options_as_remote_or_branch(
         git_effects.git_push(remote, branch, "/repo")
 
 
+REFSPEC_BRANCHES = ["+main", ":main", "main:production", "*", "ma in", "main^"]
+
+
+@pytest.mark.usefixtures("no_subprocess")
+@pytest.mark.parametrize("branch", REFSPEC_BRANCHES)
+def test_git_push_refuses_refspec_syntax_as_branch(
+    git_effects: ModuleType, branch: str
+) -> None:
+    """A branch that forces, deletes, renames or matches many is not a branch."""
+    with pytest.raises(deal.PreContractError, match="plain branch name"):
+        git_effects.git_push("origin", branch, "/repo")
+
+
+@pytest.mark.usefixtures("no_subprocess", "deal_disabled")
+@pytest.mark.parametrize("branch", REFSPEC_BRANCHES)
+def test_git_push_body_refuses_refspec_syntax_without_deal(
+    git_effects: ModuleType, branch: str
+) -> None:
+    with pytest.raises(ValueError, match="plain branch name"):
+        git_effects.git_push("origin", branch, "/repo")
+
+
+def test_git_push_ignores_a_configured_push_refspec(
+    git_effects: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """remote.<name>.push must not send the named branch to another one."""
+    for name in ("AUTHOR", "COMMITTER"):
+        monkeypatch.setenv(f"GIT_{name}_NAME", "Test")
+        monkeypatch.setenv(f"GIT_{name}_EMAIL", "test@example.com")
+    remote = tmp_path / "remote.git"
+    repo = tmp_path / "repo"
+    subprocess.run(["git", "init", "-q", "--bare", str(remote)], check=True)
+    subprocess.run(["git", "init", "-q", "-b", "main", str(repo)], check=True)
+    git_effects.git("commit", ["--allow-empty", "-q", "-m", "x"], str(repo))
+    git_effects.git("remote", ["add", "origin", str(remote)], str(repo))
+    git_effects.git(
+        "config",
+        ["remote.origin.push", "refs/heads/main:refs/heads/production"],
+        str(repo),
+    )
+    git_effects.git_push("origin", "main", str(repo))
+    refs = git_effects.git("for-each-ref", ["--format=%(refname)"], str(remote))
+    assert refs.split() == ["refs/heads/main"]
+
+
 def test_git_never_runs_repository_hooks(
     git_effects: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

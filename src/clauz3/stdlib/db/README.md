@@ -28,7 +28,13 @@ Import effects from `tools.db.trusted.effects`:
   `clauz3.Row` subclass. `path` may be a DuckDB database file, a CSV file, a
   Parquet file, or a directory containing `<table>.csv` / `<table>.parquet`.
   For a single CSV or Parquet file, `table` must match the file stem. CSV and
-  Parquet inputs are queried through DuckDB in memory.
+  Parquet inputs are queried through DuckDB in memory. A DuckDB database file
+  is opened read-only with external access disabled: `table` names a table or
+  view stored in that file and is never read as a file name, and a stored view
+  that reads another file or a URL fails instead of reading it. An `int` or
+  `bool` field must be stored as that type: a text column holding `false`, a
+  decimal, or `0`/`1` for a `bool` raises `TypeError` rather than being
+  converted. A `str` field reads any column as text.
 
 - `create_table(schema, path, table) -> None` — create a new table with columns
   from a `clauz3.Row` schema; create the DuckDB file if needed. Fields are
@@ -40,9 +46,13 @@ Import effects from `tools.db.trusted.effects`:
 
 Writes support `.duckdb`, `.ddb` and `.db` files with existing parent folders.
 There is no arbitrary SQL API: identifiers are quoted and values are bound
-parameters. Write connections disable external access, extension loading and
-temporary spill files. DuckDB may write an adjacent `.wal` journal. Paths are
-lexical, without tilde expansion or physical symlink confinement.
+parameters. Connections to a DuckDB file, for reads and writes alike, disable
+external access, extension loading and temporary spill files. DuckDB may
+write an adjacent `.wal` journal.
+
+Read and write paths are lexical, without tilde expansion or physical symlink
+confinement: `~/data` is a folder named `~` in the working directory, not the
+home directory, and DuckDB is not left to expand it either.
 
 The schema argument is the type-system hook. The function is generic at runtime,
 but the prover uses the concrete `Row` subclass passed at the call site to type
