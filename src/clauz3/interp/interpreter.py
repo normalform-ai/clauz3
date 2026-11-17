@@ -1996,18 +1996,20 @@ def _comprehend(node: astroid.ListComp, frame: Frame) -> Iterable[Any]:
     iterable = eval_expr(generator.iter, frame)
     if not isinstance(iterable, (list, tuple, set, frozenset, str)):
         raise UnsupportedNode(f"cannot iterate over {type_name(iterable)}")
+    # One scope for the whole comprehension, as in CPython: a closure made in
+    # the element sees the target's latest value, not the item it was made for.
+    inner = Frame(
+        program=frame.program,
+        scope=frame.scope.child(),
+        trace=frame.trace,
+        module_scope=frame.module_scope,
+        # The comprehension's own targets, so that it is a link in the chain a
+        # nested comprehension or lambda resolves names through.
+        local_names=frozenset(node.locals),
+        enclosing=frame.nested(),
+    )
     for item in list(iterable):
         frame.step()
-        inner = Frame(
-            program=frame.program,
-            scope=frame.scope.child(),
-            trace=frame.trace,
-            module_scope=frame.module_scope,
-            # The comprehension's own targets, so that it is a link in the
-            # chain a nested comprehension or lambda resolves names through.
-            local_names=frozenset(node.locals),
-            enclosing=frame.nested(),
-        )
         _assign_to(generator.target, item, inner)
         if all(_truth(eval_expr(cond, inner)) for cond in generator.ifs or ()):
             yield eval_expr(node.elt, inner)

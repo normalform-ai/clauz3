@@ -913,6 +913,30 @@ def test_an_unbound_nearer_local_still_hides_a_bound_outer_one() -> None:
     assert excinfo.value.kind == "UnboundLocalError"
 
 
+def test_a_comprehension_has_one_scope_for_all_its_items() -> None:
+    """Closures made in a comprehension share its scope, so they bind late.
+
+    Each item used to get a scope of its own, which froze the target per
+    closure: ``fs[0]()`` returned 1 where CPython returns 2.
+    """
+    outcome = run(
+        "def main():\n"
+        "    fs = [lambda: x for x in [1, 2]]\n"
+        "    return [fs[0](), fs[1]()]\n"
+    )
+    assert outcome.value == [2, 2]
+
+
+def test_comprehension_targets_still_do_not_leak() -> None:
+    outcome = run(
+        "def main():\n"
+        "    x = 7\n"
+        "    ys = [x * 2 for x in [1, 2] if x > 1]\n"
+        "    return [x, ys]\n"
+    )
+    assert outcome.value == [7, [4]]
+
+
 @pytest.mark.parametrize(
     ("body", "expected"),
     [
