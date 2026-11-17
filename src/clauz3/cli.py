@@ -770,11 +770,29 @@ def _tools(args: argparse.Namespace) -> int:
         print("no trusted tools found")
         return 0
 
+    # Collected before anything is printed: a listing cut short by one broken
+    # file would read as the whole vocabulary.
+    items: list[str] = []
     for root in trusted_roots:
-        for item in _iter_trusted_items(
-            root, base=_listing_base(root, import_roots=import_roots)
-        ):
-            print(item)
+        if not root.is_dir():
+            print(f"error: trusted root is not a directory: {root}", file=sys.stderr)
+            return 2
+        try:
+            items += _iter_trusted_items(
+                root, base=_listing_base(root, import_roots=import_roots)
+            )
+        except SyntaxError as exc:
+            print(
+                f"error: cannot parse trusted module {exc.filename}, "
+                f"line {exc.lineno}: {exc.msg}",
+                file=sys.stderr,
+            )
+            return 2
+        except (OSError, UnicodeDecodeError) as exc:
+            print(f"error: cannot list {root}: {exc}", file=sys.stderr)
+            return 2
+    for item in items:
+        print(item)
     return 0
 
 
@@ -956,7 +974,7 @@ def _policy_check(args: argparse.Namespace) -> int:
         decision = evaluate_policy(
             policy, request, authorized_layers=(authorized_layer,)
         )
-    except (ApprovalPolicyError, ApprovalAuthorizationError) as exc:
+    except (ApprovalPolicyError, ApprovalAuthorizationError, RunConfigError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
@@ -986,7 +1004,16 @@ def _read_run_program(
     # Explicit roots retain their order; only the default includes the entry.
     if not import_roots:
         roots = expand_import_roots([*roots, path.parent])
-    return path.read_text(), str(path), roots
+    try:
+        source = path.read_text()
+    except (OSError, UnicodeDecodeError) as exc:
+        # Nothing was proved or run, so this is a configuration error (exit 2)
+        # like ``prove`` reports it, not the exit 1 of a program that raised.
+        message = str(exc)
+        if str(path) not in message:
+            message = f"{path}: {message}"
+        raise RunConfigError(message) from exc
+    return source, str(path), roots
 
 
 def _default_import_roots(import_roots: list[Path]) -> list[Path]:

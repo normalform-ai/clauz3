@@ -29,6 +29,11 @@ SUPERSEDED: dict[str, tuple[str, ...]] = {
 }
 
 
+#: Labels a domain that is described by the project itself rather than by an
+#: install source: an authored layer, or a copy without an origin record.
+PROJECT_SCHEME = "project:"
+
+
 def superseded_message(library: str, stale: list[str]) -> str:
     """How to migrate a project that still holds superseded libraries.
 
@@ -142,6 +147,28 @@ def cache_library(
     temporary.replace(path)
 
 
+def _cached_domains(path: Path) -> dict[str, dict[str, Any] | None]:
+    """The ``domains`` of a catalogue cache file, or a ManifestError naming it.
+
+    The cache is a file on disk like any other: one that is not what
+    :func:`cache_library` writes must be reported, not raise ``KeyError`` out
+    of every ``clauz3 libraries`` and ``clauz3 install``.
+    """
+    try:
+        data = json.loads(path.read_text())
+    except ValueError as exc:
+        data = exc
+    domains = data.get("domains") if isinstance(data, dict) else None
+    if not isinstance(domains, dict) or not all(
+        value is None or isinstance(value, dict) for value in domains.values()
+    ):
+        raise ManifestError(
+            f"invalid library catalogue cache: {path} "
+            "(delete it; installing the library writes it again)"
+        )
+    return domains
+
+
 def catalog() -> list[Library]:
     registry = load_yaml(
         (files("clauz3") / "library_registry.yaml").read_text(), "library registry"
@@ -178,14 +205,14 @@ def catalog() -> list[Library]:
             )
         elif _catalog_cache(source).is_file():
             path = _catalog_cache(source)
-            data = json.loads(path.read_text())
+            cached = _cached_domains(path)
             domains = {
                 domain: parse_manifest(
                     json.dumps(value), label=str(path), domain=domain
                 )
                 if value is not None
                 else None
-                for domain, value in data["domains"].items()
+                for domain, value in cached.items()
             }
             result.append(
                 library_from_manifests(source, domains, visibility="repository")
@@ -221,7 +248,7 @@ def installed_libraries(project: Path) -> list[Library]:
             origin_path = directory / ".clauz3-origin.json"
             if manifest is None and not origin_path.is_file():
                 continue  # Preserve legacy registry discovery for older copies.
-            source = f"project:{domain}"
+            source = f"{PROJECT_SCHEME}{domain}"
             if origin_path.is_file():
                 origin = json.loads(origin_path.read_text())
                 if not isinstance(origin, dict) or not isinstance(
@@ -329,7 +356,11 @@ def library_records(project: Path, query: str = "") -> list[LibraryRecord]:
             "visibility": library.visibility,
             "installed": bool(library.domains)
             and all(domain in installed for domain in library.domains),
-            "install_command": f"clauz3 install {library.source}",
+            # ``project:<domain>`` only labels a domain the project authors
+            # or holds without an origin record; it is not an install source.
+            "install_command": ""
+            if library.source.startswith(PROJECT_SCHEME)
+            else f"clauz3 install {library.source}",
             "origin": library.origin or library.source,
             "title": library.title or ", ".join(library.domains) or library.source,
             "manifests": list(library.manifests),
@@ -354,5 +385,6 @@ def format_libraries(records: list[LibraryRecord]) -> str:
             lines.append(f"  Source: {record['url']}")
         if record["origin"] != record["source"]:
             lines.append(f"  Stored from: {record['origin']}")
-        lines.append(f"  Install: {record['install_command']}")
+        if record["install_command"]:
+            lines.append(f"  Install: {record['install_command']}")
     return "\n".join(lines)
