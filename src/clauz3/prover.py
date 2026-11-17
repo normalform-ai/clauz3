@@ -19,6 +19,7 @@ from clauz3 import decorators as decorators_mod
 from clauz3 import interp, spec
 from clauz3._vendor import deal_solver
 from clauz3._vendor.deal_solver._context import FactInfo
+from clauz3._vendor.deal_solver._funcs._registry import FUNCTIONS
 from clauz3._vendor.deal_solver._proxies import ProxySort
 from clauz3._vendor.deal_solver._proxies._row import row_schema_from_class_def
 from clauz3._vendor.deal_solver._types import AstNode
@@ -688,6 +689,12 @@ def _resolve_required_module(policy: DomainPolicy, name: str) -> str:
     choosing one, by sort order or otherwise, is a guess about which the layer
     meant, and a wrong guess conjoins the weaker contract. As with an
     ambiguous ``when_used``, ambiguity is refused rather than resolved.
+
+    It must also be callable without arguments, because the obligation is
+    stated as ``name()``: the layer cannot know what an agent would pass. A
+    helper with a parameter that has no default would otherwise reach the
+    solver as an unsupported call and skip the function, reporting the
+    layer's mistake as a fault in the submitted program.
     """
 
     prefix = f"{policy.domain_package}." if policy.domain_package else ""
@@ -708,6 +715,17 @@ def _resolve_required_module(policy: DomainPolicy, name: str) -> str:
             "required name must identify one contract; rename the others so "
             "the policy cannot enforce the wrong one.",
         )
+    signature = getattr(FUNCTIONS.get(matches[0]), "public_signature", None)
+    if signature is not None:
+        try:
+            signature.bind()
+        except TypeError as exc:
+            raise ProverConfigError(
+                f"required contract {name!r} for domain {policy.domain_package!r} "
+                f"resolves to {matches[0]}{signature}, which cannot be called "
+                f"without arguments ({exc}). A required contract is stated as "
+                f"{name}(), so it must be a nullary invariant.",
+            ) from exc
     return matches[0].rsplit(".", 1)[0]
 
 

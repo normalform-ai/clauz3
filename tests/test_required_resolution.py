@@ -75,3 +75,47 @@ def test_two_contracts_with_the_required_name_are_refused(tmp_path: Path) -> Non
     assert "required contract 'nothing_sent'" in message
     assert f"{package.name}.aaa_legacy.nothing_sent" in message
     assert f"{package.name}.contracts.nothing_sent" in message
+
+
+_WITH_PARAMETERS = (
+    "from clauz3.spec import ContractSpec, contract, effect\n\n"
+    "@contract\n"
+    "def at_most(count: int) -> ContractSpec:\n"
+    '    return effect("send").count() <= count\n\n'
+    "@contract\n"
+    "def at_most_default(count: int = 0) -> ContractSpec:\n"
+    '    return effect("send").count() <= count\n\n'
+    "@contract\n"
+    "def keyword_only(*, count: int) -> ContractSpec:\n"
+    '    return effect("send").count() <= count\n'
+)
+
+
+@pytest.mark.parametrize("name", ["at_most", "keyword_only"])
+def test_a_required_contract_that_needs_arguments_is_refused(
+    tmp_path: Path, name: str
+) -> None:
+    """A layer's mistake, reported as one.
+
+    The obligation is stated as ``name()``. A helper that cannot be called
+    that way used to reach the solver, which skipped the function and blamed
+    the submitted program for a contract it never wrote.
+    """
+    package = _layer(tmp_path, contracts=_WITH_PARAMETERS, required=name)
+
+    with pytest.raises(ProverConfigError) as exc_info:
+        _prove(package)
+
+    message = str(exc_info.value)
+    assert f"required contract {name!r}" in message
+    assert "without arguments" in message
+    assert f"{package.name}.contracts.{name}" in message
+
+
+def test_a_required_contract_whose_parameters_all_default_is_callable(
+    tmp_path: Path,
+) -> None:
+    package = _layer(tmp_path, contracts=_WITH_PARAMETERS, required="at_most_default")
+
+    assert _prove(package) == [Conclusion.FAIL]
+    assert _prove(package, "def main() -> None:\n    pass\n") == [Conclusion.OK]
