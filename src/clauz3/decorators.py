@@ -426,6 +426,42 @@ def is_trusted_effect(
     return False
 
 
+#: The decorator a trusted root uses to register a contract helper, by every
+#: target it can canonically resolve to: ``clauz3.contract`` is the re-export,
+#: ``clauz3.spec.contract`` the definition.
+CONTRACT = frozenset({"clauz3.contract", "clauz3.spec.contract"})
+
+
+def is_contract(
+    node: ast.FunctionDef | astroid.FunctionDef,
+    aliases: Mapping[str, str],
+) -> bool:
+    """Whether this function is a ``@contract`` helper, however it is spelled.
+
+    A helper is registered when its module is imported, so the prover accepts
+    ``@clauz3.contract`` and ``from clauz3 import contract as k`` alike. What
+    lists a layer's vocabulary for an agent has to resolve the decorator the
+    same way: matching the text ``contract`` omitted both of those, and listed
+    any unrelated decorator that happened to be called ``contract``.
+
+    >>> import ast
+    >>> tree = ast.parse("from clauz3 import contract as k\\n@k\\ndef f(): ...")
+    >>> is_contract(tree.body[1], import_aliases(tree))
+    True
+    >>> tree = ast.parse("import clauz3\\n@clauz3.contract\\ndef f(): ...")
+    >>> is_contract(tree.body[1], import_aliases(tree))
+    True
+    >>> tree = ast.parse("@contract\\ndef f(): ...")
+    >>> is_contract(tree.body[0], import_aliases(tree))
+    False
+    """
+    return any(
+        canonical_target(dotted_name(declared), aliases) in CONTRACT
+        for decorator in _decorator_nodes(node)
+        for declared in unfold_chain(decorator, aliases)
+    )
+
+
 def unfold_chain(
     node: DecoratorNode,
     aliases: Mapping[str, str],

@@ -680,14 +680,6 @@ def _first_line(doc: str | None) -> str:
     return doc.strip().splitlines()[0].strip()
 
 
-#: How ``@contract`` may be spelled in a trusted module. Contracts are matched
-#: on text; effects are resolved through the module's import bindings by
-#: :func:`clauz3.decorators.is_trusted_effect`, the same function the prover
-#: uses, so the listing an agent reads cannot disagree with what the prover
-#: treats as a boundary.
-_CONTRACT_DECORATORS = frozenset({"contract", "clauz3.spec.contract"})
-
-
 def _collect_api(trusted_root: Path, *, kind: str) -> list[_ApiEntry]:
     entries: list[_ApiEntry] = []
     for path in sorted(trusted_root.rglob("*.py")):
@@ -698,11 +690,13 @@ def _collect_api(trusted_root: Path, *, kind: str) -> list[_ApiEntry]:
         for node in module.body:
             if not isinstance(node, ast.FunctionDef):
                 continue
+            # Resolved through the module's import bindings by the functions
+            # the prover and ``clauz3 tools`` use, so the listing an agent
+            # reads cannot disagree with either about what is declared.
             if kind == "effect":
                 wanted = decorators_mod.is_trusted_effect(node, aliases)
             else:
-                decorators = {_decorator_name(d) for d in node.decorator_list}
-                wanted = bool(decorators & _CONTRACT_DECORATORS)
+                wanted = decorators_mod.is_contract(node, aliases)
             if wanted:
                 entries.append(
                     _ApiEntry(
@@ -720,14 +714,3 @@ def _signature(node: ast.FunctionDef) -> str:
     if node.returns is not None:
         signature += f" -> {ast.unparse(node.returns)}"
     return signature
-
-
-def _decorator_name(node: ast.AST) -> str:
-    if isinstance(node, ast.Call):
-        return _decorator_name(node.func)
-    if isinstance(node, ast.Name):
-        return node.id
-    if isinstance(node, ast.Attribute):
-        base = _decorator_name(node.value)
-        return f"{base}.{node.attr}" if base else node.attr
-    return ""
