@@ -124,12 +124,31 @@ def _verified_basis(request: dict[str, object]) -> dict[str, object]:
             for node in ast.walk(ast.parse(source))
             if isinstance(node, ast.Import | ast.ImportFrom)
         ]
+        # That import list is flat: it does not say which scope an import
+        # binds in, so moving one can rebind a guarantee's alias to another
+        # contract without changing it or the guarantee text. Sign what each
+        # guarantee resolved to as well.
+        identities = contract_identities(
+            source=source,
+            target=target,
+            roots=roots,
+            sources=layer.profile_source_identity(),
+        )
+        contracts = sorted(
+            [text, str(identity["symbol"]), str(identity["call"])]
+            for text, identity in identities.items()
+        )
+        if set(identities) != set(cast(list[str], verified["guarantees"])):
+            # A guarantee with no resolved contract cannot be remembered.
+            eligible = False
         basis: dict[str, object] = {
-            "schema": 1,
+            # 2: added ``contracts``. Rules remembered under 1 no longer match.
+            "schema": 2,
             "project": request["project"],
             "owner": os.getuid(),
             "target": target,
             "imports": imports,
+            "contracts": contracts,
             "guarantees": sorted(cast(list[str], verified["guarantees"])),
             "coverage": verified["coverage"],
             "trusted_roots": verified["trusted_roots"],
@@ -143,12 +162,7 @@ def _verified_basis(request: dict[str, object]) -> dict[str, object]:
         # Presentation is a historical snapshot, not a new matching rule.
         # The trusted source identity above already binds the docstring source.
         basis["profile_eligible"] = eligible
-        basis["contract_identities"] = contract_identities(
-            source=source,
-            target=target,
-            roots=roots,
-            sources=layer.profile_source_identity(),
-        )
+        basis["contract_identities"] = identities
         basis["contract_documentation"] = contract_documentation(
             source=source, target=target
         )

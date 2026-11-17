@@ -67,8 +67,10 @@ Programs without explicit guarantees and contracts with Row-class arguments
 are not eligible in this version.
 
 Matching is deliberately exact: project directory, operator, target, guarantee
-expressions, import bindings, coverage, trusted source and dependency identities,
-and proof engine identity must match. Changes to source inside the function can
+expressions, the trusted contract and arguments each guarantee resolves to,
+import bindings, coverage, trusted source and dependency identities, and proof
+engine identity must match. The same guarantee text bound to a different
+contract is a different rule. Changes to source inside the function can
 match; changing a bound, project, library or engine requires another decision.
 Equivalent aliases or expressions may conservatively require another approval.
 Remembering a weak guarantee does not make it stronger. Review the complete
