@@ -847,11 +847,11 @@ def _exec_module(module: astroid.Module, frame: Frame) -> None:
     module level is perfectly contained and still unproved.
 
     Concretely, assignment values, assignment targets and default arguments
-    must all be inert. This is the only module-level gate: the validator
-    ``clauz3.runner`` ran ahead of ``exec`` is deleted, and :func:`execute`,
-    :func:`target_node` (the runner's pre-flight) and :func:`check_module_level`
-    (``prover.validate_module_level``) all load the module through here. Two
-    cases are inert without being a bare literal:
+    must all be inert. This is the only module-level gate: the validator that
+    ``clauz3.runner`` once ran ahead of ``exec`` is deleted, and
+    :func:`execute`, :func:`target_node` (the runner's pre-flight) and
+    :func:`check_module_level` (``prover.validate_module_level``) all load the
+    module through here. Two cases are inert without being a bare literal:
 
     - a signed numeric literal (``OFFSET = -3``), which CPython parses as a
       ``UnaryOp`` and :func:`_is_constant_expr` admits over a constant operand;
