@@ -696,7 +696,7 @@ clauz3 install [--into PATH | -g/--global] [--skills] [--force] SOURCE
 | `--into` | Destination project root (defaults to the current directory). |
 | `-g`, `--global` | Store the library for later selection into projects. Mutually exclusive with `--into`. |
 | `--skills` | Also generate `.clauz3/skills/<domain>/SKILL.md` (or `skills/<domain>/` in the user-wide store) for each installed domain. |
-| `--force` | Overwrite an existing trusted layer at the destination. |
+| `--force` | Replace an existing trusted layer at the destination; the old copy is removed, not merged into. |
 
 The CLI also installs the dependencies a library declares. It preserves dependencies already present in the destination,
 even with `--force`; that flag applies to the requested library. Runtime packages

@@ -770,11 +770,29 @@ def _tools(args: argparse.Namespace) -> int:
         print("no trusted tools found")
         return 0
 
+    # Collected before anything is printed: a listing cut short by one broken
+    # file would read as the whole vocabulary.
+    items: list[str] = []
     for root in trusted_roots:
-        for item in _iter_trusted_items(
-            root, base=_listing_base(root, import_roots=import_roots)
-        ):
-            print(item)
+        if not root.is_dir():
+            print(f"error: trusted root is not a directory: {root}", file=sys.stderr)
+            return 2
+        try:
+            items += _iter_trusted_items(
+                root, base=_listing_base(root, import_roots=import_roots)
+            )
+        except SyntaxError as exc:
+            print(
+                f"error: cannot parse trusted module {exc.filename}, "
+                f"line {exc.lineno}: {exc.msg}",
+                file=sys.stderr,
+            )
+            return 2
+        except (OSError, UnicodeDecodeError) as exc:
+            print(f"error: cannot list {root}: {exc}", file=sys.stderr)
+            return 2
+    for item in items:
+        print(item)
     return 0
 
 
@@ -836,6 +854,8 @@ def _config(args: argparse.Namespace) -> int:
     elif result.added:
         added = ", ".join(result.added)
         print(f"updated claude config: {result.path} (added: {added})")
+    elif result.changed:
+        print(f"updated claude config: {result.path} (set defaultMode)")
     else:
         print(f"claude config already up to date: {result.path}")
     return 0
@@ -956,7 +976,7 @@ def _policy_check(args: argparse.Namespace) -> int:
         decision = evaluate_policy(
             policy, request, authorized_layers=(authorized_layer,)
         )
-    except (ApprovalPolicyError, ApprovalAuthorizationError) as exc:
+    except (ApprovalPolicyError, ApprovalAuthorizationError, RunConfigError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
@@ -986,7 +1006,16 @@ def _read_run_program(
     # Explicit roots retain their order; only the default includes the entry.
     if not import_roots:
         roots = expand_import_roots([*roots, path.parent])
-    return path.read_text(), str(path), roots
+    try:
+        source = path.read_text()
+    except (OSError, UnicodeDecodeError) as exc:
+        # Nothing was proved or run, so this is a configuration error (exit 2)
+        # like ``prove`` reports it, not the exit 1 of a program that raised.
+        message = str(exc)
+        if str(path) not in message:
+            message = f"{path}: {message}"
+        raise RunConfigError(message) from exc
+    return source, str(path), roots
 
 
 def _default_import_roots(import_roots: list[Path]) -> list[Path]:
@@ -1013,14 +1042,6 @@ def _lint(args: argparse.Namespace) -> int:
     return 1 if violations else 0
 
 
-#: How ``@contract`` may be spelled. Contracts are matched on source text; an
-#: effect is decided by :func:`clauz3.decorators.is_trusted_effect`, the same
-#: function the prover uses, so what this lists and what the prover treats as a
-#: boundary cannot disagree --- a text match omitted an aliased ``@c.trusted``
-#: and wrongly listed a bare ``@deal.has()``, which is not a boundary.
-_CONTRACT_DECORATORS = frozenset({"contract", "clauz3.spec.contract"})
-
-
 def _listing_base(root: Path, *, import_roots: list[Path]) -> Path:
     """The directory a ``clauz3 tools`` path is shown relative to.
 
@@ -1039,6 +1060,14 @@ def _listing_base(root: Path, *, import_roots: list[Path]) -> Path:
 
 
 def _iter_trusted_items(root: Path, *, base: Path) -> list[str]:
+    """One line per effect and contract under ``root``.
+
+    Both are decided by :mod:`clauz3.decorators`, which resolves a decorator
+    through the module's import bindings as the prover does, so what this lists
+    and what the prover treats as a boundary or a contract cannot disagree. A
+    match on source text omitted an aliased ``@c.trusted`` and a qualified
+    ``@clauz3.contract``, and wrongly listed a bare ``@deal.has()``.
+    """
     items: list[str] = []
     root = root.resolve()
     for path in sorted(root.rglob("*.py")):
@@ -1049,31 +1078,42 @@ def _iter_trusted_items(root: Path, *, base: Path) -> list[str]:
         for node in module.body:
             if not isinstance(node, ast.FunctionDef):
                 continue
-            decorators = [
-                _decorator_name(decorator) for decorator in node.decorator_list
-            ]
             signature = _signature(node)
             rel_path = path.relative_to(base).as_posix()
             if decorators_mod.is_trusted_effect(node, aliases):
                 items.append(f"effect {rel_path}:{node.name}{signature}")
-            if any(name in _CONTRACT_DECORATORS for name in decorators):
+            if decorators_mod.is_contract(node, aliases):
                 items.append(f"contract {rel_path}:{node.name}{signature}")
     return items
 
 
 def _signature(node: ast.FunctionDef) -> str:
-    args = ", ".join(arg.arg for arg in node.args.args)
-    return f"({args})"
+    """The parameter names of ``node``, with the markers that say how to pass them.
 
+    Names only, as the listing has always shown them, but every one: a
+    keyword-only parameter left out reads as a parameter that does not exist.
 
-def _decorator_name(node: ast.AST) -> str:
-    if isinstance(node, ast.Call):
-        return _decorator_name(node.func)
-    if isinstance(node, ast.Name):
-        return node.id
-    if isinstance(node, ast.Attribute):
-        base = _decorator_name(node.value)
-        if base:
-            return f"{base}.{node.attr}"
-        return node.attr
-    return ""
+    >>> def show(source: str) -> str:
+    ...     function = ast.parse(source).body[0]
+    ...     assert isinstance(function, ast.FunctionDef)
+    ...     return _signature(function)
+    >>> show("def send(addr: str, msg: str) -> None: ...")
+    '(addr, msg)'
+    >>> show('def send(addr: str, *, body: str = "") -> None: ...')
+    '(addr, *, body)'
+    >>> show("def log(level, /, *parts, sep=' ', **fields): ...")
+    '(level, /, *parts, sep, **fields)'
+    """
+    arguments = node.args
+    names = [arg.arg for arg in arguments.posonlyargs]
+    if names:
+        names.append("/")
+    names += [arg.arg for arg in arguments.args]
+    if arguments.vararg is not None:
+        names.append(f"*{arguments.vararg.arg}")
+    elif arguments.kwonlyargs:
+        names.append("*")
+    names += [arg.arg for arg in arguments.kwonlyargs]
+    if arguments.kwarg is not None:
+        names.append(f"**{arguments.kwarg.arg}")
+    return f"({', '.join(names)})"

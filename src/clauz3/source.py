@@ -27,6 +27,7 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -78,8 +79,67 @@ def resolve_remote_source(source: str) -> Path:
     sha = _ls_remote_sha(parsed.url, parsed.ref)
     cache = _cache_root() / sha
     if not cache.exists():
-        _git_clone(parsed.url, sha, cache)
+        _populate_cache(parsed.url, sha, cache)
     return cache
+
+
+def _populate_cache(url: str, sha: str, cache: Path) -> None:
+    """Create the cache entry for ``sha``, or leave no entry at all.
+
+    An entry is trusted under its name on every later call, so it is published
+    only once it is known to be that commit: the clone is made in a scratch
+    sibling, its ``HEAD`` is checked against ``sha``, and only then is it
+    renamed into place. Cloning straight to the cache path kept the directory
+    when the checkout failed or was interrupted, and the retry then served the
+    default branch as the pinned commit.
+    """
+    _reject_option_like(sha, "sha")
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=f".{sha}.", dir=cache.parent) as scratch:
+        clone = Path(scratch) / "clone"
+        _git_clone(url, sha, clone)
+        _verify_checkout(url, sha, clone)
+        try:
+            clone.rename(cache)
+        except OSError as exc:
+            # Another process published the same commit first. Its entry went
+            # through the same verification, so use it and drop this clone.
+            if not cache.is_dir():
+                raise SourceError(f"cannot cache {url} at {cache}: {exc}") from exc
+
+
+def _verify_checkout(url: str, sha: str, clone: Path) -> None:
+    """Require ``clone`` to be checked out at the commit ``sha`` names.
+
+    ``sha`` may be abbreviated, or the id of an annotated tag (which is what
+    ``ls-remote`` reports for one), so both sides are resolved to a commit.
+    """
+    expected = _rev_parse(clone, f"{sha}^{{commit}}")
+    head = _rev_parse(clone, "HEAD")
+    if head != expected:
+        raise SourceError(
+            f"git clone of {url} is at {head}, not the requested sha {sha}"
+        )
+
+
+def _rev_parse(clone: Path, revision: str) -> str:
+    _reject_option_like(revision, "revision")
+    try:
+        completed = subprocess.run(
+            _git_argv("-C", str(clone), "rev-parse", "--verify", revision),
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=60,
+            env=_git_env(),
+        )
+    except subprocess.CalledProcessError as exc:
+        raise SourceError(
+            f"cannot resolve {revision} in the clone: {exc.stderr.strip()}"
+        ) from exc
+    except subprocess.TimeoutExpired as exc:
+        raise SourceError(f"git rev-parse of {revision} timed out") from exc
+    return completed.stdout.strip()
 
 
 def _parse_source(source: str) -> _ParsedSource:

@@ -25,7 +25,7 @@ from clauz3.libraries.install import (
     _stdlib_name,
     _stdlib_root,
 )
-from clauz3.source import is_remote_source, resolve_remote_source
+from clauz3.source import SourceError, is_remote_source, resolve_remote_source
 
 #: ``just`` recipe run by ``clauz3 test`` when none is requested.
 DEFAULT_RECIPE = "test"
@@ -131,7 +131,10 @@ def _resolve_lib_dir(source: str | Path, stack: ExitStack) -> Path:
         return stack.enter_context(as_file(lib))
 
     if is_remote_source(source):
-        path = resolve_remote_source(str(source))
+        try:
+            path = resolve_remote_source(str(source))
+        except SourceError as exc:
+            raise LibTestError(str(exc)) from exc
     else:
         path = Path(source)
     if not path.exists():
