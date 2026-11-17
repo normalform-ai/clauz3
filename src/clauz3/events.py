@@ -38,6 +38,7 @@ import dataclasses
 import inspect
 import sys
 from collections.abc import Callable, Container, Iterator, Mapping
+from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
 from types import GenericAlias
@@ -65,11 +66,45 @@ PERFORMS_ATTRIBUTE = "__clauz3_performs__"
 _RESERVED = frozenset({"all", "where", "empty", "count", "sum", "distinct"})
 
 
-@dataclass(frozen=True)
+#: Set while :func:`performs` is running a builder, which is when comparing a
+#: parameter placeholder is an expression over the parameter.
+_IN_BUILDER: ContextVar[bool] = ContextVar("clauz3_performs_builder", default=False)
+
+
+@dataclass(frozen=True, eq=False)
 class _ParamRef:
-    """A trusted-function parameter, standing in for an event field's value."""
+    """A trusted-function parameter, standing in for an event field's value.
+
+    The value is only known per call, so a builder may place the placeholder
+    in an event field and nothing else. Read as an ordinary object it is true
+    and equal to nothing, so ``Sent(to) if urgent else Quiet(to)`` declared one
+    branch for every call. Truth-testing a placeholder, and comparing one
+    inside a builder, are refused instead. Outside a builder two placeholders
+    are equal when they name the same parameter.
+    """
 
     name: str
+
+    def __bool__(self) -> bool:
+        raise RelationError(
+            f"@performs cannot test the truth of parameter {self.name!r} (`not`, "
+            "`and`, `or`, or a conditional): the events a function performs "
+            "cannot depend on a computed value"
+        )
+
+    def __eq__(self, other: object) -> bool:
+        if _IN_BUILDER.get():
+            raise RelationError(
+                f"@performs cannot compare parameter {self.name!r} (`==`, `!=`, "
+                "or `in`): the events a function performs cannot depend on a "
+                "computed value"
+            )
+        if not isinstance(other, _ParamRef):
+            return NotImplemented
+        return self.name == other.name
+
+    def __hash__(self) -> int:
+        return hash((_ParamRef, self.name))
 
 
 @dataclass_transform(frozen_default=True)
@@ -314,7 +349,11 @@ def performs(builder: Callable[..., Event | list[Event]]) -> Callable[[F], F]:
     """
 
     names = list(inspect.signature(builder).parameters)
-    result = builder(**{name: _ParamRef(name) for name in names})
+    building = _IN_BUILDER.set(True)
+    try:
+        result = builder(**{name: _ParamRef(name) for name in names})
+    finally:
+        _IN_BUILDER.reset(building)
     events = tuple(result) if isinstance(result, list) else (result,)
     if not events:
         raise RelationError("@performs must declare at least one event")

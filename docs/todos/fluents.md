@@ -27,7 +27,9 @@ This overlaps the quantified-aggregate gaps in
 
 `@effect(lambda door: DoorLocked.set(door, False))` supports a key/value that is
 a bound parameter or a literal. Arithmetic, conditionals, and other expressions
-over parameters are not supported. Reusing the relation
+over parameters are not supported: `not`, `and`/`or`, a conditional, `==`,
+`!=` and `in` over a parameter raise `UnsupportedError` when the builder runs,
+as does a literal whose type is not the fluent's. Reusing the relation
 [lambda subset](../reference/effect-specs.md#lambda-subset) compiler for the key
 and value expressions would close this.
 
