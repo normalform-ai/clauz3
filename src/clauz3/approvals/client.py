@@ -108,6 +108,16 @@ def submit_approval_request(
         ) from exc
     except URLError as exc:
         raise ApprovalServiceError(f"approval service is unavailable: {exc}") from exc
+    except TimeoutError as exc:
+        # urllib wraps only errors from sending the request. A timeout or a
+        # dropped connection while awaiting the decision arrives bare, and
+        # must not escape as if the approved program had raised.
+        raise ApprovalServiceError(
+            f"approval service did not answer within {timeout:g} s; "
+            "the request may still be awaiting a decision",
+        ) from exc
+    except OSError as exc:
+        raise ApprovalServiceError(f"approval service is unavailable: {exc}") from exc
 
     try:
         decision = parse_decision(response_payload.get("decision"))

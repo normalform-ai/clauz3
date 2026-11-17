@@ -510,6 +510,12 @@ read as a denial.
   `CLAUZ3_APPROVAL_TOKEN` in both environments, or start the service with
   `--no-auth` for a localhost demo.
 
+`error: approval service did not answer within ... s`
+
+: No decision arrived within `--approval-timeout`. `clauz3 run` exits 2 without
+  executing. The request may still be pending in the service; decide it and
+  run again, or raise the timeout.
+
 `error: HTTP 403` for an unauthorized trusted layer
 
 : The request's trusted and import roots do not match an operator-configured
