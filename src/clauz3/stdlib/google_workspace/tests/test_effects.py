@@ -34,6 +34,7 @@ class EmailEffectsTests(unittest.TestCase):
                 "--subject=--subject",
                 "--body=" + body,
             ],
+            timeout=effects.DEFAULT_TIMEOUT_SECONDS,
             check=True,
         )
 
@@ -118,15 +119,63 @@ class EmailEffectsTests(unittest.TestCase):
                 "gog",
                 "gmail",
                 "send",
-                "--to",
-                "alice@example.com",
-                "--subject",
-                "hello",
-                "--body",
-                "hi",
+                "--no-input",
+                "--to=alice@example.com",
+                "--subject=hello",
+                "--body=hi",
             ],
+            timeout=effects.DEFAULT_TIMEOUT_SECONDS,
             check=True,
         )
+
+    def test_send_keeps_option_like_content_as_values(self) -> None:
+        subject = "--cc=eve@example.com"
+        body = "--attach=notes.txt\nquotes ' \" and $(not-a-command)"
+        with (
+            patch.dict(os.environ, {"CLAUZ3_EMAIL_BACKEND": "gog"}),
+            patch("tools.google_workspace.gmail.trusted.effects.subprocess.run") as run,
+        ):
+            effects.send_email("-x@example.com", subject, body, dry_run=False)
+        argv = run.call_args.args[0]
+        self.assertEqual(
+            argv,
+            [
+                "gog",
+                "gmail",
+                "send",
+                "--no-input",
+                "--to=-x@example.com",
+                "--subject=" + subject,
+                "--body=" + body,
+            ],
+        )
+        # No value stands alone, where gog could read it as an option.
+        self.assertTrue(all(arg.startswith("--") for arg in argv[3:]))
+
+    def test_every_command_has_a_timeout(self) -> None:
+        self.assertEqual(effects.DEFAULT_TIMEOUT_SECONDS, 120)
+        completed = subprocess.CompletedProcess([], 0, stdout="[]", stderr="")
+
+        def send() -> None:
+            effects.send_email("a@example.com", "hello", "hi", dry_run=False)
+
+        calls = (
+            ("gog", lambda: effects.search_messages("is:unread", 1)),
+            ("gog", lambda: effects.create_draft("a@example.com", "hello", "hi")),
+            ("gog", send),
+            ("pa", send),
+        )
+        for backend, call in calls:
+            with (
+                self.subTest(backend=backend),
+                patch.dict(os.environ, {"CLAUZ3_EMAIL_BACKEND": backend}),
+                patch(
+                    "tools.google_workspace.gmail.trusted.effects.subprocess.run",
+                    return_value=completed,
+                ) as run,
+            ):
+                call()
+            self.assertEqual(run.call_args.kwargs["timeout"], 120)
 
     def test_search_returns_message_rows_without_writing(self) -> None:
         stdout = json.dumps(
@@ -164,6 +213,7 @@ class EmailEffectsTests(unittest.TestCase):
             ],
             capture_output=True,
             text=True,
+            timeout=effects.DEFAULT_TIMEOUT_SECONDS,
             check=True,
         )
         self.assertEqual(
