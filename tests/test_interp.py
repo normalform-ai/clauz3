@@ -6,6 +6,7 @@ Companion to ``tests/test_interp_escapes.py`` (which covers containment) and
 
 from __future__ import annotations
 
+import enum
 from pathlib import Path
 from typing import Any
 
@@ -1286,6 +1287,71 @@ def test_frozenset_subclass_crosses_the_boundary_as_a_frozenset() -> None:
     )
     assert type(outcome.value) is frozenset
     assert outcome.value == frozenset({1, 2})
+
+
+class _Colour(str, enum.Enum):  # noqa: UP042 - the mixin form is the point
+    RED = "red"
+
+
+class _Shade(enum.StrEnum):
+    DARK = "dark"
+
+
+class _Priority(enum.IntEnum):
+    HIGH = 3
+
+
+class _SelfStr(str):  # noqa: FURB189 - subclassing is the point
+    def __str__(self) -> str:
+        return self
+
+
+class _LoudInt(int):
+    def __int__(self) -> int:
+        return 99
+
+    def __index__(self) -> int:
+        return 99
+
+
+class _LoudFloat(float):
+    def __float__(self) -> float:
+        return 99.0
+
+
+@pytest.mark.parametrize(
+    ("returned", "expected"),
+    [
+        pytest.param(_Colour.RED, "red", id="str-enum-mixin"),
+        pytest.param(_Shade.DARK, "dark", id="strenum"),
+        pytest.param(_Priority.HIGH, 3, id="intenum"),
+        pytest.param(_SelfStr("x"), "x", id="str-returning-self"),
+        pytest.param(_LoudInt(7), 7, id="int-overriding-int"),
+        pytest.param(_LoudFloat(1.5), 1.5, id="float-overriding-float"),
+        pytest.param(True, True, id="bool"),
+    ],
+)
+def test_scalar_subclasses_cross_the_boundary_with_their_payload(
+    returned: Any,
+    expected: Any,
+) -> None:
+    """Narrowing to the exact builtin must not dispatch an overridable dunder.
+
+    ``str(Colour.RED)`` is ``'Colour.RED'`` for a ``(str, Enum)`` member, so a
+    trusted effect returning one handed the program a different string from
+    the one it compares equal to; a ``__str__`` returning ``self`` kept the
+    subclass alive in the value domain.
+    """
+    outcome = run(
+        "from tools.email.trusted.effects import send_email\n"
+        "def main():\n    return send_email('bob@example.com', 'x')\n",
+        dispatch=lambda q, f, a, k: [returned, {returned: returned}],
+    )
+    value, mapping = outcome.value
+    assert value == expected
+    assert type(value) is type(expected)
+    assert mapping == {expected: expected}
+    assert [type(key) for key in mapping] == [type(expected)]
 
 
 def test_step_budget_exhaustion_names_the_effects_already_performed() -> None:
