@@ -675,6 +675,45 @@ def test_dotted_unaliased_import_is_refused_by_name() -> None:
             "import math\ndef main():\n    return math.isclose(1, 2, rel_tol=-1)\n",
             ProgramError,
         ),
+        # Operators raise ``ValueError`` too, which is neither a ``TypeError``
+        # nor an ``ArithmeticError``; comparing two self-containing lists
+        # exhausts the native stack.
+        (
+            "negative-shift",
+            "def main():\n    n = 0 - 1\n    return 1 << n\n",
+            ProgramError,
+        ),
+        (
+            "negative-shift-augmented",
+            "def main():\n    n = 1\n    n >>= 0 - 1\n    return n\n",
+            ProgramError,
+        ),
+        ("incomplete-format", "def main():\n    return '%' % 1\n", ProgramError),
+        (
+            "format-int-too-large",
+            "def main():\n    return '%d' % (10 ** 5000)\n",
+            ProgramError,
+        ),
+        (
+            "cyclic-compare",
+            "def main():\n"
+            "    xs = []\n"
+            "    xs.append(xs)\n"
+            "    ys = []\n"
+            "    ys.append(ys)\n"
+            "    return xs == ys\n",
+            ProgramError,
+        ),
+        (
+            "cyclic-membership",
+            "def main():\n"
+            "    xs = []\n"
+            "    xs.append(xs)\n"
+            "    ys = []\n"
+            "    ys.append(ys)\n"
+            "    return xs in [ys]\n",
+            ProgramError,
+        ),
     ],
 )
 def test_error_contract_is_total(

@@ -1774,9 +1774,10 @@ def _binop(op: str, left: Any, right: Any) -> Any:
     _require_operand(op, right)
     try:
         return _require_in_domain(impl(left, right))
-    except (TypeError, ArithmeticError) as exc:
+    except (TypeError, ValueError, ArithmeticError) as exc:
         # ArithmeticError covers ZeroDivisionError and OverflowError alike:
-        # ``10 ** 400 * 1.0`` overflows without dividing by zero.
+        # ``10 ** 400 * 1.0`` overflows without dividing by zero. ValueError
+        # is ``1 << -1`` and a malformed or oversized ``"%d" % n``.
         raise ProgramError(str(exc), kind=type(exc).__name__) from exc
 
 
@@ -1874,8 +1875,9 @@ def _expr_compare(node: astroid.Compare, frame: Frame) -> Any:
         try:
             if not impl(left, right):
                 return False
-        except TypeError as exc:
-            raise ProgramError(str(exc), kind="TypeError") from exc
+        except (TypeError, RecursionError) as exc:
+            # RecursionError: two self-containing lists compared elementwise.
+            raise ProgramError(str(exc), kind=type(exc).__name__) from exc
         left = right
     return True
 
