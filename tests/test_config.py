@@ -99,3 +99,35 @@ def test_config_cli_idempotent_message(
 
     assert result == 0
     assert "already up to date" in capsys.readouterr().out
+
+
+def test_config_adds_default_mode_when_the_allowlist_is_complete(
+    tmp_path: Path, capsys: CaptureFixture[str]
+) -> None:
+    """The merge reported nothing added, so the changed settings were dropped."""
+    path = _write_settings(
+        tmp_path, json.dumps({"permissions": {"allow": list(DEFAULT_ALLOW)}})
+    )
+
+    result = main(["config", "--into", str(tmp_path)])
+
+    assert result == 0
+    permissions = _settings(tmp_path)["permissions"]
+    assert permissions["defaultMode"] == DEFAULT_MODE
+    assert permissions["allow"] == DEFAULT_ALLOW
+    out = capsys.readouterr().out
+    assert f"updated claude config: {path}" in out
+    assert "already up to date" not in out
+
+
+def test_config_leaves_an_up_to_date_file_untouched(tmp_path: Path) -> None:
+    text = json.dumps(
+        {"permissions": {"defaultMode": "plan", "allow": [*DEFAULT_ALLOW, "Edit"]}}
+    )
+    path = _write_settings(tmp_path, text)
+
+    result = configure_repo(into=tmp_path)
+
+    assert result.added == []
+    assert result.changed is False
+    assert path.read_text() == text

@@ -11,6 +11,7 @@ installed. Re-running ``config`` is therefore idempotent — it merges the
 required permissions into an existing settings file rather than clobbering it.
 """
 
+import copy
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -37,6 +38,9 @@ class RepoConfig:
     path: Path
     created: bool
     added: list[str]
+    #: Whether the settings file was written. An existing file can change
+    #: without any allow entry being added, when only ``defaultMode`` was set.
+    changed: bool = True
 
 
 def configure_repo(*, into: Path, force: bool = False) -> RepoConfig:
@@ -60,10 +64,14 @@ def configure_repo(*, into: Path, force: bool = False) -> RepoConfig:
         return RepoConfig(path=path, created=False, added=added)
 
     settings = _load_settings(path)
+    before = copy.deepcopy(settings)
     added = _merge_defaults(settings)
-    if added:
+    # Compare the settings, not ``added``: a complete allowlist with no
+    # ``defaultMode`` adds no entry and still has to be written.
+    changed = settings != before
+    if changed:
         _write(path, settings)
-    return RepoConfig(path=path, created=False, added=added)
+    return RepoConfig(path=path, created=False, added=added, changed=changed)
 
 
 def _canonical_settings() -> dict[str, object]:

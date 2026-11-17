@@ -854,6 +854,8 @@ def _config(args: argparse.Namespace) -> int:
     elif result.added:
         added = ", ".join(result.added)
         print(f"updated claude config: {result.path} (added: {added})")
+    elif result.changed:
+        print(f"updated claude config: {result.path} (set defaultMode)")
     else:
         print(f"claude config already up to date: {result.path}")
     return 0
