@@ -17,6 +17,29 @@ Fetch = effect(fetch_url, post_url)
 Post = effect(post_url)
 
 
+def _allowed_prefix(prefix: str) -> str:
+    """Refuse an allow-list prefix that stops inside the host part of a URL.
+
+    The comparison is on the text of the URL, so ``https://api.github.com``
+    is also the start of ``https://api.github.com.evil.example/`` and of
+    ``https://api.github.com@evil.example/``: the allowed address would not
+    name one site. A prefix that names a host must end it with ``/``.
+    Raising here makes the proof a refusal, not a pass that means less than
+    it says. ``https://`` alone names no host and is left alone.
+
+    >>> _allowed_prefix("https://api.github.com/")
+    'https://api.github.com/'
+    >>> _allowed_prefix("https://a.example")
+    Traceback (most recent call last):
+    ...
+    ValueError: URL prefix 'https://a.example' must end its host name with '/'
+    """
+    _scheme, separator, rest = prefix.partition("://")
+    if separator and rest and "/" not in rest:
+        raise ValueError(f"URL prefix {prefix!r} must end its host name with '/'")
+    return prefix
+
+
 @contract(description="No restrictions are imposed on web requests.")
 def no_guarantees() -> ContractSpec:
     """Make no guarantees about web requests."""
@@ -50,11 +73,15 @@ def only_fetch_under(prefix: str) -> ContractSpec:
     """Guarantee every requested web address starts with ``prefix``.
 
     Use fully-qualified prefixes (``"https://api.github.com/repos/"``) to
-    bound both scheme + host + path. A bare scheme like ``"https://"`` works
-    too but admits any host; combine with multiple ``only_fetch_under`` for
-    disjunctive host allowlists. Covers GETs and POSTs. Only the requested
-    URL is checked: the HTTP client follows redirects, which are not.
+    bound both scheme + host + path. A prefix that names a host must end it
+    with ``/``: ``"https://api.github.com"`` is refused, because
+    ``https://api.github.com.evil.example/`` starts with it too. A bare
+    scheme like ``"https://"`` works too but admits any host; combine with
+    multiple ``only_fetch_under`` for disjunctive host allowlists. Covers
+    GETs and POSTs. Only the requested URL is checked: the HTTP client
+    follows redirects, which are not.
     """
+    _allowed_prefix(prefix)
     return Fetch.all(lambda e: e.url.startswith(prefix))
 
 

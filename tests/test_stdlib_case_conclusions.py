@@ -222,6 +222,11 @@ REFUSED_BY: dict[str, dict[str, str]] = {
         # dry_run_only() cannot be discharged without an explicit kwarg.
         "dry_run_only_default_fail": "unknown effect field dry_run",
     },
+    "web_fetch": {
+        # An allowed prefix that stops inside the host also matches other
+        # hosts, so only_fetch_under refuses it instead of proving.
+        "only_fetch_under_bare_host_fail": "must end its host name with '/'",
+    },
 }
 
 #: Cases whose conclusion and full obligation list another module pins.
