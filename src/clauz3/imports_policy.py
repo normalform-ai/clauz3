@@ -155,7 +155,7 @@ def validate_imports(
             for alias in node.names:
                 _check(alias.name, policy=policy, source_name=source_name)
         elif isinstance(node, ast.ImportFrom):
-            if node.level and not node.module:
+            if node.level:
                 raise DisallowedImportError(
                     f"{source_name}: relative imports are not allowed in "
                     "untrusted source",
