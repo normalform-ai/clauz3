@@ -64,8 +64,14 @@
     $("prompt").disabled = !ready || state.historyLimited;
     $("send").disabled = !ready || state.busy || active || state.historyLimited;
     $("stop").disabled = !ready;
+    // Like New, the picker waits for the agent: the server refuses a change
+    // while one is still starting.
     $("agent-select").disabled =
-      !connected || state.busy || state.stopping || Boolean(state.turn);
+      !connected ||
+      state.busy ||
+      state.stopping ||
+      Boolean(state.turn) ||
+      (!state.sessionId && !state.ended);
     $("new").disabled =
       !connected ||
       state.busy ||
@@ -191,6 +197,8 @@
     if (message.method === "clauz3/notice") {
       document.dispatchEvent(new CustomEvent("clauz3:workspace-notice", { detail: p.text }));
       notice(p.text);
+      // A refused agent change leaves the conversation on its current agent.
+      $("agent-select").value = state.agent || "claude";
       return;
     }
     if (message.method === "clauz3/confirm_libraries") {

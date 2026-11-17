@@ -227,3 +227,40 @@ test("plan entries without a text status are still listed", () => {
   receive("session/update", { update: { sessionUpdate: "plan", entries: null } });
   assert.deepEqual(plan.children, []);
 });
+
+test("the agent picker waits for the agent to start", () => {
+  const { $, receive } = page();
+  const disabled = (values) => {
+    receive("clauz3/state", state(values));
+    return $("agent-select").disabled;
+  };
+  assert.equal(disabled({ sessionId: null }), true);
+  assert.equal($("new").disabled, true);
+  assert.equal(disabled({}), false);
+  // An agent that could not start is replaced by choosing another.
+  assert.equal(disabled({ sessionId: null, ended: true }), false);
+  assert.equal(disabled({ turn: 1 }), true);
+});
+
+test("a refused agent change puts the picker back", () => {
+  const { $, socket, receive } = page();
+  receive("clauz3/restore", { ...state(), history: [] });
+  const picker = $("agent-select");
+  assert.deepEqual(picker.children.map((option) => option.value), ["codex", "opencode"]);
+  assert.equal(picker.value, "codex");
+  picker.value = "opencode";
+  picker.listeners.change();
+  assert.deepEqual(JSON.parse(JSON.stringify(socket.sent.at(-1))), {
+    method: "clauz3/new",
+    params: { agent: "opencode", domains: [] },
+  });
+  receive("clauz3/notice", { text: "Wait for agent startup to finish" });
+  assert.equal($("notice").textContent, "Wait for agent startup to finish");
+  assert.equal(picker.value, "codex");
+  // An accepted change arrives as a restore for the new agent.
+  picker.value = "opencode";
+  picker.listeners.change();
+  receive("clauz3/restore", { ...state({ agent: "opencode", sessionId: null }), history: [] });
+  assert.equal(picker.value, "opencode");
+  assert.equal(picker.disabled, true);
+});
