@@ -50,7 +50,7 @@ from clauz3.libraries.manifest import (
     read_source_manifest,
     source_package,
 )
-from clauz3.source import is_remote_source, resolve_remote_source
+from clauz3.source import SourceError, is_remote_source, resolve_remote_source
 
 #: Scheme that selects a tool bundled in ``clauz3``'s stdlib, e.g.
 #: ``stdlib:filesystem``. Resolved via ``importlib.resources`` so it works the
@@ -455,7 +455,12 @@ def _resolve_tools_dir(source: str | Path, stack: ExitStack) -> Path:
         return _resolve_stdlib_tools(stdlib_name, stack)
 
     if is_remote_source(source):
-        path = resolve_remote_source(str(source))
+        try:
+            path = resolve_remote_source(str(source))
+        except SourceError as exc:
+            # A bad ref, a mistyped repository or no network: an invalid
+            # install source like any other, for every caller's handler.
+            raise InstallError(str(exc)) from exc
     else:
         path = Path(source)
     if not path.exists():
