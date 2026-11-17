@@ -731,6 +731,19 @@ def test_error_contract_is_total(
         run(source)
 
 
+def test_dict_of_none_is_a_type_error() -> None:
+    """``None`` was ``dict``'s "no argument" marker, so ``dict(None)`` was ``{}``."""
+    with pytest.raises(ProgramError, match="NoneType") as excinfo:
+        run("def main():\n    return dict(None)\n")
+    assert excinfo.value.kind == "TypeError"
+    with pytest.raises(ProgramError, match="NoneType"):
+        run("def main():\n    return dict(None, a=1)\n")
+    outcome = run(
+        "def main():\n    return [dict(), dict(a=1), dict([('b', 2)], c=3)]\n"
+    )
+    assert outcome.value == [{}, {"a": 1}, {"b": 2, "c": 3}]
+
+
 def test_row_fields_are_marshalled_outbound() -> None:
     """``Row.__init__`` checks field *names*, not field values.
 

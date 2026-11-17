@@ -106,13 +106,18 @@ def _b_set(items: Iterable[Any] = ()) -> set[Any]:
     return set(items)
 
 
-def _b_dict(items: Any = None, /, **kwargs: Any) -> dict[Any, Any]:
+#: "No positional argument" for ``dict``. Not ``None``, which is a value a
+#: program can pass: ``dict(None)`` is a ``TypeError``, not ``{}``.
+_NO_ARGUMENT: Any = object()
+
+
+def _b_dict(items: Any = _NO_ARGUMENT, /, **kwargs: Any) -> dict[Any, Any]:
     # ``**kwargs`` is checked too. Nothing escaped through it -- calls dispatch
     # on interpreter value types and ``marshal_out`` refuses non-domain values
     # -- but it was the one builtin whose inputs were not fully enumerated, and
     # "allowlist the inputs" is the rule this module states for every other one.
     _require_data("dict", *kwargs.values())
-    if items is None:
+    if items is _NO_ARGUMENT:
         return dict(**kwargs)
     _require_data("dict", items)
     return dict(items, **kwargs)
