@@ -444,7 +444,10 @@ def create_approval_app(
                 )
             except ApprovalAuthorizationError as exc:
                 raise HTTPException(status_code=403, detail=str(exc)) from exc
-        request_id = request_id_from_payload(payload)
+        try:
+            request_id = request_id_from_payload(payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         # Only operator-authorized paths may supply UI metadata. A manual-only
         # service must not read arbitrary paths from a submitted request.
         metadata_layer = selected_layer

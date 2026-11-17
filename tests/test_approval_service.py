@@ -492,6 +492,19 @@ def test_approval_service_refuses_a_hash_that_is_not_the_shown_program(
     assert client.get("/requests").json() == []
 
 
+@pytest.mark.parametrize("request_id", ["a/b", "clr_abc/decision"])
+def test_approval_service_refuses_a_request_id_no_decision_can_address(
+    request_id: str,
+) -> None:
+    client = TestClient(create_approval_app(max_wait_seconds=0.2))
+
+    for path in ("/requests", "/api/requests"):
+        refused = client.post(path, json={"request_id": request_id})
+        assert refused.status_code == 400, path
+        assert refused.json()["detail"] == "request_id must not contain '/'"
+    assert client.get("/requests").json() == []
+
+
 def test_approval_service_signs_the_hash_of_the_shown_program(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

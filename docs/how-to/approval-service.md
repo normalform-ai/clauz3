@@ -462,7 +462,9 @@ A `clauz3 run` request looks like this:
 
 `program_sha256` is the SHA-256 of `program`, encoded as UTF-8. The receipt
 signs that hash, so `clauz3 approval-service` refuses a request whose hash is
-not the hash of the program it would show the approver, with HTTP 400.
+not the hash of the program it would show the approver, with HTTP 400. A
+`request_id` must not contain `/`, because the decision routes address a
+request by one path segment; both services refuse such an ID with HTTP 400.
 
 The service response must be a JSON object whose `decision` is one of the
 strings under [User decisions](#user-decisions) or a policy decision:
