@@ -62,6 +62,10 @@ def read_rows(
 
     ``path`` is used as written, with no tilde expansion: ``~/data`` is a
     folder named ``~`` in the working directory, not the home directory.
+
+    An ``int`` or ``bool`` field must be stored as that type; a text or
+    decimal column raises ``TypeError`` instead of being converted. A NULL
+    raises ``ValueError``.
     """
     if not isinstance(schema, type) or not issubclass(schema, clauz3.Row):
         raise TypeError("schema must be a clauz3.Row subclass")
@@ -299,17 +303,28 @@ def _row_from_tuple(
     for column, value in zip(columns, values, strict=True):
         if value is None:
             raise ValueError(f"column {column!r} was NULL")
-        data[column] = _coerce_value(value, schema.__annotations__[column])
+        data[column] = _typed_value(column, value, schema.__annotations__[column])
     return schema(**data)
 
 
-def _coerce_value(value: object, expected: type) -> object:
+def _typed_value(column: str, value: object, expected: type) -> object:
+    """Return ``value`` as the declared field type, or refuse it.
+
+    An ``int`` or ``bool`` field takes only a value DuckDB returns as exactly
+    that type. Converting would invent data: ``bool("false")`` is ``True``
+    for a text column, and ``int(3.9)`` is ``3``. ``bool`` is a subclass of
+    ``int``, so the exact type is compared and neither stands in for the
+    other. A ``str`` field renders any value as text.
+    """
     if expected is str:
         return str(value)
-    if expected is int:
-        return int(value)
-    if expected is bool:
-        return bool(value)
+    if expected is int or expected is bool:
+        if type(value) is not expected:
+            raise TypeError(
+                f"column {column!r} must contain {expected.__name__}, "
+                f"but the source holds {type(value).__name__}"
+            )
+        return value
     raise TypeError(f"unsupported Row field type {expected!r}")
 
 

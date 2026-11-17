@@ -140,3 +140,67 @@ def test_writes_do_not_expand_a_tilde(
     assert not (home / "new.duckdb").exists()
     rows = db_effects.read_rows(User, "~/new.duckdb", "users", {})
     assert [row.email for row in rows] == ["literal@example.com"]
+
+
+class Consent(clauz3.Row):
+    email: str
+    consented: bool
+
+
+class Count(clauz3.Row):
+    email: str
+    n: int
+
+
+def test_text_is_not_read_as_a_bool(db_effects: ModuleType, tmp_path: Path) -> None:
+    """A column DuckDB reads as text must not turn "false" into True."""
+    (tmp_path / "users.csv").write_text(
+        "email,consented\na@example.com,false\nb@example.com,unknown\n"
+    )
+    with pytest.raises(TypeError, match="column 'consented' must contain bool"):
+        db_effects.read_rows(Consent, str(tmp_path), "users", {})
+
+
+def test_decimals_are_not_truncated_to_int(
+    db_effects: ModuleType, tmp_path: Path
+) -> None:
+    (tmp_path / "counts.csv").write_text("email,n\na@example.com,3.9\n")
+    with pytest.raises(TypeError, match="column 'n' must contain int"):
+        db_effects.read_rows(Count, str(tmp_path), "counts", {})
+
+
+def test_bool_and_int_do_not_stand_in_for_each_other(
+    db_effects: ModuleType, tmp_path: Path
+) -> None:
+    (tmp_path / "users.csv").write_text("email,consented\na@example.com,1\n")
+    (tmp_path / "counts.csv").write_text("email,n\na@example.com,true\n")
+    with pytest.raises(TypeError, match="must contain bool, but the source holds int"):
+        db_effects.read_rows(Consent, str(tmp_path), "users", {})
+    with pytest.raises(TypeError, match="must contain int, but the source holds bool"):
+        db_effects.read_rows(Count, str(tmp_path), "counts", {})
+
+
+def test_declared_types_are_returned_exactly(
+    db_effects: ModuleType, tmp_path: Path
+) -> None:
+    (tmp_path / "users.csv").write_text(
+        "email,consented\na@example.com,false\nb@example.com,true\n"
+    )
+    (tmp_path / "counts.csv").write_text("email,n\na@example.com,0\nb@example.com,7\n")
+    users = db_effects.read_rows(Consent, str(tmp_path), "users", {})
+    counts = db_effects.read_rows(Count, str(tmp_path), "counts", {})
+    assert [row.consented for row in users] == [False, True]
+    assert [row.n for row in counts] == [0, 7]
+    assert all(type(row.consented) is bool for row in users)
+    assert all(type(row.n) is int for row in counts)
+
+
+def test_str_fields_render_other_column_types(
+    db_effects: ModuleType, tmp_path: Path
+) -> None:
+    """Text is the one lossless target: a date or number column reads as text."""
+    (tmp_path / "users.csv").write_text("email\n2026-01-05\n")
+    (tmp_path / "counts.csv").write_text("email\n3.9\n")
+    for table, text in (("users", "2026-01-05"), ("counts", "3.9")):
+        rows = db_effects.read_rows(User, str(tmp_path), table, {})
+        assert [row.email for row in rows] == [text]

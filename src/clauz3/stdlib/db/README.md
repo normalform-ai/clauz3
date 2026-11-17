@@ -31,7 +31,10 @@ Import effects from `tools.db.trusted.effects`:
   Parquet inputs are queried through DuckDB in memory. A DuckDB database file
   is opened read-only with external access disabled: `table` names a table or
   view stored in that file and is never read as a file name, and a stored view
-  that reads another file or a URL fails instead of reading it.
+  that reads another file or a URL fails instead of reading it. An `int` or
+  `bool` field must be stored as that type: a text column holding `false`, a
+  decimal, or `0`/`1` for a `bool` raises `TypeError` rather than being
+  converted. A `str` field reads any column as text.
 
 - `create_table(schema, path, table) -> None` — create a new table with columns
   from a `clauz3.Row` schema; create the DuckDB file if needed. Fields are
