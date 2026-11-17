@@ -18,7 +18,7 @@ import secrets
 import sys
 from contextlib import suppress
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 from urllib.request import ProxyHandler, Request, build_opener
 
 from clauz3.libraries.discovery import global_library_root
@@ -37,6 +37,18 @@ def http_origin(host: str, port: int) -> str:
     'http://[::1]:8765'
     """
     return f"http://[{host}]:{port}" if ":" in host else f"http://{host}:{port}"
+
+
+def login_link(origin: str, token: str) -> str:
+    """The sign-in link for an approver token, whatever characters it holds.
+
+    An operator-chosen token may contain ``+``, ``&`` or ``#``, which a URL
+    would read as a space, a second parameter or a fragment.
+
+    >>> login_link("http://127.0.0.1:8765", "a+b&c#d")
+    'http://127.0.0.1:8765/ui/login?key=a%2Bb%26c%23d'
+    """
+    return f"{origin}/ui/login?key={quote(token, safe='')}"
 
 
 def keep_link(url: str) -> bool:

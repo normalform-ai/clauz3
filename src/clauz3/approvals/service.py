@@ -39,7 +39,12 @@ from clauz3.approvals.decisions import (
     parse_decision,
 )
 from clauz3.approvals.descriptions import render_guarantees
-from clauz3.approvals.login_links import forget_link, http_origin, keep_link
+from clauz3.approvals.login_links import (
+    forget_link,
+    http_origin,
+    keep_link,
+    login_link,
+)
 from clauz3.approvals.policy import (
     ApprovalPolicy,
     auto_approval_response,
@@ -1338,7 +1343,7 @@ def serve_approval_service(
         if auth_token:
             print(f"CLAUZ3_APPROVAL_TOKEN={auth_token}", flush=True)
         approver_token = decision_token if decision_token is not None else auth_token
-        login_url = f"{origin}/ui/login?key={approver_token}"
+        login_url = login_link(origin, approver_token or "")
         saved = bool(approver_token) and keep_link(login_url)
         if approver_token:
             print(f"approver UI (keep private): {login_url}")
