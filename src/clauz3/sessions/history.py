@@ -14,6 +14,8 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+DEFAULT_TITLE = "New conversation"
+
 
 class ConversationStore:
     def __init__(self, path: Path, project: str) -> None:
@@ -72,7 +74,7 @@ class ConversationStore:
         with self.connection() as db:
             db.execute(
                 "INSERT INTO conversations VALUES (?, ?, ?, ?, '{}')",
-                (identifier, self.project, "New conversation", time.time()),
+                (identifier, self.project, DEFAULT_TITLE, time.time()),
             )
         return identifier
 
@@ -119,10 +121,12 @@ class ConversationStore:
                 (time.time(), identifier, self.project),
             )
             if message["method"] == "clauz3/user" and message["params"]["turn"] == 1:
+                # The first message names an untitled chat, never a renamed one.
                 title = " ".join(message["params"]["text"].split())[:80]
                 db.execute(
-                    "UPDATE conversations SET title=? WHERE id=? AND project=?",
-                    (title, identifier, self.project),
+                    "UPDATE conversations SET title=? "
+                    "WHERE id=? AND project=? AND title=?",
+                    (title, identifier, self.project, DEFAULT_TITLE),
                 )
 
     def handoff(self, identifier: str) -> dict[str, str]:

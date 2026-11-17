@@ -660,6 +660,24 @@ def test_history_store_isolates_projects_and_keeps_events(tmp_path: Path) -> Non
     assert file.stat().st_mode & 0o077 == 0
 
 
+def test_first_message_titles_only_an_untitled_conversation(tmp_path: Path) -> None:
+    from clauz3.sessions.history import ConversationStore
+
+    store = ConversationStore(tmp_path / "history.sqlite", str(tmp_path))
+    first = {
+        "method": "clauz3/user",
+        "params": {"text": "Plan  the\nrelease", "turn": 1},
+    }
+    untitled, renamed = store.create(), store.create()
+    store.rename(renamed, "Release notes")
+    for identifier in (untitled, renamed):
+        assert store.load(identifier)["history"] == []
+        store.append(identifier, first)
+    assert store.load(untitled)["title"] == "Plan the release"
+    # A title the operator chose before sending anything is kept.
+    assert store.load(renamed)["title"] == "Release notes"
+
+
 def test_conversation_store_lease_releases_after_exit(tmp_path: Path) -> None:
     from clauz3.sessions.history import ConversationStore
 
