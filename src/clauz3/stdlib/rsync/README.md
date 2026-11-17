@@ -42,7 +42,10 @@ Import with `from tools.rsync.trusted.effects import rsync`:
   with `-` (rsync reads options even after the paths).
 
 The exact spellings above are preconditions, checked by the prover and again
-by the effect body. Abbreviations (`--remove-sou`), `--option=value` forms and
+by the effect body. That includes each full `--delete-*` name
+(`--delete-before`, `--delete-during`, `--delete-delay`, `--delete-after`,
+`--delete-excluded`, `--delete-missing-args`) and `--log-file-format`, which
+is refused because it starts with `--log-file`. Abbreviations (`--remove-sou`), `--option=value` forms and
 short-option groups containing a refused letter (`-avK`) are refused **only
 when the program runs**: the prover cannot see them, so a program refused this
 way may already have run its earlier calls.

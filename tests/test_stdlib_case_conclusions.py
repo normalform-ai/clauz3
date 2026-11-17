@@ -182,6 +182,7 @@ FAILS_BY: dict[str, dict[str, str]] = {
     },
     "rsync": {
         "never_dest_under_fail": "guarantee",
+        "no_delete_after_fail": "assertion",  # --delete-after is refused
         "no_delete_fail": "guarantee",
         "no_delete_force_fail": "assertion",  # --force is refused
         "no_delete_option_dest_fail": "assertion",  # dest starts with '-'
