@@ -338,6 +338,13 @@ signing key from its environment (`CLAUZ3_APPROVAL_SIGNING_KEY`). Without a
 signing key it falls back to an unsigned `local-<request_id>` placeholder, which
 a fail-closed runner will reject — provision the keypair (see above).
 
+A request takes one decision: a second decision for the same request is
+refused with HTTP 409. While a request is pending, a submission that reuses its
+request ID with a different program, target, guarantees, coverage or roots is
+also refused with HTTP 409, so the decision always applies to the request the
+approver was shown. With a policy, a submission that selects another authorized
+layer still supersedes the pending one.
+
 ## Connect `clauz3 run`
 
 `clauz3 run` discovers the approval-service URL in this order:

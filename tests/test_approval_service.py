@@ -521,3 +521,129 @@ def test_approval_service_signs_the_hash_of_the_shown_program(
         ),
         now=time.time(),
     )
+
+
+PENDING = _hashed(
+    SHOWN,
+    request_id="clr_swap",
+    target="main",
+    guarantees=["emails.none()"],
+    coverage=[],
+    trusted_roots=["tools/email/trusted"],
+    import_roots=["."],
+)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        _hashed(OTHER),
+        {"target": "other"},
+        {"guarantees": ["emails.at_most(9)"]},
+        {
+            "coverage": [
+                {
+                    "domain": "db",
+                    "status": "silent_gap",
+                    "missing_required": [],
+                    "missing_recommended": [],
+                }
+            ]
+        },
+        {"trusted_roots": ["tools/db/trusted"]},
+        {"import_roots": ["elsewhere"]},
+    ],
+    ids=["program", "target", "guarantees", "coverage", "trusted", "imports"],
+)
+def test_pending_request_cannot_be_replaced_under_its_request_id(
+    change: dict[str, object], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The approver decides on the record they are reading. A second submission
+    # under the same id must not swap that record for different content.
+    signing, verifying = generate_keypair()
+    monkeypatch.setenv(SIGNING_KEY_ENV, signing)
+    client = TestClient(create_approval_app(max_wait_seconds=30))
+    responses: list[dict[str, object]] = []
+
+    thread = threading.Thread(
+        target=lambda: responses.append(client.post("/requests", json=PENDING).json())
+    )
+    thread.start()
+    _wait_for_record(client, "clr_swap")
+
+    replaced = client.post("/requests", json={**PENDING, **change})
+
+    assert replaced.status_code == 409, replaced.text
+    assert replaced.json()["detail"] == (
+        "request ID already belongs to another submission"
+    )
+    record = client.get("/requests/clr_swap").json()
+    assert record["status"] == "pending"
+    for key, value in PENDING.items():
+        assert record[key] == value
+    decision = client.post(
+        "/requests/clr_swap/decision", json={"decision": "approved_once"}
+    )
+    thread.join(timeout=5)
+    assert not thread.is_alive()
+    assert responses == [decision.json()]
+    digest = str(PENDING["program_sha256"])
+    verify_receipt(
+        verify_key_b64=verifying,
+        receipt=str(decision.json()["receipt"]),
+        request_id="clr_swap",
+        program_sha256=digest,
+        consent_sha256=consent_digest(
+            program_sha256=digest, guarantees=["emails.none()"], coverage=[]
+        ),
+        now=time.time(),
+    )
+
+
+def test_identical_resubmission_of_a_pending_request_shares_its_decision() -> None:
+    client = TestClient(create_approval_app(max_wait_seconds=30))
+    responses: list[dict[str, object]] = []
+
+    def submit() -> None:
+        responses.append(client.post("/requests", json=PENDING).json())
+
+    threads = [threading.Thread(target=submit) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    _wait_for_record(client, "clr_swap")
+    decision = client.post(
+        "/requests/clr_swap/decision", json={"decision": "approved_once"}
+    )
+    for thread in threads:
+        thread.join(timeout=5)
+        assert not thread.is_alive()
+
+    assert decision.status_code == 200
+    assert responses == [decision.json(), decision.json()]
+    assert len(client.get("/requests").json()) == 1
+
+
+@pytest.mark.parametrize("second", ["rejected", "approved_once"])
+def test_decided_request_cannot_be_decided_again(second: str) -> None:
+    client = TestClient(create_approval_app(max_wait_seconds=30))
+    responses: list[dict[str, object]] = []
+
+    thread = threading.Thread(
+        target=lambda: responses.append(client.post("/requests", json=PENDING).json())
+    )
+    thread.start()
+    _wait_for_record(client, "clr_swap")
+    first = client.post(
+        "/requests/clr_swap/decision", json={"decision": "approved_once"}
+    )
+    thread.join(timeout=5)
+    assert first.status_code == 200
+
+    for path in ("/requests", "/api/requests"):
+        again = client.post(f"{path}/clr_swap/decision", json={"decision": second})
+        assert again.status_code == 409, path
+        assert again.json()["detail"] == "this request has already been decided"
+    record = client.get("/requests/clr_swap").json()
+    assert record["status"] == "approved"
+    assert record["approval"] == first.json()
+    assert responses == [first.json()]

@@ -493,20 +493,39 @@ def create_approval_app(
             if generation != workspace_generation:
                 raise HTTPException(409, "Workspace changed during verification")
             previous = records.get(request_id)
-            if profile is not None and previous is not None:
-                fields = (
-                    "program",
-                    "target",
-                    "program_sha256",
-                    "guarantees",
-                    "coverage",
-                    "trusted_roots",
-                    "import_roots",
-                )
-                if any(previous.get(k) != payload.get(k) for k in fields):
+            # A pending record is what the approver is reading and deciding
+            # on, so no mode lets a second submission swap its content. A
+            # profile also refuses a decided record; elsewhere a decided
+            # record keeps answering retries under its request ID.
+            if previous is not None and (
+                profile is not None or not previous.get("approval")
+            ):
+                changed = {
+                    field
+                    for field in (
+                        "program",
+                        "target",
+                        "program_sha256",
+                        "guarantees",
+                        "coverage",
+                        "trusted_roots",
+                        "import_roots",
+                    )
+                    if previous.get(field) != payload.get(field)
+                }
+                if (
+                    profile is None
+                    and selected_layer is not None
+                    and record_layers.get(request_id) != selected_layer
+                ):
+                    # Selecting another operator-authorized layer supersedes
+                    # the pending request: its waiter is told so below.
+                    changed -= {"trusted_roots", "import_roots"}
+                if changed:
                     raise HTTPException(
                         409, "request ID already belongs to another submission"
                     )
+            if profile is not None and previous is not None:
                 if previous.get("approval"):
                     # Each resubmission is a new execution: reconsult current
                     # rules and mint a new receipt, never reuse a past decision.
@@ -742,9 +761,10 @@ def create_approval_app(
             )
             if remember and (profile is None or not record.get("profile_eligible")):
                 raise HTTPException(400, "this request cannot be remembered")
+            if "approval" in record:
+                # One decision per request: the runner already acted on it.
+                raise HTTPException(409, "this request has already been decided")
             if profile is not None:
-                if "approval" in record:
-                    raise HTTPException(409, "this request has already been decided")
                 if remember and decision not in REMEMBERABLE_DECISIONS:
                     raise HTTPException(
                         400, "only approval or rejection can be remembered"
