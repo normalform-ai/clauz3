@@ -273,7 +273,7 @@ def test_non_ascii_submission_credential_is_rejected_not_crashed() -> None:
     # outside ASCII and answered 500 where the decision route answers 401.
     app = create_approval_app(auth_token="submit-tok", decision_token="decide-tok")
     client = TestClient(app, raise_server_exceptions=False)
-    header = {"Authorization": "Bearer dé".encode("latin-1")}
+    header = {b"Authorization": "Bearer dé".encode("latin-1")}
     for path in ("/requests", "/api/requests"):
         response = client.post(path, json={"request_id": "clr_utf8"}, headers=header)
         assert response.status_code == 401, path
