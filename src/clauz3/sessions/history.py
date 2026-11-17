@@ -78,6 +78,15 @@ class ConversationStore:
             )
         return identifier
 
+    def discard(self, identifier: str) -> None:
+        """Forget a conversation nobody used. One the operator named is kept."""
+        with self.connection() as db:
+            if db.execute(
+                "DELETE FROM conversations WHERE id=? AND project=? AND title=?",
+                (identifier, self.project, DEFAULT_TITLE),
+            ).rowcount:
+                db.execute("DELETE FROM messages WHERE conversation=?", (identifier,))
+
     def list(self) -> list[dict[str, Any]]:
         with self.connection() as db:
             return [

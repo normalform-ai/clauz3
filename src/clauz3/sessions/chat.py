@@ -1361,10 +1361,18 @@ def install_chat(
         async def replace(
             identifier: str | None,
             configure: Callable[[dict[str, Any] | None], ChatConfig],
+            *,
+            discard: bool = False,
         ) -> None:
+            """Close this conversation and open a saved or new one.
+
+            ``discard`` forgets the closed conversation once its replacement
+            exists; it is for a conversation nothing was sent in.
+            """
             nonlocal conversation, startup, replacing
             replacing = True
             try:
+                replaced = conversation
                 await conversation.close()
                 # Load after closing so the record includes the final saved state.
                 saved = store.load(identifier) if identifier else None
@@ -1374,6 +1382,8 @@ def install_chat(
                 conversation = Conversation(
                     configure(saved).model_copy(update={"prompt": None}), store, saved
                 )
+                if discard:
+                    store.discard(replaced.identifier)
                 app.state.conversation = conversation
                 if attached_tab is websocket:
                     conversation.subscriber = queue
@@ -1591,14 +1601,17 @@ def install_chat(
                             if domains is None
                             else domains
                         )
-                        if (
-                            requested_agent == conversation.config.agent
-                            and not conversation.turn
+                        unused = (
+                            not conversation.turn
                             and not conversation.ended
                             # A chat that cannot start (e.g. a mode refusal)
                             # is never reused, so New always recovers.
                             and not conversation.config.startup_error
                             and not conversation.history_limited
+                        )
+                        if (
+                            unused
+                            and requested_agent == conversation.config.agent
                             and (
                                 manager is None
                                 or target is not None
@@ -1628,6 +1641,10 @@ def install_chat(
                                 agent=requested_agent,
                                 adapter=adapter,
                             ),
+                            # Choosing another agent replaces an unused chat
+                            # instead of leaving it in the history.
+                            discard=unused
+                            and requested_agent != conversation.config.agent,
                         )
                     elif method == "clauz3/libraries":
                         idle()

@@ -116,7 +116,8 @@ libraries does not rewrite history. Records without a captured identity say
 Conversation events and run snapshots are stored in an operator-owned SQLite
 file, `conversations.sqlite`, under the user-wide Clauz3 data directory. Records
 are isolated by canonical project path. New conversation keeps the previous
-transcript. The sidebar follows the chat-app pattern: workspace switcher, New
+transcript. Choosing another agent before the first message replaces the
+unused conversation, unless it was renamed, instead of adding a row. The sidebar follows the chat-app pattern: workspace switcher, New
 conversation, Libraries and Approvals (with installed and waiting counts), then
 date-grouped history with search (⌘K) and a per-row menu for Rename and Copy
 handoff. The conversation header's ⋯ menu adds Export transcript. Menus are
