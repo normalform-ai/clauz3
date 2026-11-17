@@ -69,13 +69,18 @@ def import_aliases(module: Module) -> dict[str, str]:
     {'c': 'clauz3'}
     >>> import_aliases(ast.parse("from clauz3 import guarantee as g"))
     {'g': 'clauz3.guarantee'}
+    >>> import_aliases(ast.parse("import deal, a.b"))
+    {'deal': 'deal', 'a': 'a'}
     """
     aliases: dict[str, str] = {}
     for modname, names in _imports(module):
         for name, asname in names:
             if modname is None:
-                # ``import X`` binds ``X``; ``import X.Y`` binds ``X``.
-                aliases[asname] = name if asname else name.split(".", 1)[0]
+                # ``import X`` binds ``X``; ``import X.Y`` binds ``X``. Keyed
+                # by that bound name: an absent ``asname`` is ``""``, which is
+                # also the head of a decorator with no dotted spelling.
+                bound = name.split(".", 1)[0]
+                aliases[asname or bound] = name if asname else bound
             else:
                 aliases[asname or name] = f"{modname}.{name}"
     return aliases
