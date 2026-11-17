@@ -463,6 +463,15 @@ def _resolve_tools_dir(source: str | Path, stack: ExitStack) -> Path:
     if path.name == "tools" and path.is_dir():
         return path
     tools = path / "tools"
+    # ``_reject_symlinks`` walks ``tools/<domain>``, which is already past this
+    # link: a cloned repository whose ``tools`` is a symlink would install
+    # whatever trusted layer the link names on this machine. A real ``tools``
+    # directory is necessarily inside the source, so refusing the link is what
+    # keeps every copied file within it.
+    if tools.is_symlink():
+        raise InstallError(
+            f"refusing to install from a symlinked tools directory: {tools}"
+        )
     if tools.is_dir():
         return tools
     raise InstallError(f"no tools/ directory found in {path}")

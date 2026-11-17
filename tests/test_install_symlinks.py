@@ -12,11 +12,12 @@ through them.
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
 
-from clauz3.libraries.install import InstallError, install_layer
+from clauz3.libraries.install import InstallError, install_layer, install_library
 
 
 def _make_layer(root: Path) -> Path:
@@ -76,3 +77,53 @@ def test_install_plain_layer_still_works(tmp_path: Path) -> None:
 
     assert result.domains == ["home"]
     assert (dest / ".clauz3/tools/home/trusted/effects.py").is_file()
+
+
+def _victim(root: Path) -> Path:
+    """A trusted layer outside the source that a symlinked ``tools`` points at."""
+    victim = root / "victim"
+    _make_layer(victim)
+    return victim / "tools"
+
+
+def test_install_rejects_a_symlinked_tools_directory(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "tools").symlink_to(_victim(tmp_path), target_is_directory=True)
+    dest = tmp_path / "dest"
+
+    with pytest.raises(InstallError, match="symlinked tools directory"):
+        install_layer(source, into=dest)
+
+    assert not (dest / ".clauz3").exists()
+
+
+def test_remote_install_rejects_a_symlinked_tools_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A clone is attacker-controlled content: ``tools`` must be inside it.
+
+    ``_reject_symlinks`` walks each ``tools/<domain>``, which is already past
+    the link, so a repository whose ``tools`` is a symlink installed whatever
+    trusted layer the link named on the installing machine.
+    """
+    monkeypatch.setenv("CLAUZ3_CACHE", str(tmp_path / "cache"))
+    monkeypatch.setenv("CLAUZ3_HOME", str(tmp_path / "store"))
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "tools").symlink_to(_victim(tmp_path), target_is_directory=True)
+    for command in (
+        ["init", "--quiet", "-b", "main"],
+        ["add", "-A"],
+        [
+            *("-c", "user.email=test@example.com", "-c", "user.name=Test"),
+            *("commit", "--quiet", "-m", "init"),
+        ],
+    ):
+        subprocess.run(["git", "-C", str(repo), *command], check=True)
+    dest = tmp_path / "dest"
+
+    with pytest.raises(InstallError, match="symlinked tools directory"):
+        install_library(repo.as_uri(), into=dest)
+
+    assert not (dest / ".clauz3").exists()
