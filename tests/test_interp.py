@@ -1570,6 +1570,72 @@ def test_unreadable_layer_source_exposes_no_constants(tmp_path: Path) -> None:
         interpreter._imported_names = original
 
 
+_STAR_IMPORTING_LAYER = (
+    "import deal\n"
+    "from tools.demo.trusted.settings import *\n"
+    "\n"
+    "LIMIT = 3\n"
+    "\n"
+    "\n"
+    '@deal.has("network")\n'
+    "def ship(msg: str) -> None:\n"
+    "    return None\n"
+)
+
+
+@pytest.mark.parametrize("constant", ["API_TOKEN", "LIMIT"])
+def test_a_star_import_makes_a_layers_constants_unexposed(
+    tmp_path: Path,
+    constant: str,
+) -> None:
+    """``from settings import *`` binds names the source does not list.
+
+    The provenance check recorded the literal ``*`` as the one bound name, so
+    every star-imported constant counted as locally defined and
+    ``effects.API_TOKEN`` -- defined outside the module, possibly outside every
+    trusted root -- was readable from the interpreted program. What a star
+    import binds is unknown from the source, so provenance is unknown and no
+    constant of that module is exposed.
+    """
+    root, trusted = _trusted_layer(tmp_path, _STAR_IMPORTING_LAYER)
+    (trusted / "settings.py").write_text("API_TOKEN = 's3cret'\n")
+    with pytest.raises(TrustedBoundaryError, match=constant):
+        _run_against(
+            root,
+            trusted,
+            "from tools.demo.trusted import effects\n"
+            "\n"
+            "def main():\n"
+            f"    return effects.{constant}\n",
+        )
+
+
+def test_a_star_importing_layer_still_exposes_its_effects(tmp_path: Path) -> None:
+    root, trusted = _trusted_layer(tmp_path, _STAR_IMPORTING_LAYER)
+    (trusted / "settings.py").write_text("API_TOKEN = 's3cret'\n")
+    outcome = _run_against(
+        root,
+        trusted,
+        "from tools.demo.trusted.effects import ship\n"
+        "\n"
+        "def main() -> None:\n"
+        "    ship('hi')\n",
+        trusted_dispatch=lambda q, f, a, k: None,
+    )
+    assert [name for name, _a, _k in outcome.effects] == [
+        "tools.demo.trusted.effects.ship"
+    ]
+
+
+def test_star_import_bindings_are_unknown() -> None:
+    import clauz3.interp.interpreter as interpreter
+
+    assert interpreter._import_bindings("from settings import *\nX = 1\n") is None
+    assert interpreter._import_bindings(
+        "def f():\n    pass\nfrom settings import a\n"
+    ) == frozenset({"a"})
+
+
 @pytest.mark.parametrize(
     ("label", "source", "kind"),
     [

@@ -545,7 +545,10 @@ def _imported_names(module: ModuleType) -> frozenset[str] | None:
 
 @functools.lru_cache(maxsize=128)
 def _import_bindings(source: str) -> frozenset[str] | None:
-    r"""Names the ``import`` statements in ``source`` bind; ``None`` if unparsable.
+    r"""Names the ``import`` statements in ``source`` bind; ``None`` if unknown.
+
+    Unknown means unparsable, or containing a star import: what ``from m
+    import *`` binds is not in the source, so no name can be called local.
 
     Memoised on the source *text*, not the module object. ``exposed_names``
     reaches :func:`_imported_names` once per public constant of a trusted
@@ -559,6 +562,8 @@ def _import_bindings(source: str) -> frozenset[str] | None:
     ['c', 'os']
     >>> _import_bindings("import (") is None
     True
+    >>> _import_bindings("from settings import *\nX = 1\n") is None
+    True
     """
     try:
         tree = astroid.parse(source)
@@ -567,6 +572,8 @@ def _import_bindings(source: str) -> frozenset[str] | None:
     bound: set[str] = set()
     for statement in tree.nodes_of_class((astroid.Import, astroid.ImportFrom)):
         for name, alias in statement.names:
+            if name == "*":
+                return None
             bound.add(alias or name.split(".", 1)[0])
     return frozenset(bound)
 
