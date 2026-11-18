@@ -12,11 +12,22 @@ from clauz3.decorators import (
     is_trusted_effect,
     unfold_chain,
 )
-from clauz3.libraries.layout import LEGACY_TOOLS_PACKAGE, TOOLS_PACKAGE, project_dir
+from clauz3.imports_policy import derive_trusted_prefixes
+from clauz3.libraries.layout import (
+    LEGACY_TOOLS_PACKAGE,
+    alternate_tools_module,
+    expand_import_roots,
+    project_dir,
+)
 
 
 def snapshot_catalogue(cwd: Path, roots: list[Path]) -> dict[str, list[str]]:
     result: dict[str, list[str]] = {"api": [], "source": []}
+    # Legacy ``tools.<d>`` layers are advertised under ``cz3tools`` only where
+    # the import policy admits that alias; otherwise under their own path.
+    admitted = derive_trusted_prefixes(
+        trusted_roots=roots, import_roots=expand_import_roots([cwd])
+    )
     for root in roots:
         for path in sorted(root.rglob("*.py")):
             if path.is_symlink() or not path.resolve().is_relative_to(root.resolve()):
@@ -52,10 +63,17 @@ def snapshot_catalogue(cwd: Path, roots: list[Path]) -> dict[str, list[str]]:
                 module_path = importable.with_suffix("")
                 if path.name == "__init__.py":
                     module_path = module_path.parent
-                parts = module_path.parts
-                if parts and parts[0] == LEGACY_TOOLS_PACKAGE:
-                    parts = (TOOLS_PACKAGE, *parts[1:])
-                module_name = ".".join(parts)
+                module_name = ".".join(module_path.parts)
+                canonical = alternate_tools_module(module_name)
+                if (
+                    module_path.parts[:1] == (LEGACY_TOOLS_PACKAGE,)
+                    and canonical is not None
+                    and any(
+                        canonical == prefix or canonical.startswith(prefix + ".")
+                        for prefix in admitted
+                    )
+                ):
+                    module_name = canonical
                 if isinstance(node, ast.ClassDef):
                     if any(
                         canonical_target(dotted_name(base), aliases)

@@ -100,7 +100,7 @@ def build_policy(
     allowed_roots = set(ALWAYS_ALLOWED_ROOTS) | set(DEFAULT_STDLIB_ALLOWED)
     extras = list(extra_allowed)
     trusted_root_list = tuple(Path(root).resolve() for root in trusted_roots)
-    trusted_prefixes = _derive_trusted_prefixes(
+    trusted_prefixes = derive_trusted_prefixes(
         trusted_roots=trusted_root_list,
         import_roots=import_roots,
     )
@@ -122,11 +122,17 @@ def build_policy(
     )
 
 
-def _derive_trusted_prefixes(
+def derive_trusted_prefixes(
     *,
     trusted_roots: Iterable[Path],
     import_roots: Iterable[Path],
 ) -> list[str]:
+    """Module prefixes of ``trusted_roots``, plus each admitted tools alias.
+
+    The alternate ``cz3tools``/``tools`` prefix is included only where the
+    legacy alias is admitted, so callers advertising import paths agree with
+    the import policy.
+    """
     import_paths = [Path(p).resolve() for p in import_roots]
     resolved_roots = [Path(root).resolve() for root in trusted_roots]
     prefixes: list[str] = []

@@ -276,6 +276,20 @@ def test_global_catalog_rejects_domain_under_both_packages(
         install_layer("global:demo", into=tmp_path / "project")
 
 
+@pytest.mark.parametrize("second_pkg", ["cz3tools", "tools"])
+def test_same_domain_in_two_import_roots_is_refused(
+    tmp_path: Path, second_pkg: str
+) -> None:
+    """Two import roots providing one domain fail closed, naming both."""
+    first, second = tmp_path / "first", tmp_path / "second"
+    _write_legacy_layer(first / "cz3tools", domain="demo")
+    _write_legacy_layer(second / second_pkg, domain="demo")
+    with pytest.raises(LayoutError, match="demo provided by both") as error:
+        discover_trusted_roots(import_roots=[first, second])
+    assert str(first / "cz3tools") in str(error.value)
+    assert str(second / second_pkg) in str(error.value)
+
+
 def test_check_project_detects_collision_between_cz3tools_and_legacy_tools(
     tmp_path: Path,
 ) -> None:
@@ -284,6 +298,64 @@ def test_check_project_detects_collision_between_cz3tools_and_legacy_tools(
     (tmp_path / "tools/demo/trusted").mkdir(parents=True)
     with pytest.raises(LayoutError, match="demo provided by both"):
         check_project(tmp_path)
+
+
+def test_catalogue_advertises_legacy_path_when_alias_is_unavailable(
+    tmp_path: Path,
+) -> None:
+    """The catalogue never advertises a ``cz3tools`` import that would be refused."""
+    trusted = _write_legacy_layer(tmp_path / "tools")
+    (tmp_path / "cz3tools").mkdir()
+    (tmp_path / "cz3tools/__init__.py").write_text("")
+    import_roots = expand_import_roots([tmp_path])
+    discovered = discover_trusted_roots(import_roots=import_roots)
+    assert [p.resolve() for p in discovered] == [trusted.resolve()]
+
+    api = "\n".join(snapshot_catalogue(tmp_path, discovered)["api"])
+    assert "from tools.demo.trusted.effects import ping" in api
+    assert "cz3tools.demo" not in api
+
+
+@pytest.mark.parametrize("regular", [True, False], ids=["regular", "namespace"])
+def test_project_tools_utility_package_coexists_with_installed_library(
+    tmp_path: Path, regular: bool
+) -> None:
+    """A project's own ``tools`` package only disables the legacy alias.
+
+    It holds no trusted domain, so it neither hides ``.clauz3/cz3tools`` nor
+    clashes with the installed ``filesystem`` domain it shares a name with.
+    """
+    project = tmp_path / "project"
+    utilities = project / "tools"
+    utilities.mkdir(parents=True)
+    if regular:
+        (utilities / "__init__.py").write_text("")
+    (utilities / "filesystem.py").write_text("def helper() -> None: ...\n")
+    install_layer("stdlib:filesystem", into=project)
+
+    import_roots = expand_import_roots([project])
+    trusted_roots = discover_trusted_roots(import_roots=import_roots)
+
+    def entry(pkg: str) -> Path:
+        case = project / f"{pkg}_plan.py"
+        case.write_text(
+            "import clauz3\n"
+            f"from {pkg}.filesystem.trusted import contracts as fs\n"
+            f"from {pkg}.filesystem.trusted.effects import read_file\n\n"
+            "@clauz3.guarantee(fs.read_only())\n"
+            "def main() -> None:\n"
+            '    read_file("notes.txt")\n'
+        )
+        return case
+
+    results = prove_path(
+        entry("cz3tools"), trusted_roots=trusted_roots, import_roots=import_roots
+    )
+    assert [r.proof.conclusion for r in results] == [deal_solver.Conclusion.OK]
+    with pytest.raises(ProverConfigError):
+        prove_path(
+            entry("tools"), trusted_roots=trusted_roots, import_roots=import_roots
+        )
 
 
 @pytest.mark.parametrize("regular", [True, False], ids=["pypi-package", "namespace"])

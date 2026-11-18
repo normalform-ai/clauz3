@@ -220,22 +220,31 @@ def domain_name(project: Path, trusted_root: Path) -> str:
 def check_project(project: Path) -> None:
     """Refuse layouts where installed and authored layers would shadow each other.
 
-    ``cz3tools`` (and legacy ``tools``) is a namespace package split across both
-    directories. A regular ``__init__.py`` would hide the other tools directory,
-    and the same top-level package in two directories would merge unrelated trees.
+    Directories with the same package name (``.clauz3/cz3tools`` and
+    ``cz3tools``, or ``.clauz3/tools`` and ``tools``) merge into one namespace
+    package: a regular ``__init__.py`` in either hides the other, and the same
+    top-level name in both would merge unrelated trees. Across the two names,
+    packages meet only through the legacy alias. A regular package there just
+    makes the alias unavailable (the import planner then refuses it), so only a
+    trusted domain provided under both names is a clash.
     """
     existing = tools_dirs(project)
-    if len(existing) < 2:
-        return
-    for tools in existing:
-        if (tools / "__init__.py").exists():
-            raise LayoutError(
-                f"{tools / '__init__.py'} makes `{tools.name}` a regular "
-                "package, which hides the other tools directory; remove it"
-            )
     for index, left in enumerate(existing):
         for right in existing[index + 1 :]:
-            clashes = sorted(_packages(left) & _packages(right))
+            regular = [t for t in (left, right) if (t / "__init__.py").exists()]
+            if left.name == right.name:
+                if regular:
+                    tools = regular[0]
+                    other = right if tools == left else left
+                    raise LayoutError(
+                        f"{tools / '__init__.py'} makes `{tools.name}` a regular "
+                        f"package, which hides {other}; remove it"
+                    )
+                clashes = sorted(_packages(left) & _packages(right))
+            elif regular:
+                continue
+            else:
+                clashes = sorted(_domain_tops(left) & _domain_tops(right))
             if clashes:
                 listed = ", ".join(clashes)
                 raise LayoutError(
@@ -276,6 +285,13 @@ def ensure_project_dir(project: Path) -> Path:
     if not gitignore.exists():
         gitignore.write_text(_GITIGNORE + "".join(f"{p}\n" for p in _IGNORED))
     return directory
+
+
+def _domain_tops(tools: Path) -> set[str]:
+    """Top-level packages of the trusted domains below ``tools``."""
+    return {
+        trusted.parent.relative_to(tools).parts[0] for trusted in trusted_dirs(tools)
+    }
 
 
 def _packages(tools: Path) -> set[str]:
