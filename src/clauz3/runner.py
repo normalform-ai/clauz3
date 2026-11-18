@@ -34,7 +34,7 @@ from clauz3.imports_policy import (
     validate_imports,
 )
 from clauz3.layer_state import LayerStateError
-from clauz3.libraries.layout import TOOLS_PACKAGE, trusted_dirs
+from clauz3.libraries.layout import TOOLS_PACKAGES, LayoutError, trusted_dirs
 from clauz3.policy import compute_coverage, load_domain_policies
 from clauz3.prover import (
     ProofResult,
@@ -86,27 +86,38 @@ class ApprovalDeniedError(Exception):
 
 
 def discover_trusted_roots(*, import_roots: Iterable[Path]) -> list[Path]:
-    """Discover default trusted roots such as tools/email/trusted.
+    """Discover default trusted roots such as cz3tools/email/trusted.
 
-    Domains may be org-namespaced, as in ``tools/acme/lims/trusted``. Each
-    import root's ``tools/`` is walked with
+    Domains may be org-namespaced, as in ``cz3tools/acme/lims/trusted``. Each
+    import root's ``cz3tools/`` (and legacy ``tools/``) is walked with
     :func:`clauz3.libraries.layout.trusted_dirs`, the rule ``clauz3 install``
     uses, so whatever install copies is found here and nothing else is.
 
     Import roots are taken literally, like everywhere else in the library API;
     pass ``expand_import_roots([project])`` to include the project's installed
-    libraries under ``.clauz3/tools``.
+    libraries under ``.clauz3/cz3tools``.
     """
 
     roots: list[Path] = []
     seen: set[Path] = set()
+    seen_domains: dict[str, Path] = {}
     for import_root in import_roots:
-        for candidate in trusted_dirs(Path(import_root) / TOOLS_PACKAGE):
-            resolved = candidate.resolve()
-            if resolved in seen:
-                continue
-            seen.add(resolved)
-            roots.append(candidate)
+        for pkg in TOOLS_PACKAGES:
+            tools_root = Path(import_root) / pkg
+            for candidate in trusted_dirs(tools_root):
+                resolved = candidate.resolve()
+                if resolved in seen:
+                    continue
+                domain = candidate.parent.relative_to(tools_root).as_posix()
+                if domain in seen_domains:
+                    prev_tools = seen_domains[domain]
+                    raise LayoutError(
+                        f"{domain} provided by both {prev_tools} and {tools_root}; "
+                        "keep one copy"
+                    )
+                seen.add(resolved)
+                seen_domains[domain] = tools_root
+                roots.append(candidate)
     return roots
 
 

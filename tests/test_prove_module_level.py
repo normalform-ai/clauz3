@@ -30,12 +30,12 @@ from clauz3.prover import prove_path
 
 ROOT = Path(__file__).resolve().parents[1]
 EMAIL_ROOT = ROOT / "examples/email"
-TRUSTED_ROOT = EMAIL_ROOT / "tools/email/trusted"
+TRUSTED_ROOT = EMAIL_ROOT / "cz3tools/email/trusted"
 
 _HEADER = (
     "import clauz3\n"
-    "from tools.email.trusted import contracts as emails\n"
-    "from tools.email.trusted.effects import send_email\n"
+    "from cz3tools.email.trusted import contracts as emails\n"
+    "from cz3tools.email.trusted.effects import send_email\n"
 )
 _CLEAN_MAIN = (
     '@clauz3.guarantee(emails.only(["bob@example.com"]))\n'
@@ -189,9 +189,9 @@ def test_allowlisted_from_import_still_requires_an_interpreter_surface(
     ("imports", "extra_args", "reason"),
     [
         (
-            "from tools.email.trusted.missing_module_gate import send_email\n",
+            "from cz3tools.email.trusted.missing_module_gate import send_email\n",
             (),
-            "trusted module 'tools.email.trusted.missing_module_gate' is not "
+            "trusted module 'cz3tools.email.trusted.missing_module_gate' is not "
             "loaded from a configured trusted root",
         ),
         (

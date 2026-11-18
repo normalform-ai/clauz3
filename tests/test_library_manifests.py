@@ -25,7 +25,7 @@ def isolated_data(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 def library(
     root: Path, name: str = "demo", dependencies: list[str] | None = None
 ) -> Path:
-    domain = root / "tools" / name
+    domain = root / "cz3tools" / name
     trusted = domain / "trusted"
     trusted.mkdir(parents=True)
     (trusted / "effects.py").write_text("raise AssertionError('must never import')\n")
@@ -73,7 +73,7 @@ def test_installed_manifest_is_authoritative_and_needs_no_registry(
     skill = (project / ".clauz3/skills/demo/SKILL.md").read_text()
     assert "## User setup" in skill
     assert "User-managed authorization" in skill
-    path = source / "tools/demo/clauz3.yaml"
+    path = source / "cz3tools/demo/clauz3.yaml"
     path.write_text(
         path.read_text().replace("Library-owned summary", "Changed upstream")
     )
@@ -99,7 +99,7 @@ def test_manifest_dependencies_are_installed_and_existing_copies_preserved(
     project = tmp_path / "project"
     results = install_library(str(source), into=project)
     assert [result.domains for result in results] == [["filesystem"], ["demo"]]
-    marker = project / ".clauz3/tools/filesystem/operator.txt"
+    marker = project / ".clauz3/cz3tools/filesystem/operator.txt"
     marker.write_text("keep")
     install_library(str(source), into=project, force=True)
     assert marker.read_text() == "keep"
@@ -148,13 +148,13 @@ def test_invalid_manifest_refused_before_install(
     tmp_path: Path, mutation: dict[str, object]
 ) -> None:
     source = library(tmp_path / "source")
-    path = source / "tools/demo/clauz3.yaml"
+    path = source / "cz3tools/demo/clauz3.yaml"
     data = yaml.safe_load(path.read_text())
     data.update(mutation)
     path.write_text(yaml.safe_dump(data))
     with pytest.raises(ManifestError):
         install_library(str(source), into=tmp_path / "project")
-    assert not (tmp_path / "project/.clauz3/tools").exists()
+    assert not (tmp_path / "project/.clauz3/cz3tools").exists()
 
 
 @pytest.mark.parametrize(
@@ -173,7 +173,7 @@ def test_yaml_cannot_instantiate_objects_or_hide_duplicate_values(text: str) -> 
 
 def test_optional_nulls_are_normalized(tmp_path: Path) -> None:
     source = library(tmp_path)
-    directory = source / "tools/demo"
+    directory = source / "cz3tools/demo"
     data = yaml.safe_load((directory / "clauz3.yaml").read_text())
     data["requirements"] = None
     data["dependencies"] = None
@@ -185,10 +185,10 @@ def test_optional_nulls_are_normalized(tmp_path: Path) -> None:
 def test_all_manifests_checked_before_any_domain_is_copied(tmp_path: Path) -> None:
     source = library(tmp_path / "source", "first")
     library(source, "second")
-    (source / "tools/second/clauz3.yaml").write_text("invalid: manifest\n")
+    (source / "cz3tools/second/clauz3.yaml").write_text("invalid: manifest\n")
     with pytest.raises(ManifestError):
         install_layer(source, into=tmp_path / "project")
-    assert not (tmp_path / "project/.clauz3/tools").exists()
+    assert not (tmp_path / "project/.clauz3/cz3tools").exists()
 
 
 def test_remote_metadata_is_cached_only_after_explicit_install(
@@ -225,7 +225,7 @@ def test_remote_dependency_cycles_are_refused_before_copy(
     )
     with pytest.raises(InstallError, match="cyclic library dependency"):
         install_library("gh:test/a", into=tmp_path / "project")
-    assert not (tmp_path / "project/.clauz3/tools").exists()
+    assert not (tmp_path / "project/.clauz3/cz3tools").exists()
 
 
 def test_workspace_review_uses_fetched_setup_before_install(
@@ -247,7 +247,7 @@ def test_workspace_review_uses_fetched_setup_before_install(
             review["manifests"][0]["requirements"]["setup"][0]["kind"]
             == "authentication"
         )
-        assert not (project / ".clauz3/tools/demo").exists()
+        assert not (project / ".clauz3/cz3tools/demo").exists()
     finally:
         manager.discard()
 
@@ -266,7 +266,7 @@ def test_workspace_warns_about_legacy_metadata_without_blocking_install(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     source = library(tmp_path / "source")
-    (source / "tools/demo/clauz3.yaml").unlink()
+    (source / "cz3tools/demo/clauz3.yaml").unlink()
     monkeypatch.setattr(
         "clauz3.libraries.workspace.catalog",
         lambda: [Library(source=str(source), description="Legacy", domains=("demo",))],
@@ -277,9 +277,9 @@ def test_workspace_warns_about_legacy_metadata_without_blocking_install(
     try:
         review = manager.prepare("install", str(source), "")
         assert len(review["warnings"]) == 1
-        assert "missing tools/demo/clauz3.yaml" in review["warnings"][0]
+        assert "missing cz3tools/demo/clauz3.yaml" in review["warnings"][0]
         assert review["manifests"] == []
         manager.apply(review["id"], [])
-        assert (project / ".clauz3/tools/demo/trusted/effects.py").is_file()
+        assert (project / ".clauz3/cz3tools/demo/trusted/effects.py").is_file()
     finally:
         manager.discard()

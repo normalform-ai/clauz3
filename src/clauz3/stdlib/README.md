@@ -17,7 +17,7 @@ Each tool directory is self-contained:
 ```
 <name>/
   clauz3.yaml              # optional package manifest for shared prerequisites
-  tools/<domain>/
+  cz3tools/<domain>/
     clauz3.yaml            # domain description and setup requirements
     trusted/              # effects + contracts
   tests/
@@ -30,14 +30,14 @@ There is intentionally less at the top level than an example: no top-level
 `cases/` or `Justfile`. The proof cases live under `tests/` and are run by the
 repo's `just stdlib` target.
 
-Installation copies each `tools/<domain>/` and, when present, snapshots shared package
+Installation copies each `cz3tools/<domain>/` and, when present, snapshots shared package
 requirements beside the domain manifest. Root-level tests and guides remain in
 the distribution. Every bundled domain ships a manifest. External legacy
 libraries may omit it and install with a warning; the root package manifest is
 always optional. See [Library manifests and setup](../../../docs/reference/library-manifests.md).
 
 A bundle name can differ from its domain names: `google_workspace/` contains
-`tools/google_workspace/gmail/`, with future services beside Gmail. The root
+`cz3tools/google_workspace/gmail/`, with future services beside Gmail. The root
 manifest names the bundle and owns shared setup; each service owns its manifest,
 trusted root, and contracts. Workspace selections enable services independently.
 

@@ -1,5 +1,5 @@
 
-db_trusted := "tools/db/trusted"
+db_trusted := "cz3tools/db/trusted"
 prove := "uv run clauz3 prove --trusted-root " + db_trusted
 # Proves each case in one process: *_pass.py must prove, *_fail.py must not.
 prove-cases := "uv run python -m clauz3._prove_cases --trusted-root " + db_trusted

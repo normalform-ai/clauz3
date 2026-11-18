@@ -23,9 +23,9 @@ setup instructions or request tokens as part of a proved program.
 
 ## Imports and guarantees
 
-Use `import clauz3`, `from tools.<domain>.trusted.effects import <effect>` and
-`from tools.<domain>.trusted import contracts as rules`. Dotted imports require
-an alias (`import tools.filesystem.trusted.contracts as rules`). Relative imports,
+Use `import clauz3`, `from cz3tools.<domain>.trusted.effects import <effect>` and
+`from cz3tools.<domain>.trusted import contracts as rules`. Dotted imports require
+an alias (`import cz3tools.filesystem.trusted.contracts as rules`). Relative imports,
 wildcards and unaliased dotted imports are refused. Do not import private
 `clauz3._...` implementation helpers or use `os`, `pathlib`, `subprocess`, file
 `open`, or shell commands in the submitted program. Trusted implementation

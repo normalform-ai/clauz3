@@ -29,7 +29,7 @@ successful search. The trusted body may use ordinary Python and an SDK; the
 agent's caller remains in Clauz3's supported subset.
 
 ```python
-# tools/bio/trusted/effects.py
+# cz3tools/bio/trusted/effects.py
 from typing import TypeVar
 
 import clauz3
@@ -63,9 +63,9 @@ truncate a user's request for all records. Test empty results, exact limits,
 oversized responses, malformed fields, and provider errors without live requests.
 
 ```python
-# tools/bio/trusted/contracts.py
+# cz3tools/bio/trusted/contracts.py
 from clauz3.spec import ContractSpec, contract, effect
-from tools.bio.trusted.effects import query_rows
+from cz3tools.bio.trusted.effects import query_rows
 
 
 @contract(description="At most {count} query_rows calls occur in this run.")
@@ -79,8 +79,8 @@ The agent supplies a concrete schema to specialize the generic result:
 ```python
 # query.py
 import clauz3
-from tools.bio.trusted import contracts as bio
-from tools.bio.trusted.effects import query_rows
+from cz3tools.bio.trusted import contracts as bio
+from cz3tools.bio.trusted.effects import query_rows
 
 
 class Hit(clauz3.Row):
@@ -109,4 +109,4 @@ or `break`, `continue`, or `return`. A bound on returned rows can support bounds
 on effects performed once per row; a bound on query calls alone cannot.
 
 For a full implementation in a matching Clauz3 source checkout, inspect
-`src/clauz3/stdlib/db/tools/db/trusted/effects.py` and its runtime tests.
+`src/clauz3/stdlib/db/cz3tools/db/trusted/effects.py` and its runtime tests.

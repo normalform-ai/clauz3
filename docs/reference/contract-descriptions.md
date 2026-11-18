@@ -8,7 +8,7 @@ an agent's `rules.only_reads_files([clauz3.FilePath("test.md")])` displays
 
 > Filesystem tools read only the exact files ["test.md"]; directory listings and copy or move sources are forbidden.
 
-The visible symbol is `tools.filesystem.trusted.contracts.only_reads_files`.
+The visible symbol is `cz3tools.filesystem.trusted.contracts.only_reads_files`.
 **Source and documentation** is an expandable section containing the original
 expression, source file and line, captured function source, source and selected
 layer fingerprints, recorded library origin/revision, and full docstring.
@@ -70,7 +70,7 @@ These descriptions have different sources and audiences:
 
 | Display | Source |
 | --- | --- |
-| Library summary in the Libraries view and `clauz3 libraries` | The installed library's `summary` in `tools/<domain>/clauz3.yaml` |
+| Library summary in the Libraries view and `clauz3 libraries` | The installed library's `summary` in `cz3tools/<domain>/clauz3.yaml` |
 | Library setup in the Libraries view and generated skills | Domain manifest requirements combined with the generated `.clauz3-package.yaml` snapshot, when present |
 | Sentence beneath an approval's Python contract | The trusted helper's `@contract(description="...")` template, filled with its literal arguments; otherwise the first docstring paragraph |
 | Expanded contract scope in an approval | The trusted contract function's Python docstring |

@@ -53,7 +53,7 @@ def test_mock_is_identity_not_enforcement(called: bool) -> None:
 def test_discovery_reads_declarations_without_importing(
     tmp_path: Path, imports: str, marker: str
 ) -> None:
-    root = tmp_path / "tools/example/trusted"
+    root = tmp_path / "cz3tools/example/trusted"
     root.mkdir(parents=True)
     (root / "effects.py").write_text(
         "import clauz3\n" + imports + "\nraise RuntimeError('must not import')\n"
@@ -61,7 +61,7 @@ def test_discovery_reads_declarations_without_importing(
     )
     summary = mock_declarations(tmp_path, [root])
     assert summary["kind"] == "mock"
-    assert summary["declared_mock"] == ["tools/example/trusted/effects.py:send"]
+    assert summary["declared_mock"] == ["cz3tools/example/trusted/effects.py:send"]
     api = "\n".join(snapshot_catalogue(tmp_path, [root])["api"])
     assert "Declared mock:" in api
     assert "does not enforce isolation" in api
@@ -156,7 +156,7 @@ def test_mock_effects_still_have_facts_and_preconditions(
 
 def test_workspace_reports_installed_and_staged_declarations(tmp_path: Path) -> None:
     project = tmp_path / "project"
-    root = project / "tools/custom/trusted"
+    root = project / "cz3tools/custom/trusted"
     root.mkdir(parents=True)
     (root / "effects.py").write_text(
         "import clauz3\n@clauz3.mock\n@clauz3.trusted\ndef action(): pass\n"
@@ -220,8 +220,8 @@ def test_approval_labels_are_operator_sourced_and_do_not_approve(
 def test_unmanageable_domain_does_not_break_library_snapshot(
     tmp_path: Path, domain: str
 ) -> None:
-    (tmp_path / "tools" / domain / "trusted").mkdir(parents=True)
-    valid = tmp_path / "tools/valid/trusted"
+    (tmp_path / "cz3tools" / domain / "trusted").mkdir(parents=True)
+    valid = tmp_path / "cz3tools/valid/trusted"
     valid.mkdir(parents=True)
     (valid / "effects.py").write_text(
         "import clauz3\n@clauz3.mock\n@clauz3.trusted\ndef action(): pass\n"
@@ -237,8 +237,8 @@ def test_unmanageable_domain_does_not_break_library_snapshot(
 
 def test_symlink_domain_does_not_break_snapshot(tmp_path: Path) -> None:
     (tmp_path / "outside/trusted").mkdir(parents=True)
-    (tmp_path / "tools").mkdir()
-    (tmp_path / "tools/shared").symlink_to(
+    (tmp_path / "cz3tools").mkdir()
+    (tmp_path / "cz3tools/shared").symlink_to(
         tmp_path / "outside", target_is_directory=True
     )
     manager = WorkspaceLibraries(tmp_path, tmp_path / "state", [])

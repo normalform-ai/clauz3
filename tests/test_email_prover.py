@@ -8,7 +8,7 @@ from clauz3.prover import prove_path
 
 ROOT = Path(__file__).resolve().parents[1]
 EMAIL_ROOT = ROOT / "examples/email"
-TRUSTED_ROOT = EMAIL_ROOT / "tools/email/trusted"
+TRUSTED_ROOT = EMAIL_ROOT / "cz3tools/email/trusted"
 
 
 CASES = [

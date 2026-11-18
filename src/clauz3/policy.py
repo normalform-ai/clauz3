@@ -20,6 +20,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from clauz3 import decorators as decorators_mod
+from clauz3.libraries.layout import TOOLS_PACKAGES, alternate_tools_module
 from clauz3.policy_calls import DYNAMIC_CALL
 from clauz3.policy_calls import transitive_calls as transitive_calls
 
@@ -58,10 +59,10 @@ def _superseded_hint(first: str | Path, second: str | Path) -> str:
 
 
 def _layer_domain(path: Path) -> str | None:
-    """The ``<domain>`` of a ``tools/<domain>/trusted/...`` path."""
+    """The ``<domain>`` of a ``cz3tools/<domain>/trusted/...`` path."""
     parts = path.parts
     for index in range(len(parts) - 2):
-        if parts[index] == "tools" and parts[index + 2] == "trusted":
+        if parts[index] in TOOLS_PACKAGES and parts[index + 2] == "trusted":
             return parts[index + 1]
     return None
 
@@ -201,9 +202,21 @@ def compute_coverage(
         if not domain_triggered(called, policy.when_used):
             continue
 
-        in_domain = policy.domain_package is not None and any(
-            module == policy.domain_package
-            or module.startswith(policy.domain_package + ".")
+        domain_pkgs = (
+            tuple(
+                pkg
+                for pkg in (
+                    policy.domain_package,
+                    alternate_tools_module(policy.domain_package),
+                )
+                if pkg is not None
+            )
+            if policy.domain_package is not None
+            else ()
+        )
+        in_domain = any(
+            module == pkg or module.startswith(pkg + ".")
+            for pkg in domain_pkgs
             for module in addressed_packages
         )
         missing_required = [c for c in policy.required if c not in addressed_names]

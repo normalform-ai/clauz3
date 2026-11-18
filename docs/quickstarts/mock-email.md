@@ -41,7 +41,7 @@ The composer chip and library picker show a purple **🧪 Mock** badge; **Mixed*
 means a library contains both declared mock and unmarked effects. These labels
 record the author's declarations; they do not enforce isolation.
 The bundled sender does nothing. You can inspect its
-`tools/email/trusted/effects.py` through **Files**.
+`cz3tools/email/trusted/effects.py` through **Files**.
 
 The agent can discover selected tools and submit programs for proof and
 approval. It cannot directly send email or install another trusted library.
@@ -65,7 +65,7 @@ Check for these guarantees in the approval card:
 
 The card resolves the agent's import aliases and names each parameter. It also
 shows the description and full Python symbol, such as
-`tools.email.trusted.contracts.at_most`. Expand **Source and documentation** to
+`cz3tools.email.trusted.contracts.at_most`. Expand **Source and documentation** to
 see the original expression, source snapshot, fingerprints, and full docstring.
 
 Expand **Show source** or **Proofs** if you want to inspect the details. If

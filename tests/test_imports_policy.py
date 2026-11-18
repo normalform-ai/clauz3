@@ -13,7 +13,7 @@ from clauz3.prover import ProverConfigError, prove_path, prove_text
 
 ROOT = Path(__file__).resolve().parents[1]
 EMAIL_ROOT = ROOT / "examples/email"
-EMAIL_TRUSTED = EMAIL_ROOT / "tools/email/trusted"
+EMAIL_TRUSTED = EMAIL_ROOT / "cz3tools/email/trusted"
 
 
 def _policy() -> ImportPolicy:
@@ -54,9 +54,9 @@ def test_default_policy_rejects_world_reading_modules() -> None:
 
 def test_trusted_root_prefix_is_derived() -> None:
     policy = _policy()
-    assert policy.is_allowed("tools.email.trusted")
-    assert policy.is_allowed("tools.email.trusted.effects")
-    assert policy.is_allowed("tools.email.trusted.contracts")
+    assert policy.is_allowed("cz3tools.email.trusted")
+    assert policy.is_allowed("cz3tools.email.trusted.effects")
+    assert policy.is_allowed("cz3tools.email.trusted.contracts")
     # Sibling untrusted siblings are NOT allowed — derivation is specific.
     assert not policy.is_allowed("tools.email")
     assert not policy.is_allowed("tools")
@@ -113,8 +113,8 @@ def test_prove_path_rejects_disallowed_import(tmp_path: Path) -> None:
     entry.write_text(
         "import socket\n"
         "import clauz3\n"
-        "from tools.email.trusted import contracts as emails\n"
-        "from tools.email.trusted.effects import send_email\n"
+        "from cz3tools.email.trusted import contracts as emails\n"
+        "from cz3tools.email.trusted.effects import send_email\n"
         "\n"
         "@clauz3.guarantee(emails.only(['bob@example.com']))\n"
         "@clauz3.guarantee(emails.unique_recipients())\n"

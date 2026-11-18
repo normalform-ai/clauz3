@@ -13,6 +13,7 @@ from astroid.builder import AstroidBuilder
 from astroid.manager import AstroidManager
 
 from clauz3 import decorators
+from clauz3.libraries.layout import alternate_tools_module
 
 
 def parse_source(
@@ -61,9 +62,83 @@ class SourceModules:
     def load(self, name: str) -> nodes.Module | None:
         if name in self.modules:
             return self.modules[name]
+        alt = alternate_tools_module(name)
+        if alt is not None:
+            mode = self._tools_resolution_mode(name, alt)
+            if mode == "reject":
+                self.modules[name] = None
+                return None
+            if mode == "primary":
+                return self._load_exact(name)
+            module = self._load_exact(alt, public_name=name)
+            self.modules[name] = module
+            if alt in self.locations:
+                self.locations[name] = self.locations[alt]
+            return module
+        return self._load_exact(name)
+
+    def _tools_resolution_mode(self, name: str, alt: str) -> str:
+        head, dot, rest = name.partition(".")
+        alt_head = alternate_tools_module(head)
+        if alt_head is None:
+            return "primary"
+        head_regular = any(
+            (root / head / "__init__.py").exists() or (root / f"{head}.py").exists()
+            for root in self.import_roots
+        )
+        alt_regular = any(
+            (root / alt_head / "__init__.py").exists()
+            or (root / f"{alt_head}.py").exists()
+            for root in self.import_roots
+        )
+        if not dot:
+            if (
+                any((root / head).exists() for root in self.import_roots)
+                or head_regular
+            ):
+                return "primary"
+            if alt_regular:
+                return "reject"
+            return "alt"
+        top = rest.partition(".")[0]
+        has_primary = any(
+            (root / head / top).exists()
+            or (root / head / top).is_symlink()
+            or (root / head / f"{top}.py").exists()
+            or (root / head / f"{top}.py").is_symlink()
+            for root in self.import_roots
+        )
+        has_alt = any(
+            (root / alt_head / top).exists()
+            or (root / alt_head / top).is_symlink()
+            or (root / alt_head / f"{top}.py").exists()
+            or (root / alt_head / f"{top}.py").is_symlink()
+            for root in self.import_roots
+        )
+        if has_primary and has_alt:
+            return "reject"
+        if has_primary:
+            return "primary"
+        if has_alt and not head_regular and not alt_regular:
+            for root in self.import_roots:
+                candidate = root / head
+                if (candidate.exists() or candidate.is_symlink()) and not any(
+                    trusted.is_relative_to(candidate.resolve())
+                    for trusted in self.trusted_roots
+                ):
+                    return "reject"
+            return "alt"
+        return "reject"
+
+    def _load_exact(
+        self, name: str, *, public_name: str | None = None
+    ) -> nodes.Module | None:
+        if name in self.modules:
+            return self.modules[name]
         self.modules[name] = None
         if not name or not all(part.isidentifier() for part in name.split(".")):
             return None
+        ast_name = public_name or name
         parent_name, _, leaf = name.rpartition(".")
         if parent_name:
             parent = self.load(parent_name)
@@ -86,7 +161,7 @@ class SourceModules:
                     return None
                 try:
                     with tokenize.open(path) as source_file:
-                        module = parse_source(source_file.read(), name, str(path))
+                        module = parse_source(source_file.read(), ast_name, str(path))
                 except (
                     OSError,
                     UnicodeError,
@@ -106,7 +181,7 @@ class SourceModules:
                     return None
                 namespaces.append(resolved)
         if namespaces:
-            module = parse_source("", name)
+            module = parse_source("", ast_name)
             assert module is not None
             module.package = True
             self.modules[name] = module

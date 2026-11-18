@@ -36,7 +36,7 @@ clauz3 install gh:normalform-ai/clauz3-tools-autolabs@<sha>
 
 Add the source reference to `src/clauz3/library_registry.yaml`. Keep descriptive
 metadata, domain names, dependencies, and setup requirements in each library's
-`tools/<domain>/clauz3.yaml`, not in the registry. Shared prerequisites may live
+`cz3tools/<domain>/clauz3.yaml`, not in the registry. Shared prerequisites may live
 in an optional source-root `clauz3.yaml` with `kind: package`; installation
 snapshots them beside each domain's manifest. Test manifest validation,
 installation, and proofs before publishing. The table above is a human guide;

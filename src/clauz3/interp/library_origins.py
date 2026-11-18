@@ -128,7 +128,8 @@ def plan_trusted_module(
             f"trusted module {name!r}: its configured source {str(source)!r} "
             "cannot be resolved without a shadowed or missing parent"
         ) from exc
-    if plan.components[-1].origin != source:
+    leaf = plan.components[-1]
+    if leaf.origin != source or leaf.resolved_name != name:
         raise TrustedBoundaryError(
             f"trusted module {name!r}: selected source "
             f"{str(plan.components[-1].origin)!r} is not its configured "

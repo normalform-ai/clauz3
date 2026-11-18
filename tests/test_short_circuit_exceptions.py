@@ -22,7 +22,7 @@ from clauz3.prover import ProofResult, prove_text
 
 ROOT = Path(__file__).resolve().parents[1]
 EMAIL_ROOT = ROOT / "examples/email"
-EMAIL_TRUSTED_ROOT = EMAIL_ROOT / "tools/email/trusted"
+EMAIL_TRUSTED_ROOT = EMAIL_ROOT / "cz3tools/email/trusted"
 HOME_ROOT = ROOT / "examples/home-automation"
 HOME_TRUSTED_ROOT = HOME_ROOT / "tools/home/trusted"
 

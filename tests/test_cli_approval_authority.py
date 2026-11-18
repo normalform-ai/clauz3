@@ -23,7 +23,7 @@ def test_policy_service_requires_explicit_operator_roots(
     monkeypatch.chdir(tmp_path)
     # Discovery is useful to a local runner but must not silently grant the
     # service loading authority over a project in its working directory.
-    trusted = tmp_path / "tools/email/trusted"
+    trusted = tmp_path / "cz3tools/email/trusted"
     trusted.mkdir(parents=True)
     marker = tmp_path / "initialized"
     (trusted / "__init__.py").write_text(

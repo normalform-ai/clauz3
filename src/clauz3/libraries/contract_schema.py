@@ -184,9 +184,9 @@ def bundled_schema() -> dict[str, object]:
     stdlib = Path(__file__).resolve().parents[1] / "stdlib"
     return schema_for_sources(
         {
-            f"tools.{library}.trusted.{module}": stdlib
+            f"cz3tools.{library}.trusted.{module}": stdlib
             / library
-            / "tools"
+            / "cz3tools"
             / library
             / "trusted"
             / f"{module}.py"

@@ -100,7 +100,7 @@ rename:
 
 ```python
 from clauz3.spec import effect
-from tools.filesystem.trusted.effects import append_file, write_file
+from cz3tools.filesystem.trusted.effects import append_file, write_file
 
 WriteFile = effect(write_file)                # one effect
 WriteText = effect(write_file, append_file)   # both text-writing effects
@@ -115,7 +115,7 @@ proof loads it.
 of the layer being proved is a configuration error, not an empty relation:
 
 ```
-error: effect('db_read') in tools/db/trusted/contracts.py names 'db_read',
+error: effect('db_read') in cz3tools/db/trusted/contracts.py names 'db_read',
 which is not a trusted effect. Known effects: ['read_rows']. (A name that
 matches nothing would make every contract over this relation hold vacuously.
 If it was a @deal.has marker, name the function that carries it.)
@@ -311,7 +311,7 @@ This prototype reduces the trust burden, but it does not eliminate it.
 
 Trusted today:
 
-- trusted roots such as `tools/email/trusted/`
+- trusted roots such as `cz3tools/email/trusted/`
 - the vendored and modified `deal-solver` machinery
 - the `clauz3.spec` compiler and relation primitives
 - domain helper builder bodies marked with `@contract`

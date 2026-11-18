@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from importlib.resources import as_file, files
 from importlib.resources.abc import Traversable
 from pathlib import Path
-from shutil import copytree, ignore_patterns
+from shutil import copytree, ignore_patterns, rmtree
 
 import yaml
 
@@ -35,11 +35,13 @@ from clauz3.libraries.discovery import (
     superseded_message,
 )
 from clauz3.libraries.layout import (
-    authored_tools,
+    LEGACY_TOOLS_PACKAGE,
+    TOOLS_PACKAGE,
+    TOOLS_PACKAGES,
     ensure_project_dir,
     has_symlink_component,
-    installed_tools,
     project_dir,
+    tools_dirs,
     trusted_dirs,
 )
 from clauz3.libraries.manifest import (
@@ -98,9 +100,11 @@ def install_layer(
     - a project directory containing a ``tools/`` folder, or
     - a ``tools/`` folder itself.
 
-    Each ``tools/<domain>/`` that contains a ``trusted/`` package is copied to
-    ``into/.clauz3/tools/<domain>/``, or to ``into/tools/<domain>/`` for the
-    user-wide store (``globally``), which is already clauz3's own directory.
+    Each ``cz3tools/<domain>/`` that contains a ``trusted/`` package is copied
+    to ``into/.clauz3/cz3tools/<domain>/``, or to ``into/cz3tools/<domain>/`` for
+    the user-wide store (``globally``), which is already clauz3's own directory.
+    A legacy ``tools/<domain>/`` source is copied byte-for-byte under ``tools/``
+    instead; trusted source is never rewritten.
     """
 
     with ExitStack() as stack:
@@ -109,7 +113,7 @@ def install_layer(
         except ValueError as exc:
             raise InstallError(str(exc)) from exc
         if selected is not None:
-            source_tools = global_library_root() / "tools"
+            source_tools = _global_tools_dir(selected)
             if into.resolve() == global_library_root():
                 raise InstallError(
                     "select a global library into a project, not its own store"
@@ -132,26 +136,42 @@ def install_layer(
             _reject_symlinks(source_tools / domain)
             if read_source_manifest(source_tools, domain) is None:
                 warnings.append(
-                    f"{domain}: missing tools/{domain}/clauz3.yaml. "
+                    f"{domain}: missing {source_tools.name}/{domain}/clauz3.yaml. "
                     "Legacy installation is supported, but manifest descriptions "
                     "and setup guidance are unavailable."
                 )
             packages[domain] = source_package(source_tools, domain)
-        dest_tools = _dest_tools(into, globally=globally)
+        # A legacy ``tools/`` source installs unchanged under ``tools/``: trusted
+        # source is never rewritten, and the import alias lets canonical
+        # ``cz3tools.<domain>`` entries reach it.
+        package = source_tools.name
+        assert package in TOOLS_PACKAGES, source_tools
+        (other_package,) = (pkg for pkg in TOOLS_PACKAGES if pkg != package)
+        dest_tools = _dest_tools(into, globally=globally, package=package)
         skills: list[Path] = []
         for domain in domains:
             src_domain = source_tools / domain
             dst_domain = dest_tools / domain
-            authored = authored_tools(into) / domain
-            if not globally and authored.exists():
+            if not globally:
+                for pkg in TOOLS_PACKAGES:
+                    authored = into / pkg / domain
+                    if authored.exists():
+                        raise InstallError(
+                            f"{authored} already provides this domain as a "
+                            "project-authored layer; remove it to install the library"
+                        )
+            other_dst = (
+                _dest_tools(into, globally=globally, package=other_package) / domain
+            )
+            if (dst_domain.exists() or other_dst.exists()) and not force:
+                existing = dst_domain if dst_domain.exists() else other_dst
                 raise InstallError(
-                    f"{authored} already provides this domain as a project-authored "
-                    "layer; remove it to install the library"
+                    f"{existing} already exists (use --force to overwrite)"
                 )
-            if dst_domain.exists() and not force:
-                raise InstallError(
-                    f"{dst_domain} already exists (use --force to overwrite)"
-                )
+            if force and other_dst.exists():
+                # One installed copy per domain: --force replaces the copy
+                # under the other package directory too.
+                rmtree(other_dst)
             # The reject-then-copy below is two independent walks of the same
             # tree, so the check is advisory, not atomic (TOCTOU): a local writer
             # racing the install could present a regular file at check time and a
@@ -223,7 +243,7 @@ def install_library(
             visiting.add(selected)
             global_name = global_domain(selected)
             tools = (
-                global_library_root() / "tools"
+                _global_tools_dir(global_name)
                 if global_name
                 else _resolve_tools_dir(selected, stack)
             )
@@ -326,23 +346,36 @@ def _source_reference(source: str) -> str:
     return str(Path(source).resolve())
 
 
-def _dest_tools(into: Path, *, globally: bool) -> Path:
-    return into / "tools" if globally else installed_tools(into)
+def _global_tools_dir(domain: str) -> Path:
+    root = global_library_root()
+    found = [
+        root / pkg
+        for pkg in TOOLS_PACKAGES
+        if (root / pkg / domain / "trusted").is_dir()
+    ]
+    if len(found) > 1:
+        raise InstallError(
+            f"global library {domain!r} is present under both "
+            f"{TOOLS_PACKAGE}/ and {LEGACY_TOOLS_PACKAGE}/ in {root}; "
+            "keep one copy"
+        )
+    return found[0] if found else root / TOOLS_PACKAGE
+
+
+def _dest_tools(into: Path, *, globally: bool, package: str = TOOLS_PACKAGE) -> Path:
+    return into / package if globally else project_dir(into) / package
 
 
 def _has_domain(into: Path, domain: str, *, globally: bool) -> bool:
     if globally:
-        return (into / "tools" / domain / "trusted").is_dir()
+        return any((into / pkg / domain / "trusted").is_dir() for pkg in TOOLS_PACKAGES)
     # A dependency the project already provides, installed or authored, is
     # preserved rather than shadowed by a second copy.
-    return any(
-        (tools / domain / "trusted").is_dir()
-        for tools in (installed_tools(into), authored_tools(into))
-    )
+    return any((tools / domain / "trusted").is_dir() for tools in tools_dirs(into))
 
 
 def _resolve_tools_dir(source: str | Path, stack: ExitStack) -> Path:
-    """Resolve ``source`` to a concrete ``tools/`` directory.
+    """Resolve ``source`` to a concrete ``cz3tools/`` (or ``tools/``) directory.
 
     stdlib tools are located through ``importlib.resources`` and materialized to
     a real filesystem path via ``stack`` (a no-op for on-disk installs, an
@@ -360,12 +393,19 @@ def _resolve_tools_dir(source: str | Path, stack: ExitStack) -> Path:
         path = Path(source)
     if not path.exists():
         raise InstallError(f"source path does not exist: {path}{_stdlib_hint()}")
-    if path.name == "tools" and path.is_dir():
+    if path.name in TOOLS_PACKAGES and path.is_dir():
         return path
-    tools = path / "tools"
-    if tools.is_dir():
-        return tools
-    raise InstallError(f"no tools/ directory found in {path}")
+    found = [path / pkg for pkg in TOOLS_PACKAGES if (path / pkg).is_dir()]
+    if len(found) > 1:
+        raise InstallError(
+            f"{path} contains both {TOOLS_PACKAGE}/ and {LEGACY_TOOLS_PACKAGE}/; "
+            "keep one tools directory"
+        )
+    if found:
+        return found[0]
+    raise InstallError(
+        f"no {TOOLS_PACKAGE}/ directory (or no tools/ directory) found in {path}"
+    )
 
 
 def _stdlib_name(source: str | Path) -> str | None:
@@ -387,10 +427,11 @@ def _stdlib_name(source: str | Path) -> str | None:
 
 
 def _resolve_stdlib_tools(name: str, stack: ExitStack) -> Path:
-    tools = _stdlib_root() / name / "tools"
-    if not tools.is_dir():
-        raise InstallError(f"unknown stdlib tool: {name}{_stdlib_hint()}")
-    return stack.enter_context(as_file(_stdlib_root() / name)) / "tools"
+    for pkg in TOOLS_PACKAGES:
+        tools = _stdlib_root() / name / pkg
+        if tools.is_dir():
+            return stack.enter_context(as_file(_stdlib_root() / name)) / pkg
+    raise InstallError(f"unknown stdlib tool: {name}{_stdlib_hint()}")
 
 
 def _stdlib_root() -> Traversable:
@@ -402,7 +443,11 @@ def available_stdlib_tools() -> list[str]:
     root = _stdlib_root()
     if not root.is_dir():
         return []
-    return sorted(entry.name for entry in root.iterdir() if (entry / "tools").is_dir())
+    return sorted(
+        entry.name
+        for entry in root.iterdir()
+        if any((entry / pkg).is_dir() for pkg in TOOLS_PACKAGES)
+    )
 
 
 def _stdlib_hint() -> str:
@@ -481,7 +526,8 @@ def _render_skill(domain: str, trusted_root: Path, location: str) -> str:
         "",
         "## Effects",
         "",
-        f"Import with `from tools.{module_domain}.trusted.effects import <name>`:",
+        f"Import with "
+        f"`from {TOOLS_PACKAGE}.{module_domain}.trusted.effects import <name>`:",
         "",
     ]
     lines.extend(_api_lines(effects))
@@ -491,7 +537,8 @@ def _render_skill(domain: str, trusted_root: Path, location: str) -> str:
             "## Contracts",
             "",
             f"Import the contract vocabulary with "
-            f"`from tools.{module_domain}.trusted import contracts as contracts`:",
+            f"`from {TOOLS_PACKAGE}.{module_domain}.trusted "
+            "import contracts as contracts`:",
             "",
         ]
     )

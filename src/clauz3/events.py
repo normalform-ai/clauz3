@@ -44,6 +44,7 @@ from types import GenericAlias
 from typing import Any, ClassVar, TypeVar, cast, dataclass_transform
 
 from clauz3 import spec
+from clauz3.libraries.layout import alternate_tools_module
 from clauz3.spec import (
     ContractSpec,
     FilteredRelation,
@@ -299,7 +300,22 @@ def _resolve(qualified_name: str) -> object:
     """The function named ``module.function`` in the installed modules, or None."""
 
     module_name, _, name = qualified_name.rpartition(".")
-    return getattr(sys.modules.get(module_name), name, None)
+    module = sys.modules.get(module_name)
+    alt = alternate_tools_module(module_name)
+    if alt is not None and alt in sys.modules:
+        alt_module = sys.modules[alt]
+        if module is not None and module is not alt_module:
+            return None
+        if module is None:
+            module = alt_module
+            if spec._EFFECT_SIGNATURES is not None:
+                source = getattr(module, "__file__", None)
+                if (
+                    not isinstance(source, str)
+                    or str(Path(source).resolve()) not in spec._CHECKED_FILES
+                ):
+                    return None
+    return getattr(module, name, None)
 
 
 def performs(builder: Callable[..., Event | list[Event]]) -> Callable[[F], F]:

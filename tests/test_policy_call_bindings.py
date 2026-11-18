@@ -12,12 +12,12 @@ from clauz3.runner import build_approval_request
 
 ROOT = Path(__file__).resolve().parents[1]
 EMAIL_ROOT = ROOT / "examples/email"
-TRUSTED_ROOT = EMAIL_ROOT / "tools/email/trusted"
-_IMPORT = "from tools.email.trusted.effects import send_email\n"
+TRUSTED_ROOT = EMAIL_ROOT / "cz3tools/email/trusted"
+_IMPORT = "from cz3tools.email.trusted.effects import send_email\n"
 _REQUIRED_UNIQUE = DomainPolicy(
     when_used=("send_email",),
     required=("unique_recipients",),
-    domain_package="tools.email.trusted",
+    domain_package="cz3tools.email.trusted",
 )
 
 
@@ -51,7 +51,7 @@ def test_ordinary_argument_and_return_values_do_not_trigger_policies() -> None:
 _REQUIRED_AUDIT = DomainPolicy(
     when_used=("audit",),
     required=("logged",),
-    domain_package="tools.audit.trusted",
+    domain_package="cz3tools.audit.trusted",
 )
 
 
@@ -109,7 +109,7 @@ def test_builtin_range_does_not_activate_an_unrelated_effect_policy() -> None:
 
 def test_imported_effect_shadowing_a_constructor_keeps_its_policy() -> None:
     source = (
-        "from tools.email.trusted.effects import send_email as str\n"
+        "from cz3tools.email.trusted.effects import send_email as str\n"
         'def main() -> None:\n    str("bob@example.com", "hello")\n'
     )
 
@@ -143,7 +143,9 @@ def test_shadowed_constructor_name_does_not_hide_a_dynamic_call(body: str) -> No
 
 @pytest.mark.parametrize("import_first", [True, False])
 def test_called_nested_helper_resolves_its_enclosing_import(import_first: bool) -> None:
-    local_import = "    from tools.email.trusted.effects import send_email as deliver\n"
+    local_import = (
+        "    from cz3tools.email.trusted.effects import send_email as deliver\n"
+    )
     helper = '    def nested() -> None:\n        deliver("bob@example.com", "hello")\n'
     statements = local_import + helper if import_first else helper + local_import
     source = "def main() -> None:\n" + statements + "    nested()\n"
@@ -160,7 +162,7 @@ def test_branch_import_alternatives_are_both_retained(tmp_path: Path) -> None:
     source = (
         "def main(flag: bool) -> None:\n"
         "    if flag:\n"
-        "        from tools.email.trusted.effects import send_email as deliver\n"
+        "        from cz3tools.email.trusted.effects import send_email as deliver\n"
         "    else:\n"
         "        from audit_layer.effects import audit as deliver\n"
         "    deliver()\n"

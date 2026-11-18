@@ -127,7 +127,7 @@ and rejects `--unrestricted`.
 
 Projects are split into two layers:
 
-- trusted roots such as `tools/email/trusted/`: small audited modules
+- trusted roots such as `cz3tools/email/trusted/`: small audited modules
   containing both side-effecting functions and reusable domain contracts. These
   are the environment contract: the prover trusts their signatures,
   `@clauz3.trusted` effect declarations, `@clauz3.requires(...)`
@@ -157,7 +157,7 @@ Domain logic can query those generated facts:
 from clauz3.spec import ContractSpec, contract, effect
 from clauz3.spec import no_guarantees as core_no_guarantees
 
-from tools.email.trusted.effects import send_email
+from cz3tools.email.trusted.effects import send_email
 
 Email = effect(send_email)
 
@@ -181,8 +181,8 @@ Agent code then states guarantees in terms of that vocabulary:
 
 ```python
 import clauz3
-from tools.email.trusted import contracts as emails
-from tools.email.trusted.effects import send_email
+from cz3tools.email.trusted import contracts as emails
+from cz3tools.email.trusted.effects import send_email
 
 
 @clauz3.guarantee(emails.only(["bob@example.com"]))
@@ -202,7 +202,7 @@ Run the prover:
 ```bash
 cd examples/email
 uv run clauz3 prove \
-  --trusted-root tools/email/trusted \
+  --trusted-root cz3tools/email/trusted \
   cases/only_bob_pass.py
 ```
 
@@ -211,7 +211,7 @@ several roots with `--trusted-roots`:
 
 ```bash
 uv run clauz3 prove plan.py \
-  --trusted-roots tools/email/trusted tools/db/trusted
+  --trusted-roots cz3tools/email/trusted cz3tools/db/trusted
 ```
 
 ## Installing a trusted layer
@@ -220,17 +220,17 @@ Browse bundled and curated external libraries with `clauz3 libraries`, or search
 with `clauz3 libraries email`. Results show dependencies and install commands;
 listing never downloads or executes library code.
 
-Library descriptions and setup guidance live in `tools/<domain>/clauz3.yaml`.
+Library descriptions and setup guidance live in `cz3tools/<domain>/clauz3.yaml`.
 An optional root `clauz3.yaml` (`kind: package`) shares prerequisites across
 domains; installation snapshots that metadata beside each installed domain.
 Legacy libraries with no manifests still install with a warning. A root package
 manifest is optional, but declaring one requires valid domain manifests.
 See [Library manifests and setup](docs/reference/library-manifests.md).
 
-To start a new project from an existing one, copy its trusted `tools/` layer
+To start a new project from an existing one, copy its trusted `cz3tools/` layer
 with `clauz3 install`. It accepts a local path, a `gh:org/repo` shorthand, or
-a full git URL, and copies each `tools/<domain>/` into the current project's
-`.clauz3/tools/`, keeping the project's top level clear:
+a full git URL, and copies each `cz3tools/<domain>/` into the current project's
+`.clauz3/cz3tools/`, keeping the project's top level clear:
 
 ```bash
 # Bundled Gmail drafts and sending through gog
@@ -393,9 +393,9 @@ Implemented pieces include:
   locked at the end" that the multiset relation language cannot. See
   [docs/reference/fluents.md](docs/reference/fluents.md).
 - `clauz3 prove` for proving examples from the CLI.
-- `clauz3 install` for copying a trusted `tools/` layer from a local path or a
+- `clauz3 install` for copying a trusted `cz3tools/` layer from a local path or a
   bundled stdlib tool (`stdlib:filesystem`, `stdlib:git`) into the project's
-  `.clauz3/tools/`, optionally generating `.clauz3/skills/<domain>/SKILL.md`
+  `.clauz3/cz3tools/`, optionally generating `.clauz3/skills/<domain>/SKILL.md`
   stubs.
 - `clauz3 test` for running a library's bundled `tests/Justfile` with `just`,
   resolving the source the same way as `install`.

@@ -22,6 +22,8 @@ from threading import get_ident
 from types import ModuleType, SimpleNamespace
 from typing import Literal
 
+from clauz3.libraries.layout import TOOLS_PACKAGE, alternate_tools_module
+
 from .errors import TrustedBoundaryError
 
 # Only pure resolution batches opt in. The cache never spans a call to trusted
@@ -107,53 +109,106 @@ def loaded_trusted_module(
     cached ``__path__`` and attributes are deliberately not consulted.
     """
     roots = tuple(root.resolve() for root in trusted_roots)
-    files: set[Path] = set()
-    namespace = False
-    for import_root in import_roots:
-        base = import_root.resolve().joinpath(*name.split("."))
-        for candidate in (base.with_suffix(".py"), base / "__init__.py"):
-            resolved = candidate.resolve()
-            if resolved.is_file() and any(
-                resolved.is_relative_to(root) for root in roots
-            ):
-                files.add(resolved)
-        resolved_base = base.resolve()
-        if (
-            resolved_base.is_dir()
-            and not (resolved_base / "__init__.py").exists()
-            and any(resolved_base.is_relative_to(root) for root in roots)
-        ):
-            namespace = True
-
-    module = sys.modules.get(name)
-    if module is not None and type(module) is not ModuleType:
+    import_root_list = tuple(Path(root).resolve() for root in import_roots)
+    try:
+        plan = plan_import(name, import_roots=import_root_list)
+    except ModuleNotFoundError as exc:
         raise TrustedBoundaryError(
-            f"trusted module {name!r} is not a standard cached module"
-        )
-    if type(module) is ModuleType:
-        module_file = ModuleType.__getattribute__(module, "__dict__").get("__file__")
-        if type(module_file) is str:
-            if Path(module_file).resolve() in files:
-                return module
+            f"trusted module {name!r} is not loaded from a configured trusted root; "
+            "load the checked trusted layer before module validation"
+        ) from exc
+
+    for component in plan.components:
+        if component.kind != "namespace" and (
+            component.origin is None
+            or not any(component.origin.is_relative_to(root) for root in roots)
+        ):
             raise TrustedBoundaryError(
                 f"trusted module {name!r} is not loaded from its configured "
                 "trusted root"
             )
-        if module_file is not None:
+
+    leaf = plan.components[-1]
+    if leaf.name != leaf.resolved_name:
+        head = name.partition(".")[0]
+        for import_root in import_root_list:
+            candidate = import_root / head
+            if (
+                candidate.exists()
+                or candidate.is_symlink()
+                or (import_root / f"{head}.py").exists()
+                or (import_root / f"{head}.py").is_symlink()
+            ) and not any(root.is_relative_to(candidate.resolve()) for root in roots):
+                raise TrustedBoundaryError(
+                    f"trusted module {name!r} is shadowed by {str(candidate)!r} "
+                    "outside configured trusted roots"
+                )
+
+    if leaf.kind == "namespace":
+        if not leaf.locations or not all(
+            any(loc.is_relative_to(root) for root in roots) for loc in leaf.locations
+        ):
             raise TrustedBoundaryError(
-                f"trusted module {name!r} has no verified source file"
+                f"trusted module {name!r} is not loaded from a configured "
+                "trusted root; load the checked trusted layer before module "
+                "validation"
             )
-    if namespace and not files:
+        if name in sys.modules and type(sys.modules[name]) is not ModuleType:
+            raise TrustedBoundaryError(
+                f"trusted module {name!r} is not a standard cached module"
+            )
         return None
-    raise TrustedBoundaryError(
-        f"trusted module {name!r} is not loaded from a configured trusted root; "
-        "load the checked trusted layer before module validation"
-    )
+
+    if leaf.kind != "file" or leaf.origin is None:
+        raise TrustedBoundaryError(
+            f"trusted module {name!r} has no verified source file"
+        )
+
+    module = sys.modules.get(leaf.resolved_name)
+    if name in sys.modules:
+        direct = sys.modules[name]
+        if type(direct) is not ModuleType:
+            raise TrustedBoundaryError(
+                f"trusted module {name!r} is not a standard cached module"
+            )
+        if module is not None and direct is not module:
+            raise TrustedBoundaryError(
+                f"trusted module {name!r} conflicts with cached alias "
+                f"{leaf.resolved_name!r}"
+            )
+        module = direct
+
+    if module is None:
+        raise TrustedBoundaryError(
+            f"trusted module {name!r} is not loaded from a configured trusted root; "
+            "load the checked trusted layer before module validation"
+        )
+    if type(module) is not ModuleType:
+        raise TrustedBoundaryError(
+            f"trusted module {name!r} is not a standard cached module"
+        )
+    module_file = ModuleType.__getattribute__(module, "__dict__").get("__file__")
+    if type(module_file) is not str:
+        raise TrustedBoundaryError(
+            f"trusted module {name!r} has no verified source file"
+        )
+    if Path(module_file).resolve() != leaf.origin:
+        raise TrustedBoundaryError(
+            f"trusted module {name!r} is not loaded from its configured trusted root"
+        )
+    return module
 
 
 def is_loaded_trusted_module(name: str, trusted_roots: Iterable[Path]) -> bool:
     """Whether a cached module's source is physically inside a trusted root."""
     module = sys.modules.get(name)
+    alt = alternate_tools_module(name)
+    if alt is not None and alt in sys.modules:
+        alt_module = sys.modules[alt]
+        if module is not None and module is not alt_module:
+            return False
+        if module is None:
+            module = alt_module
     if type(module) is not ModuleType:
         return False
     module_file = ModuleType.__getattribute__(module, "__dict__").get("__file__")
@@ -227,7 +282,67 @@ def plan_import(name: str, *, import_roots: Iterable[Path]) -> ImportPlan:
         canonical = _plan_chain(aliases[name], search_paths, requested=name)
         alias = replace(canonical[-1], name=name)
         return ImportPlan(name, (*parents, *canonical, alias))
+    if (alt := alternate_tools_module(name)) is not None:
+        return _plan_tools_import(name, alt, search_paths)
     return ImportPlan(name, _plan_chain(name, search_paths, requested=name))
+
+
+def _plan_tools_import(name: str, alt: str, search_paths: list[str]) -> ImportPlan:
+    head, dot, rest = name.partition(".")
+    alt_head = alternate_tools_module(head)
+    assert alt_head is not None
+    head_spec = _find_spec(head, search_paths)
+    alt_head_spec = _find_spec(alt_head, search_paths)
+    head_is_regular = head_spec is not None and (
+        head_spec.origin is not None or head_spec.loader is not None
+    )
+    alt_head_is_regular = alt_head_spec is not None and (
+        alt_head_spec.origin is not None or alt_head_spec.loader is not None
+    )
+    if not dot:
+        if head_spec is not None:
+            return ImportPlan(name, _plan_chain(name, search_paths, requested=name))
+        if alt_head_is_regular:
+            raise ModuleNotFoundError(f"No module named {name!r}", name=name)
+        canonical = _plan_chain(alt, search_paths, requested=name)
+        alias = replace(canonical[-1], name=name)
+        return ImportPlan(name, (*canonical, alias))
+
+    top = rest.partition(".")[0]
+    primary_top = (
+        _find_spec(
+            f"{head}.{top}",
+            (str(p) for p in head_spec.submodule_search_locations),
+        )
+        if head_spec is not None and head_spec.submodule_search_locations is not None
+        else None
+    )
+    alt_top = (
+        _find_spec(
+            f"{alt_head}.{top}",
+            (str(p) for p in alt_head_spec.submodule_search_locations),
+        )
+        if alt_head_spec is not None
+        and alt_head_spec.submodule_search_locations is not None
+        else None
+    )
+    # The canonical head is never ambiguous: a same-named ``tools`` module on
+    # sys.path (e.g. the PyPI ``tools`` distribution) cannot alias, so it does
+    # not compete. Domains duplicated across both project layouts are rejected
+    # by layout/discovery. Only the legacy direction can be shadowed.
+    if primary_top is not None and alt_top is not None and head != TOOLS_PACKAGE:
+        raise ModuleNotFoundError(
+            f"Ambiguous module {name!r}: {top!r} is provided under both "
+            f"{head!r} and {alt_head!r}",
+            name=name,
+        )
+    if primary_top is not None:
+        return ImportPlan(name, _plan_chain(name, search_paths, requested=name))
+    if alt_top is not None and not head_is_regular and not alt_head_is_regular:
+        canonical = _plan_chain(alt, search_paths, requested=name)
+        alias = replace(canonical[-1], name=name)
+        return ImportPlan(name, (*canonical, alias))
+    raise ModuleNotFoundError(f"No module named {name!r}", name=name)
 
 
 def _plan_chain(

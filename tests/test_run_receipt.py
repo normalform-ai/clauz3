@@ -27,12 +27,12 @@ from clauz3.runner import _consume_nonce
 
 ROOT = Path(__file__).resolve().parents[1]
 EMAIL_ROOT = ROOT / "examples/email"
-TRUSTED_ROOT = EMAIL_ROOT / "tools/email/trusted"
+TRUSTED_ROOT = EMAIL_ROOT / "cz3tools/email/trusted"
 
 PASSING_SOURCE = """
 import clauz3
-from tools.email.trusted import contracts as emails
-from tools.email.trusted.effects import send_email
+from cz3tools.email.trusted import contracts as emails
+from cz3tools.email.trusted.effects import send_email
 
 
 @clauz3.guarantee(emails.only(["bob@example.com"]))

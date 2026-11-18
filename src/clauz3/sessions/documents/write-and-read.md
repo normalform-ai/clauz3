@@ -6,8 +6,8 @@ the verification read when the user has requested write-only access.
 
 ```python
 import clauz3
-from tools.filesystem.trusted import contracts as fs
-from tools.filesystem.trusted.effects import read_file, write_file
+from cz3tools.filesystem.trusted import contracts as fs
+from cz3tools.filesystem.trusted.effects import read_file, write_file
 
 @clauz3.guarantee(fs.only_writes_files([clauz3.FilePath("./data/result.txt")]))
 @clauz3.guarantee(fs.only_reads_files([clauz3.FilePath("./data/result.txt")]))

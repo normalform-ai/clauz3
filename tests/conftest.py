@@ -27,10 +27,10 @@ def ctx_factory() -> Callable[[], Context]:
 def filesystem_effects(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
     """The bundled filesystem effects, loaded by path to run their bodies."""
     root = pathlib.Path(__file__).resolve().parents[1] / "src/clauz3/stdlib/filesystem"
-    # effects.py imports its sibling ``tools.filesystem.trusted.events``.
+    # effects.py imports its sibling ``cz3tools.filesystem.trusted.events``.
     monkeypatch.syspath_prepend(str(root))
     spec = importlib.util.spec_from_file_location(
-        "filesystem_effects", root / "tools/filesystem/trusted/effects.py"
+        "filesystem_effects", root / "cz3tools/filesystem/trusted/effects.py"
     )
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -49,12 +49,12 @@ def dependent_library(
     the filesystem ``Read`` event, so its own module needs the dependency.
     """
     root = tmp_path_factory.mktemp("search-library")
-    trusted = root / "tools/search/trusted"
+    trusted = root / "cz3tools/search/trusted"
     trusted.mkdir(parents=True)
     (trusted / "effects.py").write_text(
         "import clauz3\n"
         "from clauz3.events import performs\n"
-        "from tools.filesystem.trusted.events import Read\n"
+        "from cz3tools.filesystem.trusted.events import Read\n"
         "\n"
         "\n"
         "@clauz3.trusted\n"
@@ -64,7 +64,7 @@ def dependent_library(
         "    return []\n"
     )
     (trusted / "contracts.py").write_text(
-        "from tools.search.trusted.effects import search\n"
+        "from cz3tools.search.trusted.effects import search\n"
         "\n"
         "from clauz3.spec import ContractSpec, contract, effect\n"
         "\n"
@@ -113,7 +113,7 @@ def trusted_layer_cache_scope() -> Callable[[], AbstractContextManager[None]]:
 def _trusted_layer_cache_scope() -> Iterator[None]:
     """Forget the layer modules a test imported once it is done.
 
-    Trusted layers share dotted names across roots (``tools.gh.trusted`` ships
+    Trusted layers share dotted names across roots (``cz3tools.gh.trusted`` ships
     under both a stdlib root and an example root; many tests write a layer
     into ``tmp_path`` under the same package name), and ``importlib`` returns
     whatever ``sys.modules`` already holds under a name. Without eviction the
@@ -193,7 +193,7 @@ def _clear_astroid_import_caches(names: set[str]) -> None:
 
 
 def _is_layer(name: str) -> bool:
-    return name == "tools" or name.startswith("tools.")
+    return name in {"cz3tools", "tools"} or name.startswith(("cz3tools.", "tools."))
 
 
 _KEEP_UNDER = tuple(

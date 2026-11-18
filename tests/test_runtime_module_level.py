@@ -32,9 +32,9 @@ from clauz3.runner import (
 
 ROOT = Path(__file__).resolve().parents[1]
 EMAIL_ROOT = ROOT / "examples/email"
-TRUSTED_ROOT = EMAIL_ROOT / "tools/email/trusted"
+TRUSTED_ROOT = EMAIL_ROOT / "cz3tools/email/trusted"
 
-_HEADER = "import clauz3\nfrom tools.email.trusted.effects import send_email\n"
+_HEADER = "import clauz3\nfrom cz3tools.email.trusted.effects import send_email\n"
 
 
 def _validate(source: str) -> None:
@@ -285,7 +285,7 @@ def test_module_level_assignment_target_cannot_fire_an_effect(
     ``send_email`` is not a forbidden builtin.
     """
     source = (
-        "from tools.email.trusted.effects import send_email\n"
+        "from cz3tools.email.trusted.effects import send_email\n"
         "\n"
         "CFG = {}\n"
         f"{statement}\n"
@@ -309,7 +309,7 @@ def test_class_body_assignment_target_cannot_fire_an_effect() -> None:
         "    CFG[send_email('eve@example.com', 'exfil')]: int",
     ):
         source = (
-            "from tools.email.trusted.effects import send_email\n"
+            "from cz3tools.email.trusted.effects import send_email\n"
             "\n"
             "CFG = {}\n"
             "\n"
@@ -388,7 +388,7 @@ def test_deferred_trusted_import_still_resolves_at_call_time(tmp_path: Path) -> 
     import sys
 
     root = tmp_path / "proj"
-    trusted = root / "tools/demo/trusted"
+    trusted = root / "cz3tools/demo/trusted"
     trusted.mkdir(parents=True)
     # Ancestors outside the trusted root are inert namespace packages.
     (trusted / "__init__.py").write_text("")
@@ -414,7 +414,7 @@ def test_deferred_trusted_import_still_resolves_at_call_time(tmp_path: Path) -> 
 
     before = list(sys.path)
     outcome = interp.execute(
-        "from tools.demo.trusted.effects import ship\n"
+        "from cz3tools.demo.trusted.effects import ship\n"
         "\n"
         "def main() -> str:\n"
         "    return ship('hi')\n",

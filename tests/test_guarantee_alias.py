@@ -37,14 +37,14 @@ from clauz3.runner import RunConfigError, _extract_guarantees, _preflight_struct
 
 ROOT = Path(__file__).resolve().parents[1]
 EMAIL_ROOT = ROOT / "examples/email"
-TRUSTED_ROOT = EMAIL_ROOT / "tools/email/trusted"
+TRUSTED_ROOT = EMAIL_ROOT / "cz3tools/email/trusted"
 
 
 @pytest.fixture
 def load_email_contracts(monkeypatch: pytest.MonkeyPatch) -> None:
     """Approval grammar checks require the layer's contracts to be registered."""
     monkeypatch.syspath_prepend(str(EMAIL_ROOT))
-    importlib.import_module("tools.email.trusted.contracts")
+    importlib.import_module("cz3tools.email.trusted.contracts")
 
 
 #: ``(import statement, decorator spelling)`` — every pair names
@@ -59,8 +59,8 @@ SPELLINGS = [
 
 def _program(imports: str, decorator: str, *, recipient: str) -> str:
     return (
-        "from tools.email.trusted import contracts as emails\n"
-        "from tools.email.trusted.effects import send_email\n"
+        "from cz3tools.email.trusted import contracts as emails\n"
+        "from cz3tools.email.trusted.effects import send_email\n"
         f"{imports}\n"
         "\n"
         f"@{decorator}(emails.only(['bob@example.com']))\n"
@@ -285,7 +285,7 @@ def test_import_aliases_agree_between_ast_and_astroid() -> None:
         "import clauz3 as c\n"
         "import deal\n"
         "from clauz3 import guarantee as g\n"
-        "from tools.email.trusted import contracts as emails\n"
+        "from cz3tools.email.trusted import contracts as emails\n"
     )
     assert decorators.import_aliases(ast.parse(source)) == decorators.import_aliases(
         astroid.parse(source)

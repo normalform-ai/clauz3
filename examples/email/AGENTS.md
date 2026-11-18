@@ -16,7 +16,7 @@ If the user asks how to start one for testing, the command is
 
 ### Email
 
-See tools/email/trusted for both the core tools and contracts
+See cz3tools/email/trusted for both the core tools and contracts
 
 ### Other tools
 
@@ -30,8 +30,8 @@ Inline the whole program:
 clauz3 run \
    <<'PY'
 import clauz3
-from tools.email.trusted import contracts as emails
-from tools.email.trusted.effects import send_email
+from cz3tools.email.trusted import contracts as emails
+from cz3tools.email.trusted.effects import send_email
 
 
 @clauz3.guarantee(emails.only(["bob@example.com"]))
@@ -53,7 +53,7 @@ guarantees and the exact inline program.
 Use only:
 
 ```python
-from tools.email.trusted.effects import send_email
+from cz3tools.email.trusted.effects import send_email
 ```
 
 `send_email(addr: str, msg: str) -> None` sends one email. Its minimal trusted
@@ -64,7 +64,7 @@ precondition is that `addr` contains `"@"`.
 Import the trusted contract vocabulary as:
 
 ```python
-from tools.email.trusted import contracts as emails
+from cz3tools.email.trusted import contracts as emails
 ```
 
 Useful guarantees:

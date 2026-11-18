@@ -16,19 +16,19 @@ Both functions declare their effect boundaries with `@clauz3.trusted`:
 `@clauz3.ensures(...)` caps the result length, which lets the prover bound
 the loop.
 
-{{ include_file("examples/email-from-db/tools/db/trusted/effects.py") }}
+{{ include_file("examples/email-from-db/cz3tools/db/trusted/effects.py") }}
 
 The schema is a `clauz3.Row` subclass — its fields become the row schema
 the prover binds against when iterating the query result.
 
-{{ include_file("examples/email-from-db/tools/db/trusted/schemas.py") }}
+{{ include_file("examples/email-from-db/cz3tools/db/trusted/schemas.py") }}
 
 The contract module uses `effect(send_email)` and `effect(db_query)`, passing
 the imported trusted functions. Its `addresses_from(schema, field)` helper
 binds every recipient to a column of a schema, and `count_at_most(n)` is a
 simple aggregate on the email relation.
 
-{{ include_file("examples/email-from-db/tools/db/trusted/contracts.py") }}
+{{ include_file("examples/email-from-db/cz3tools/db/trusted/contracts.py") }}
 
 ## A passing case
 

@@ -17,14 +17,14 @@ clauz3 install stdlib:env
 
 ## Effects
 
-Import with `from tools.env.trusted.effects import read_env`:
+Import with `from cz3tools.env.trusted.effects import read_env`:
 
 - `read_env(name: str) -> str` — return env var `name`, or the empty
   string if unset. Precondition: `name` is non-empty.
 
 ## Contracts
 
-Import with `from tools.env.trusted import contracts as envc`:
+Import with `from cz3tools.env.trusted import contracts as envc`:
 
 - `envc.no_guarantees()` — explicit null contract.
 - `envc.no_env_reads()` — the program reads no env vars.
@@ -40,8 +40,8 @@ Prefer `only_vars` when the needed variables are small and explicit
 
 ```python
 import clauz3
-from tools.env.trusted import contracts as envc
-from tools.env.trusted.effects import read_env
+from cz3tools.env.trusted import contracts as envc
+from cz3tools.env.trusted.effects import read_env
 
 
 @clauz3.guarantee(envc.only_vars(["GITHUB_REPO", "OPENAI_BASE_URL"]))

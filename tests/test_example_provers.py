@@ -282,7 +282,10 @@ def test_example_case(
 
     results = prove_path(
         example_root / "cases" / case_name,
-        trusted_roots=sorted((example_root / "tools").glob("*/trusted")),
+        trusted_roots=sorted(
+            list((example_root / "cz3tools").glob("*/trusted"))
+            or list((example_root / "tools").glob("*/trusted"))
+        ),
         import_roots=[example_root],
     )
 

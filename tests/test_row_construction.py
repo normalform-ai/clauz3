@@ -57,8 +57,8 @@ def test_constructor_does_not_hide_an_effect_argument() -> None:
 
     library = Path(__file__).resolve().parents[1] / "src/clauz3/stdlib/db"
     source = """import clauz3
-from tools.db.trusted import contracts as db
-from tools.db.trusted.effects import create_table
+from cz3tools.db.trusted import contracts as db
+from cz3tools.db.trusted.effects import create_table
 class Destination(clauz3.Row):
     path: str
 @clauz3.guarantee(db.only_writes_databases([clauz3.FilePath("allowed.duckdb")]))
@@ -67,7 +67,7 @@ def main() -> None:
     create_table(Destination, destination.path, "data")
 """
     results = prove_text(
-        source, trusted_roots=[library / "tools/db/trusted"], import_paths=[library]
+        source, trusted_roots=[library / "cz3tools/db/trusted"], import_paths=[library]
     )
     assert results[0].proof.conclusion is Conclusion.FAIL
 
@@ -89,9 +89,9 @@ def test_constructed_rows_do_not_count_as_query_results() -> None:
 
     library = Path(__file__).resolve().parents[1] / "examples/email-from-db"
     source = """import clauz3
-from tools.db.trusted import contracts as db
-from tools.db.trusted.effects import send_email
-from tools.db.trusted.schemas import UserRow
+from cz3tools.db.trusted import contracts as db
+from cz3tools.db.trusted.effects import send_email
+from cz3tools.db.trusted.schemas import UserRow
 @clauz3.guarantee(db.addresses_from(UserRow, "email"))
 def main() -> None:
     row = UserRow(
@@ -100,7 +100,7 @@ def main() -> None:
     send_email(row.email, "fiction")
 """
     results = prove_text(
-        source, trusted_roots=[library / "tools/db/trusted"], import_paths=[library]
+        source, trusted_roots=[library / "cz3tools/db/trusted"], import_paths=[library]
     )
     assert results[0].proof.conclusion is Conclusion.FAIL, results[0].proof
 

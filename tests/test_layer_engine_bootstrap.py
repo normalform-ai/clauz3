@@ -71,7 +71,7 @@ def test_cold_cli_proves_bundled_subprocess_layer() -> None:
         "assert 'signal' not in sys.modules\n"
         "from clauz3.cli import main\n"
         "raise SystemExit(main(['prove', '--trusted-root', "
-        "'../tools/filesystem/trusted', '--import-root', '..', "
+        "'../cz3tools/filesystem/trusted', '--import-root', '..', "
         "'cases/find_only_read_under_pass.py']))\n"
     )
     assert result.returncode == 0, result.stdout + result.stderr

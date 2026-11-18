@@ -256,7 +256,7 @@ def test_case_conclusion_is_exact(library: str, case: Path) -> None:
     root = STDLIB / library
     results = prove_path(
         case,
-        trusted_roots=sorted((root / "tools").glob("**/trusted")),
+        trusted_roots=sorted((root / "cz3tools").glob("**/trusted")),
         import_roots=[root],
     )
     if case.stem.endswith("_pass"):

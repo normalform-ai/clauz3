@@ -1,7 +1,7 @@
 """Issue #73: install_layer must not follow symlinks out of the source tree.
 
 ``copytree`` with the default ``symlinks=False`` dereferences symlinks, so a
-malicious layer containing ``tools/<domain>/trusted/x -> /victim/.ssh/id_ed25519``
+malicious layer containing ``cz3tools/<domain>/trusted/x -> /victim/.ssh/id_ed25519``
 would materialize that file's content into the destination project. The same
 symlink swapped for a ``.py`` becomes code execution at prove time, since
 ``_load_trusted_modules`` imports every ``.py`` under each trusted root.
@@ -20,7 +20,7 @@ from clauz3.libraries.install import InstallError, install_layer
 
 
 def _make_layer(root: Path) -> Path:
-    trusted = root / "tools/home/trusted"
+    trusted = root / "cz3tools/home/trusted"
     trusted.mkdir(parents=True)
     (trusted / "effects.py").write_text(
         'import deal\n\n@deal.has("trusted")\n'
@@ -44,7 +44,7 @@ def test_install_rejects_symlinked_file_in_layer(tmp_path: Path) -> None:
     secret.write_text("TOP SECRET KEY\n")
 
     source = _make_layer(tmp_path / "source")
-    link = source / "tools/home/trusted/stolen.py"
+    link = source / "cz3tools/home/trusted/stolen.py"
     link.symlink_to(secret)
 
     dest = tmp_path / "dest"
@@ -52,7 +52,7 @@ def test_install_rejects_symlinked_file_in_layer(tmp_path: Path) -> None:
         install_layer(source, into=dest)
 
     # The secret content must not have been copied into the destination.
-    assert not (dest / ".clauz3/tools/home/trusted/stolen.py").exists()
+    assert not (dest / ".clauz3/cz3tools/home/trusted/stolen.py").exists()
 
 
 def test_install_rejects_symlinked_dir_in_layer(tmp_path: Path) -> None:
@@ -61,7 +61,7 @@ def test_install_rejects_symlinked_dir_in_layer(tmp_path: Path) -> None:
     (outside / "evil.py").write_text("print('pwned')\n")
 
     source = _make_layer(tmp_path / "source")
-    (source / "tools/home/trusted/sub").symlink_to(outside, target_is_directory=True)
+    (source / "cz3tools/home/trusted/sub").symlink_to(outside, target_is_directory=True)
 
     dest = tmp_path / "dest"
     with pytest.raises(InstallError):
@@ -75,4 +75,4 @@ def test_install_plain_layer_still_works(tmp_path: Path) -> None:
     result = install_layer(source, into=dest)
 
     assert result.domains == ["home"]
-    assert (dest / ".clauz3/tools/home/trusted/effects.py").is_file()
+    assert (dest / ".clauz3/cz3tools/home/trusted/effects.py").is_file()

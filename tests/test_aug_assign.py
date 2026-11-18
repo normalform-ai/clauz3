@@ -27,15 +27,15 @@ EMAIL_ROOT = ROOT / "examples/email"
 BANK_ROOT = ROOT / "examples/bank"
 
 EMAIL_PRELUDE = """
-from tools.email.trusted import contracts as emails
-from tools.email.trusted.effects import send_email
+from cz3tools.email.trusted import contracts as emails
+from cz3tools.email.trusted.effects import send_email
 
 import clauz3
 """
 
 BANK_PRELUDE = """
-from tools.bank.trusted import contracts as bank
-from tools.bank.trusted.effects import withdraw
+from cz3tools.bank.trusted import contracts as bank
+from cz3tools.bank.trusted.effects import withdraw
 
 import clauz3
 """
@@ -45,7 +45,7 @@ def _result(source: str, root: Path = EMAIL_ROOT) -> ProofResult:
     (result,) = prove_text(
         source,
         import_paths=[root],
-        trusted_roots=sorted((root / "tools").glob("*/trusted")),
+        trusted_roots=sorted((root / "cz3tools").glob("*/trusted")),
     )
     return result
 

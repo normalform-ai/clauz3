@@ -143,7 +143,7 @@ test("unknown results and malformed trailers are retained", () => {
 });
 test("API docs group effects and contracts without executing or interpreting HTML", () => {
   const value =
-    "Public API.\n\n# .clauz3/tools/filesystem/trusted/effects.py\n\nEffect: read_lines(path: str) -> list[str]\nImport: from tools.filesystem.trusted.effects import read_lines\nRead UTF-8 lines.\nPreconditions:\nrequires(lambda path: len(path) > 0)\n\n# .clauz3/tools/filesystem/trusted/contracts.py\n\nContract (use inside @clauz3.guarantee): read_only()\nImport: from tools.filesystem.trusted.contracts import read_only\n<script>danger()</script>";
+    "Public API.\n\n# .clauz3/cz3tools/filesystem/trusted/effects.py\n\nEffect: read_lines(path: str) -> list[str]\nImport: from cz3tools.filesystem.trusted.effects import read_lines\nRead UTF-8 lines.\nPreconditions:\nrequires(lambda path: len(path) > 0)\n\n# .clauz3/cz3tools/filesystem/trusted/contracts.py\n\nContract (use inside @clauz3.guarantee): read_only()\nImport: from cz3tools.filesystem.trusted.contracts import read_only\n<script>danger()</script>";
   const parsed = catalogue(value);
   assert.equal(parsed.intro, "Public API.");
   assert.equal(parsed.sections.length, 2);

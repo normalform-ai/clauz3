@@ -29,7 +29,7 @@ contract logic.
 ```bash
 cd examples/email
 uv run clauz3 prove \
-  --trusted-root tools/email/trusted \
+  --trusted-root cz3tools/email/trusted \
   cases/only_bob_pass.py
 ```
 
@@ -69,7 +69,7 @@ imports, pass `--import-root`:
 ```bash
 uv run clauz3 prove \
   examples/email/cases/only_bob_pass.py \
-  --trusted-root examples/email/tools/email/trusted \
+  --trusted-root examples/email/cz3tools/email/trusted \
   --import-root examples/email
 ```
 
@@ -78,7 +78,7 @@ use the plural form:
 
 ```bash
 uv run clauz3 prove plan.py \
-  --trusted-roots tools/email/trusted tools/db/trusted
+  --trusted-roots cz3tools/email/trusted cz3tools/db/trusted
 ```
 
 The same pattern exists for import roots: repeat `--import-root` or use
@@ -96,7 +96,7 @@ Allowed by default:
 
 - `clauz3`, `deal`, and `__future__`
 - the trusted-layer prefixes derived from `--trusted-root` and
-  `--import-root` (e.g. `tools.email.trusted` and its submodules; sibling
+  `--import-root` (e.g. `cz3tools.email.trusted` and its submodules; sibling
   paths under `tools.email` are *not* allowed)
 - a small set of pure / functional stdlib modules with no I/O, no time
   access, and no non-determinism: `collections`, `dataclasses`, `decimal`,
@@ -107,13 +107,13 @@ Anything that reads the world or executes code — `os`, `sys`, `subprocess`,
 `socket`, `pathlib`, `urllib`, `requests`, `pickle`, `marshal`, `tempfile`,
 `time`, `random`, `datetime`, `multiprocessing`, … — is rejected. The
 expected route for those capabilities is to wrap them in a trusted effect
-under a `tools/<domain>/trusted/` root, where their preconditions become
+under a `cz3tools/<domain>/trusted/` root, where their preconditions become
 proof obligations.
 
 Operators can opt extra module names in with
 `--allow-import MODULE` (repeatable). A bare name like `--allow-import
 pickle` adds a top-level root; a dotted form like
-`--allow-import tools.legacy.helpers` adds only that prefix without
+`--allow-import cz3tools.legacy.helpers` adds only that prefix without
 unlocking siblings. This grants permission to use the name, not to execute
 local source or expand the interpreter's supported surface. Relative imports
 (`from . import sibling`) are always rejected in untrusted source.
@@ -242,10 +242,10 @@ explicit trusted root. An empty initializer outside those roots is also refused.
 
 **Upgrading an existing trusted package:** ancestor `__init__.py` files that
 previously imported successfully now cause a configuration refusal when they
-lie outside the configured trusted root. For `tools/email/trusted`, remove
-`tools/__init__.py` and `tools/email/__init__.py` if they serve only as package
+lie outside the configured trusted root. For `cz3tools/email/trusted`, remove
+`cz3tools/__init__.py` and `cz3tools/email/__init__.py` if they serve only as package
 markers; namespace ancestors need neither file. Keep the trusted root at
-`tools/email/trusted`, including any initializer inside it. An ancestor that
+`cz3tools/email/trusted`, including any initializer inside it. An ancestor that
 must execute initialization code needs a separately reviewed, explicit trust
 decision; broadening the root merely to bypass this check is not a migration.
 

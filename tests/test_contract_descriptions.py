@@ -153,7 +153,7 @@ def read(path: str):
     """A read call."""
     pass
 ''')
-    schema = schema_for_sources({"tools.sample.trusted.contracts": source})
+    schema = schema_for_sources({"cz3tools.sample.trusted.contracts": source})
     classes = cast(dict[str, dict[str, object]], schema["classes"])
     limited = classes["SampleLimited"]
     assert limited["description"] == "Reviewed documentation."
@@ -210,7 +210,7 @@ def test_schema_preserves_utf8_documentation_and_hashes_original_bytes(
         "    pass\r\n"
     ).encode()
     source.write_bytes(contents)
-    schema = schema_for_sources({"tools.sample.trusted.contracts": source})
+    schema = schema_for_sources({"cz3tools.sample.trusted.contracts": source})
     classes = cast(dict[str, dict[str, object]], schema["classes"])
     helper = classes["SampleHelper"]
     assert helper["description"] == "Read café paths — a UTF-8 description."
@@ -232,11 +232,11 @@ def test_schema_reports_unsupported_signatures_even_without_descriptions(
     with pytest.raises(
         ValueError,
         match=(
-            r"cannot export tools\.sample\.trusted\.contracts\.helper: "
+            r"cannot export cz3tools\.sample\.trusted\.contracts\.helper: "
             "unsupported description parameter type: values"
         ),
     ):
-        schema_for_sources({"tools.sample.trusted.contracts": source})
+        schema_for_sources({"cz3tools.sample.trusted.contracts": source})
 
 
 def test_original_three_guarantees_render_from_the_selected_installed_libraries(
@@ -244,12 +244,12 @@ def test_original_three_guarantees_render_from_the_selected_installed_libraries(
 ) -> None:
     stdlib = Path(__file__).resolve().parents[1] / "src/clauz3/stdlib"
     shutil.copytree(
-        stdlib / "filesystem/tools/filesystem", tmp_path / "tools/filesystem"
+        stdlib / "filesystem/cz3tools/filesystem", tmp_path / "cz3tools/filesystem"
     )
-    roots = [tmp_path / "tools/filesystem/trusted"]
+    roots = [tmp_path / "cz3tools/filesystem/trusted"]
     source = """import clauz3
-from tools.filesystem.trusted import contracts as rules
-from tools.filesystem.trusted.effects import read_file
+from cz3tools.filesystem.trusted import contracts as rules
+from cz3tools.filesystem.trusted.effects import read_file
 
 @clauz3.guarantee(rules.read_only())
 @clauz3.guarantee(rules.only_read_under(root='test.md'))

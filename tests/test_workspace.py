@@ -44,7 +44,7 @@ def config(tmp_path: Path) -> ChatConfig:
             "-m",
             "clauz3.sessions.tools",
             str(EMAIL),
-            str(EMAIL / "tools/email/trusted"),
+            str(EMAIL / "cz3tools/email/trusted"),
         ],
         runner_env={},
         status_file=str(tmp_path / "runs.json"),
@@ -299,9 +299,9 @@ def test_real_mcp_proof_inline_approval_and_receipt(
     tmp_path: Path,
 ) -> None:
     project = tmp_path / "project"
-    shutil.copytree(EMAIL / "tools", project / "tools")
+    shutil.copytree(EMAIL / "cz3tools", project / "cz3tools")
     marker = project / "effect-completed"
-    effect = project / "tools/email/trusted/effects.py"
+    effect = project / "cz3tools/email/trusted/effects.py"
     effect.write_text(
         effect.read_text().replace(
             "    pass",
@@ -317,7 +317,7 @@ def test_real_mcp_proof_inline_approval_and_receipt(
         sys.executable,
         str(ROOT / "tests/fixtures/workspace_bridge.py"),
         str(project),
-        str(project / "tools/email/trusted"),
+        str(project / "cz3tools/email/trusted"),
     ]
     if mode == "codex":
         config.agent = "codex"
@@ -357,7 +357,7 @@ def test_real_mcp_proof_inline_approval_and_receipt(
             profile=ProfileStore(tmp_path / "profile.sqlite", project=project),
             authorized_layers=(
                 ApprovedLayer(
-                    trusted_roots=(project / "tools/email/trusted",),
+                    trusted_roots=(project / "cz3tools/email/trusted",),
                     # As sessions/service.py authorizes the worker's roots.
                     import_roots=tuple(expand_import_roots([project])),
                 ),
@@ -409,7 +409,7 @@ def test_real_mcp_proof_inline_approval_and_receipt(
                     request_id = run["request_id"]
                     original_request = client.get(f"/requests/{request_id}").json()
                     assert original_request["trusted_roots"] == [
-                        str(project / "tools/email/trusted")
+                        str(project / "cz3tools/email/trusted")
                     ]
                     assert request_id in client.get("/ui/rows").text
                     if decision == "stop":

@@ -64,7 +64,7 @@ def test_command_has_only_session_tools(tmp_path: Path, resume: bool) -> None:
     command = launcher._claude_command(
         "/agent/claude",
         cwd=tmp_path,
-        roots=[tmp_path / "tools/email/trusted"],
+        roots=[tmp_path / "cz3tools/email/trusted"],
         env={"CLAUZ3_APPROVAL_TOKEN": "submission"},
         model="test-model",
         prompt="--dangerously-skip-permissions",
@@ -111,7 +111,7 @@ def test_command_has_only_session_tools(tmp_path: Path, resume: bool) -> None:
         "-m",
         "clauz3.sessions.tools",
         str(tmp_path),
-        str(tmp_path / "tools/email/trusted"),
+        str(tmp_path / "cz3tools/email/trusted"),
     ]
 
 
@@ -191,11 +191,11 @@ with MCPClient(command=bridge["command"], args=bridge["args"],
     assert "gh:normalform-ai/clauz3-tools-autolabs" in available
     assert "gh:normalform-ai/clauz3-tools-assistant" not in available
     assert "clauz3 install" in available
-    assert not Path(".clauz3/tools/filesystem").exists()
+    assert not Path(".clauz3/cz3tools/filesystem").exists()
     run_schema = next(t for t in definitions if t["name"] == "run")["input_schema"]
     assert set(run_schema["properties"]) == {"source"}
     catalog = client.call("tools", query="send_email")
-    assert ".clauz3/tools/email/trusted/effects.py" in catalog
+    assert ".clauz3/cz3tools/email/trusted/effects.py" in catalog
     assert "send_email" in catalog
     assert client.call("tools", query="/etc/passwd") == "No installed tools match."
     source = Path(os.environ["TEST_CASE"]).read_text()
@@ -245,7 +245,7 @@ sys.exit(7)
     # Only the installed library: start writes no project configuration.
     assert sorted(p.name for p in (project / ".clauz3").iterdir()) == [
         ".gitignore",
-        "tools",
+        "cz3tools",
     ]
 
 
@@ -381,7 +381,7 @@ def test_session_bridge_receives_nested_domain(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """An org-namespaced install reaches the session bridge as a trusted root."""
-    nested = project / ".clauz3/tools/acme/lims/trusted"
+    nested = project / ".clauz3/cz3tools/acme/lims/trusted"
     nested.mkdir(parents=True)
     (nested / "effects.py").write_text(
         "import clauz3\n\n\n@clauz3.trusted\ndef pipette(plate: str) -> None:\n"
@@ -398,8 +398,8 @@ def test_session_bridge_receives_nested_domain(
     assert main(["start", "claude", "--no-browser"]) == 2
     assert seen == [
         [
-            project.resolve() / ".clauz3/tools/acme/lims/trusted",
-            project.resolve() / ".clauz3/tools/email/trusted",
+            project.resolve() / ".clauz3/cz3tools/acme/lims/trusted",
+            project.resolve() / ".clauz3/cz3tools/email/trusted",
         ]
     ]
 
@@ -785,7 +785,7 @@ def test_resume_refuses_changed_selection(
     )
     session_id = next((tmp_path / "clauz3-home/sessions").glob("*.json")).stem
     if changed == "libraries":
-        (project / ".clauz3/tools/email/trusted/extra.py").write_text("# added\n")
+        (project / ".clauz3/cz3tools/email/trusted/extra.py").write_text("# added\n")
     elif changed == "policy":
         policy.write_text('{"version": 1, "rules": []}\n')
     else:
@@ -825,7 +825,7 @@ def test_resume_fingerprint_tracks_linked_root_sources(tmp_path: Path) -> None:
     from clauz3.sessions.records import selection_fingerprints
 
     project = tmp_path / "project"
-    domain = project / "tools/example"
+    domain = project / "cz3tools/example"
     domain.mkdir(parents=True)
     target = project / "selected-source"
     target.mkdir()
@@ -869,7 +869,7 @@ def test_start_refuses_unfingerprintable_python_outside_trusted_root(
     problem: str,
 ) -> None:
     fake_agent(tmp_path, monkeypatch, "raise AssertionError('must not launch')")
-    notes = project / ".clauz3/tools/notes.py"
+    notes = project / ".clauz3/cz3tools/notes.py"
     if problem == "outside":
         outside = tmp_path / "outside.py"
         outside.write_text("# external")
@@ -927,7 +927,7 @@ def test_ui_launches_workspace_and_cleans_up(
         version="0.89.1",
     )
     if empty:
-        shutil.rmtree(project / ".clauz3/tools")
+        shutil.rmtree(project / ".clauz3/cz3tools")
         monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
     opened: list[str] = []
 

@@ -18,7 +18,7 @@ clauz3 install stdlib:web_fetch
 
 ## Effects
 
-Import with `from tools.web_fetch.trusted.effects import fetch_url, post_url`:
+Import with `from cz3tools.web_fetch.trusted.effects import fetch_url, post_url`:
 
 - `fetch_url(url: str) -> str` — issue an HTTP GET and return the response
   body as UTF-8 text (with `errors='replace'`). Precondition: `url` starts
@@ -29,7 +29,7 @@ Import with `from tools.web_fetch.trusted.effects import fetch_url, post_url`:
 
 ## Contracts
 
-Import with `from tools.web_fetch.trusted import contracts as web`:
+Import with `from cz3tools.web_fetch.trusted import contracts as web`:
 
 - `web.no_guarantees()` — explicit null contract.
 - `web.no_fetches()` — the program issues no HTTP GETs or POSTs.
@@ -59,8 +59,8 @@ the secret doesn't leak via an outbound HTTP call.
 
 ```python
 import clauz3
-from tools.web_fetch.trusted import contracts as web
-from tools.web_fetch.trusted.effects import fetch_url, post_url
+from cz3tools.web_fetch.trusted import contracts as web
+from cz3tools.web_fetch.trusted.effects import fetch_url, post_url
 
 
 @clauz3.guarantee(web.https_only())

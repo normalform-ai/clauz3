@@ -20,14 +20,14 @@ from clauz3.prover import (
 )
 
 LIBRARY = Path(__file__).resolve().parents[1] / "src/clauz3/stdlib/filesystem"
-ROOTS = [LIBRARY / "tools/filesystem/trusted"]
+ROOTS = [LIBRARY / "cz3tools/filesystem/trusted"]
 
 
 def program(guarantee: str, body: str, imports: str = "") -> str:
     return f"""import clauz3
 from clauz3 import FilePath, DirectoryPath
-from tools.filesystem.trusted import contracts as fs
-from tools.filesystem.trusted.effects import read_file, find, copy, move
+from cz3tools.filesystem.trusted import contracts as fs
+from cz3tools.filesystem.trusted.effects import read_file, find, copy, move
 {imports}
 @clauz3.guarantee(fs.{guarantee})
 def main() -> None:
@@ -207,12 +207,12 @@ def test_typed_paths_reach_display_and_execution(
         signature = inspect.signature(lambda path: None)
         assert check_contract(
             specs[0],
-            [("tools.filesystem.trusted.effects.read_file", ("./README.md",), {})],
+            [("cz3tools.filesystem.trusted.effects.read_file", ("./README.md",), {})],
             {"read_file": signature},
         )
         assert not check_contract(
             specs[0],
-            [("tools.filesystem.trusted.effects.read_file", ("README.md.bak",), {})],
+            [("cz3tools.filesystem.trusted.effects.read_file", ("README.md.bak",), {})],
             {"read_file": signature},
         )
         outcome = execute(

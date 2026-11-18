@@ -10,7 +10,7 @@ from clauz3.libraries.install import install_layer
 from clauz3.sessions.catalogue import snapshot_catalogue
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from tools.google_workspace.gmail.trusted import contracts  # noqa: E402
+from cz3tools.google_workspace.gmail.trusted import contracts  # noqa: E402
 
 
 class EmailDescriptionsTests(unittest.TestCase):
@@ -19,7 +19,7 @@ class EmailDescriptionsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             project = Path(directory)
             install_layer(source, into=project, generate_skills=True)
-            trusted = project / ".clauz3/tools/google_workspace/gmail/trusted"
+            trusted = project / ".clauz3/cz3tools/google_workspace/gmail/trusted"
             api = "\n".join(snapshot_catalogue(project, [trusted])["api"])
             skill = (
                 project / ".clauz3/skills/google_workspace/gmail/SKILL.md"

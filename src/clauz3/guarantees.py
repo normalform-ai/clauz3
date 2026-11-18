@@ -47,6 +47,7 @@ from clauz3.contract_literals import (
     path_literal,
     validate_path_bindings,
 )
+from clauz3.libraries.layout import alternate_tools_module
 from clauz3.row import row_class_by_name
 from clauz3.spec import REGISTERED_CONTRACTS
 
@@ -199,7 +200,16 @@ def _contract_calls(
         callee = decorators_mod.canonical_target(
             decorators_mod.dotted_name(expression.func), aliases
         )
-        if owner := owners.get(callee):
+        owner = owners.get(callee)
+        if (alt := alternate_tools_module(callee)) is not None and alt in owners:
+            if owner is not None and owner is not owners[alt]:
+                raise GuaranteeError(
+                    f"ambiguous @contract {callee!r} registered under both "
+                    f"{callee!r} and {alt!r}"
+                )
+            if owner is None:
+                owner = owners[alt]
+        if owner is not None:
             yield expression, owner
 
 
@@ -256,7 +266,19 @@ def _check_expression(
         )
     spelled = decorators_mod.dotted_name(expression.func)
     callee = decorators_mod.canonical_target(spelled, aliases)
-    if callee not in REGISTERED_CONTRACTS:
+    alt = alternate_tools_module(callee)
+    if (
+        callee in REGISTERED_CONTRACTS
+        and alt is not None
+        and alt in REGISTERED_CONTRACTS
+    ):
+        raise GuaranteeError(
+            f"{source_name}: guarantee {text} is ambiguous: both {callee!r} and "
+            f"{alt!r} are registered @contracts",
+        )
+    if callee not in REGISTERED_CONTRACTS and (
+        alt is None or alt not in REGISTERED_CONTRACTS
+    ):
         raise GuaranteeError(
             f"{source_name}: guarantee {text} does not call a registered "
             f"@contract ({callee or spelled!r} is not one). "

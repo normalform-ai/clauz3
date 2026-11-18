@@ -24,7 +24,7 @@ A trusted root may contain a `policy.py` exposing a module-level `POLICY` — a
 `DomainPolicy` (or a sequence of them):
 
 ```python
-# tools/email/trusted/policy.py
+# cz3tools/email/trusted/policy.py
 from clauz3.policy import domain_policy
 
 POLICY = domain_policy(

@@ -18,7 +18,7 @@ clauz3 install stdlib:web_fetch
 
 `install stdlib:<name>` locates the bundled tool with `importlib.resources`
 (so it works identically from a source checkout or an installed wheel) and
-copies its service domains from `tools/` into the current project, exactly like
+copies its service domains from `cz3tools/` into the current project, exactly like
 installing from a local path. A bare `clauz3 install <name>` works as a
 shorthand.
 
@@ -31,8 +31,8 @@ A stdlib tool is deliberately leaner than an example. There is no top-level
 <name>/
   clauz3.yaml                   # optional shared package prerequisites
   README.md                     # user-facing prose; also rendered on the per-tool doc page
-  tools/<domain>/clauz3.yaml       # domain description and setup
-  tools/<domain>/trusted/          # trusted code within the installed domain directory
+  cz3tools/<domain>/clauz3.yaml       # domain description and setup
+  cz3tools/<domain>/trusted/          # trusted code within the installed domain directory
   tests/
     cases/                      # *_pass.py must prove, *_fail.py must not
     Justfile                    # proves the cases — the tool's own guarantees

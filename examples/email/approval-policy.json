@@ -1,7 +1,7 @@
 {
   "version": 1,
   "imports": {
-    "pol": "tools.email.trusted.contracts"
+    "pol": "cz3tools.email.trusted.contracts"
   },
   "rules": [
     {

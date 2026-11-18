@@ -41,13 +41,13 @@ def test_run_drives_trusted_shim_that_forwards_to_upstream_mcp(
     # The trusted layer convention uses the `tools` top-level namespace
     # package. Other tests cache `tools.<other-domain>` in sys.modules with
     # their own __path__; clear those entries so this tmp project's
-    # `tools.say.trusted...` resolves against the right directory.
+    # `cz3tools.say.trusted...` resolves against the right directory.
     for cached in [name for name in sys.modules if name.split(".")[0] == "tools"]:
         monkeypatch.delitem(sys.modules, cached, raising=False)
     importlib.invalidate_caches()
 
     project = tmp_path / "project"
-    trusted = project / "tools" / "say" / "trusted"
+    trusted = project / "cz3tools" / "say" / "trusted"
     trusted.mkdir(parents=True)
 
     log = tmp_path / "calls.log"
@@ -92,8 +92,8 @@ def test_run_drives_trusted_shim_that_forwards_to_upstream_mcp(
     program = textwrap.dedent(
         """
         import clauz3
-        from tools.say.trusted import contracts as say_specs
-        from tools.say.trusted.effects import say
+        from cz3tools.say.trusted import contracts as say_specs
+        from cz3tools.say.trusted.effects import say
 
 
         @clauz3.guarantee(say_specs.says_at_most(2))

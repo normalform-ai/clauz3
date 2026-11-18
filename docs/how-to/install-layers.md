@@ -1,13 +1,13 @@
 # Installing Trusted Layers
 
-`clauz3 install` copies a trusted `tools/` layer from a library into your
-project's `.clauz3/tools/` directory. It is the quickest way to start a new
+`clauz3 install` copies a trusted `cz3tools/` layer from a library into your
+project's `.clauz3/cz3tools/` directory. It is the quickest way to start a new
 project from an existing example: rather than hand-copying
-`tools/<domain>/trusted/` directories, point `install` at a source path and it
+`cz3tools/<domain>/trusted/` directories, point `install` at a source path and it
 copies each trusted domain for you.
 
-A *trusted layer* is the `tools/` folder of a clauz3 project — the small
-audited modules under `tools/<domain>/trusted/` that the prover trusts (see
+A *trusted layer* is the `cz3tools/` folder of a clauz3 project — the small
+audited modules under `cz3tools/<domain>/trusted/` that the prover trusts (see
 [Effect specs](../reference/effect-specs.md)). Everything else (agent-authored programs and
 their `@clauz3.guarantee(...)` decorators) is untrusted and proved against this
 layer.
@@ -35,12 +35,12 @@ From an empty project directory, install the `email` example's trusted layer:
 clauz3 install /path/to/clauz3/examples/email
 ```
 
-This copies `examples/email/tools/email/` to `./.clauz3/tools/email/`, giving
+This copies `examples/email/cz3tools/email/` to `./.clauz3/cz3tools/email/`, giving
 you the `send_email` effect and the email contract vocabulary. You can
 immediately prove a program against it:
 
 ```bash
-clauz3 prove --trusted-root .clauz3/tools/email/trusted plan.py
+clauz3 prove --trusted-root .clauz3/cz3tools/email/trusted plan.py
 ```
 
 The legacy email example has no manifest, so installation prints a non-blocking
@@ -49,7 +49,7 @@ contracts remain usable.
 
 ## Library metadata and prerequisites
 
-Each new library should provide `tools/<domain>/clauz3.yaml` with its human
+Each new library should provide `cz3tools/<domain>/clauz3.yaml` with its human
 description and setup requirements. An optional source-root `clauz3.yaml` with
 `kind: package` holds shared prerequisites. Installation preserves the domain
 manifest and writes the shared metadata into `.clauz3-package.yaml` beside it.
@@ -78,27 +78,27 @@ generic top-level name in your repository:
 my-project/
   .clauz3/
     .gitignore              # generated: caches, staging, backups
-    tools/<domain>/
+    cz3tools/<domain>/
       clauz3.yaml           # domain metadata, when provided
       .clauz3-package.yaml  # generated shared setup, when a package is declared
       .clauz3-origin.json   # source and resolved git revision, when applicable
       trusted/             # installed trusted code (commit the domain directory)
     skills/<domain>/SKILL.md  # with --skills
-  tools/<domain>/trusted/   # optional: trusted layers you author yourself
+  cz3tools/<domain>/trusted/   # optional: trusted layers you author yourself
   plan.py
 ```
 
 Programs import a domain the same way wherever it lives —
-`from tools.email.trusted.effects import send_email` — because `.clauz3/` is
+`from cz3tools.email.trusted.effects import send_email` — because `.clauz3/` is
 always added as an import root ahead of the project directory. `tools` is a
 namespace package split across both directories, so clauz3 refuses a layout
-where it cannot be: a `tools/__init__.py` in either directory, or the same
+where it cannot be: a `cz3tools/__init__.py` in either directory, or the same
 domain in both (`install` refuses a library whose domain the project already
 authors). Explicit `--import-root` values are used exactly as given: pass
 `--import-roots .clauz3 .` to select a project's installed and authored layers
 explicitly.
 
-Commit `.clauz3/tools/` with the project: it is the trusted code your proofs
+Commit `.clauz3/cz3tools/` with the project: it is the trusted code your proofs
 and approvals rely on. The generated `.clauz3/.gitignore` excludes byte-code
 caches, install staging, library backups, and the machine-local
 `approval-service.json`.
@@ -110,17 +110,17 @@ The `source` argument may be:
 - a bundled stdlib tool, written `stdlib:<name>` (for example
   `stdlib:filesystem`); see [Standard library tools](../reference/stdlib.md),
 - a library in your user-wide store, written `global:<domain>`,
-- a project directory that contains a `tools/` folder (for example
+- a project directory that contains a `cz3tools/` folder (for example
   `examples/email`),
-- a `tools/` folder directly (for example `examples/email/tools`), or
+- a `cz3tools/` folder directly (for example `examples/email/tools`), or
 - a git remote — either the `gh:org/repo` shorthand or a full git URL,
   optionally with `@<ref>` appended.
 
-Every `tools/<domain>/` that contains a `trusted/` package is copied, including
-org-namespaced domains such as `tools/acme/lims/trusted/`, which install to
-`.clauz3/tools/acme/lims/`. A local or git source with several domains installs
+Every `cz3tools/<domain>/` that contains a `trusted/` package is copied, including
+org-namespaced domains such as `cz3tools/acme/lims/trusted/`, which install to
+`.clauz3/cz3tools/acme/lims/`. A local or git source with several domains installs
 all of them. A domain whose directory names are not Python identifiers (such as
-`tools/acme-labs/lims/`) cannot be imported, so it is skipped with a warning;
+`cz3tools/acme-labs/lims/`) cannot be imported, so it is skipped with a warning;
 see [Publishing trusted layers](publish-layers.md#repository-layout) for the
 full rule. A `global:` selection
 copies only the named domain and its declared dependencies.
@@ -180,7 +180,7 @@ The store defaults to `~/.local/share/clauz3` (or
 in `clauz3 libraries` and the individual-library chooser in
 `clauz3 start claude --setup`. Global installation alone does not make a
 library available to an agent. Selection creates an independent project copy
-under `.clauz3/tools/`,
+under `.clauz3/cz3tools/`,
 so later global updates leave existing projects unchanged. Restart a running
 session after installing project libraries.
 
@@ -190,7 +190,7 @@ session after installing project libraries.
 | --- | --- |
 | `--into <dir>` | Destination project root. Defaults to the current directory. |
 | `-g`, `--global` | Install in the user-wide store. Mutually exclusive with `--into`. |
-| `--force` | Overwrite an existing trusted layer at the destination. Without it, `install` refuses to clobber an existing `.clauz3/tools/<domain>/`. |
+| `--force` | Overwrite an existing trusted layer at the destination. Without it, `install` refuses to clobber an existing `.clauz3/cz3tools/<domain>/`. |
 | `--skills` | Also generate `.clauz3/skills/<domain>/SKILL.md` for each installed domain. |
 
 ```bash
@@ -212,8 +212,8 @@ an agent to use the layer.
 ## Relation to integration testing
 
 The [integration testing guide](integration-testing.md) builds a temporary user
-repo by hand-copying `tools/email/trusted`. `clauz3 install` performs the same
-code installation while also copying the rest of `tools/email/` and recording
+repo by hand-copying `cz3tools/email/trusted`. `clauz3 install` performs the same
+code installation while also copying the rest of `cz3tools/email/` and recording
 its provenance. With manifests present, it also preserves domain metadata and
 snapshots shared setup:
 

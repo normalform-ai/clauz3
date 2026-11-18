@@ -17,7 +17,7 @@ from clauz3.prover import AgentTheorem, prove_path, prove_text
 REPO = Path(__file__).resolve().parents[1]
 EXAMPLE = REPO / "examples/email-from-db"
 STDLIB = REPO / "src/clauz3/stdlib/db"
-MODULE = "tools.db.trusted"
+MODULE = "cz3tools.db.trusted"
 MODEL = MODULE + ".contracts.only_where"
 
 
@@ -122,7 +122,7 @@ def test_real_database_layers_switch_without_crossing_sources_or_schemas(
     checked: list[Path] = []
 
     def observe_proof(theorem: AgentTheorem) -> Proof:
-        selected = project / "tools/db/trusted"
+        selected = project / "cz3tools/db/trusted"
         active = {
             name: sys.modules[MODULE + "." + name] for name in ("effects", "contracts")
         }
@@ -188,7 +188,7 @@ def test_real_database_layers_switch_without_crossing_sources_or_schemas(
             if project == EXAMPLE
             else ("tests/cases/only_where_pass.py", "tests/cases/only_where_fail.py")
         )
-        layer = project / "tools/db/trusted"
+        layer = project / "cz3tools/db/trusted"
         for relative, expected in zip(
             cases, (Conclusion.OK, Conclusion.FAIL), strict=True
         ):
@@ -200,8 +200,8 @@ def test_real_database_layers_switch_without_crossing_sources_or_schemas(
                 ambient = {
                     name: sys.modules[name]
                     for name in (
-                        "tools",
-                        "tools.db",
+                        "cz3tools",
+                        "cz3tools.db",
                         MODULE,
                         MODULE + ".effects",
                         MODULE + ".contracts",
@@ -234,7 +234,7 @@ def test_unrelated_host_module_does_not_become_layer_authority(
     bank = REPO / "examples/bank"
     results = prove_path(
         bank / "cases/max_spend_pass.py",
-        trusted_roots=[bank / "tools/bank/trusted"],
+        trusted_roots=[bank / "cz3tools/bank/trusted"],
         # Both the working directory and an embedder's application directory
         # can be search roots without every resident host module being a layer.
         import_roots=[bank, REPO, tmp_path],

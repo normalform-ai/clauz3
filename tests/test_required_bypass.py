@@ -32,13 +32,13 @@ from clauz3.prover import ProofResult, ProverConfigError, prove_text
 
 ROOT = Path(__file__).resolve().parents[1]
 EMAIL_ROOT = ROOT / "examples/email"
-TRUSTED_ROOT = EMAIL_ROOT / "tools/email/trusted"
+TRUSTED_ROOT = EMAIL_ROOT / "cz3tools/email/trusted"
 
 REQUIRED_UNIQUE = [
     DomainPolicy(
         when_used=("send_email",),
         required=("unique_recipients",),
-        domain_package="tools.email.trusted",
+        domain_package="cz3tools.email.trusted",
     )
 ]
 # when_used names a `@deal.has(...)` marker rather than the effect. It used to
@@ -47,7 +47,7 @@ REQUIRED_BY_MARKER = [
     DomainPolicy(
         when_used=("trusted",),
         required=("unique_recipients",),
-        domain_package="tools.email.trusted",
+        domain_package="cz3tools.email.trusted",
     )
 ]
 
@@ -67,7 +67,7 @@ def _conclusions(proofs: list[ProofResult]) -> list[Conclusion]:
 
 BOB_TWICE_VIA_HELPER = """
 import clauz3
-from tools.email.trusted.effects import send_email
+from cz3tools.email.trusted.effects import send_email
 
 
 def deliver() -> None:
@@ -81,7 +81,7 @@ def main() -> None:
 
 BOB_ONCE_VIA_HELPER = """
 import clauz3
-from tools.email.trusted.effects import send_email
+from cz3tools.email.trusted.effects import send_email
 
 
 def deliver() -> None:
@@ -94,7 +94,7 @@ def main() -> None:
 
 BOB_TWICE_DIRECT = """
 import clauz3
-from tools.email.trusted.effects import send_email
+from cz3tools.email.trusted.effects import send_email
 
 
 def main() -> None:
@@ -106,7 +106,7 @@ def main() -> None:
 # the effect, but trigger detection keys on the call name `se`.
 BOB_TWICE_ALIASED = """
 import clauz3
-from tools.email.trusted.effects import send_email as se
+from cz3tools.email.trusted.effects import send_email as se
 
 
 def main() -> None:
@@ -116,7 +116,7 @@ def main() -> None:
 
 BOB_ONCE_ALIASED = """
 import clauz3
-from tools.email.trusted.effects import send_email as se
+from cz3tools.email.trusted.effects import send_email as se
 
 
 def main() -> None:
@@ -125,7 +125,7 @@ def main() -> None:
 
 BOB_TWICE_ALIASED_VIA_HELPER = """
 import clauz3
-from tools.email.trusted.effects import send_email as se
+from cz3tools.email.trusted.effects import send_email as se
 
 
 def deliver() -> None:
@@ -232,7 +232,7 @@ def test_unknown_when_used_token_fails_loudly(monkeypatch: MonkeyPatch) -> None:
             DomainPolicy(
                 when_used=("no_such_effect",),
                 required=("unique_recipients",),
-                domain_package="tools.email.trusted",
+                domain_package="cz3tools.email.trusted",
             )
         ],
     )
@@ -393,7 +393,7 @@ def test_a_recommended_only_policy_with_an_unknown_trigger_is_refused(
             DomainPolicy(
                 when_used=("trusted",),  # a @deal.has marker, not an effect
                 recommended=("unique_recipients",),
-                domain_package="tools.email.trusted",
+                domain_package="cz3tools.email.trusted",
             )
         ],
     )
@@ -412,7 +412,7 @@ def test_a_recommended_policy_naming_an_effect_still_proves(
             DomainPolicy(
                 when_used=("send_email",),
                 recommended=("unique_recipients",),
-                domain_package="tools.email.trusted",
+                domain_package="cz3tools.email.trusted",
             )
         ],
     )

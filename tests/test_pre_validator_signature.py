@@ -267,7 +267,7 @@ def test_same_named_layer_checks_selected_signatures_and_restores_ambient_layer(
     """
 
     def make_root(base: Path, predicate: str) -> tuple[Path, Path]:
-        root = base / "tools" / "sig" / "trusted"
+        root = base / "cz3tools" / "sig" / "trusted"
         root.mkdir(parents=True)
         (root / "__init__.py").write_text("")
         (root / "effects.py").write_text(
@@ -287,8 +287,8 @@ def test_same_named_layer_checks_selected_signatures_and_restores_ambient_layer(
         case = base / "plan.py"
         case.write_text(
             "import clauz3\n"
-            "from tools.sig.trusted import contracts as sig\n"
-            "from tools.sig.trusted.effects import do_thing\n\n\n"
+            "from cz3tools.sig.trusted import contracts as sig\n"
+            "from cz3tools.sig.trusted.effects import do_thing\n\n\n"
             "@clauz3.guarantee(sig.no_guarantees())\n"
             "def main() -> None:\n"
             "    do_thing(1)\n"
@@ -297,7 +297,7 @@ def test_same_named_layer_checks_selected_signatures_and_restores_ambient_layer(
 
     clean_root, clean_case = make_root(tmp_path / "a", "lambda x, dry_run=True: x > 0")
     broken_root, broken_case = make_root(tmp_path / "b", "lambda x, dry_run: x > 0")
-    for name in [m for m in sys.modules if m.startswith("tools.sig")]:
+    for name in [m for m in sys.modules if m.startswith("cz3tools.sig")]:
         del sys.modules[name]
 
     results = prove_path(
@@ -307,12 +307,12 @@ def test_same_named_layer_checks_selected_signatures_and_restores_ambient_layer(
     ambient = {
         name: module
         for name, module in sys.modules.items()
-        if name == "tools" or name.startswith("tools.sig")
+        if name == "cz3tools" or name.startswith("cz3tools.sig")
     }
     checked: list[ModuleType] = []
 
     def check_selected(module: ModuleType) -> None:
-        if module.__name__ == "tools.sig.trusted.effects":
+        if module.__name__ == "cz3tools.sig.trusted.effects":
             checked.append(module)
         check_condition_signatures(module)
 
@@ -327,18 +327,18 @@ def test_same_named_layer_checks_selected_signatures_and_restores_ambient_layer(
         Path(vars(selected)["__file__"]).resolve()
         == (broken_root / "effects.py").resolve()
     )
-    assert selected is not ambient["tools.sig.trusted.effects"]
+    assert selected is not ambient["cz3tools.sig.trusted.effects"]
     assert all(sys.modules[name] is module for name, module in ambient.items())
     assert (
-        vars(sys.modules["tools.sig.trusted"])["effects"]
-        is ambient["tools.sig.trusted.effects"]
+        vars(sys.modules["cz3tools.sig.trusted"])["effects"]
+        is ambient["cz3tools.sig.trusted.effects"]
     )
 
     results = prove_path(
         clean_case, trusted_roots=[clean_root], import_roots=[tmp_path / "a"]
     )
     assert [r.proof.conclusion.name for r in results] == ["OK"]
-    assert checked[-1] is ambient["tools.sig.trusted.effects"]
+    assert checked[-1] is ambient["cz3tools.sig.trusted.effects"]
     assert all(sys.modules[name] is module for name, module in ambient.items())
 
 

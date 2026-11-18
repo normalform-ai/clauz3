@@ -20,7 +20,7 @@ def gh_effect(monkeypatch: pytest.MonkeyPatch) -> GhEffect:
     """The bundled gh effect, loaded by path to run its body."""
     monkeypatch.syspath_prepend(str(GH_ROOT))
     spec = importlib.util.spec_from_file_location(
-        "gh_effects", GH_ROOT / "tools/gh/trusted/effects.py"
+        "gh_effects", GH_ROOT / "cz3tools/gh/trusted/effects.py"
     )
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)

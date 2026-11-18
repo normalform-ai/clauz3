@@ -177,7 +177,7 @@ def validate_relations(
     :func:`known_effects` would miss them.
 
     Scoping is by source *file* rather than module name because two layers can
-    share a name: this repository has ``tools.gh.trusted.contracts`` under both
+    share a name: this repository has ``cz3tools.gh.trusted.contracts`` under both
     ``stdlib/gh`` and ``examples/gh-triage``. Python caches the first one
     imported, so checking by name would test one layer's relations against the
     other layer's effects.
@@ -194,7 +194,7 @@ def effect(*targets: str | Callable[..., object]) -> EffectRelation:
     Name the function itself where the contract can see it --- the import is
     then checked by Python, mypy and your editor's rename::
 
-        from tools.email.trusted.effects import send_email
+        from cz3tools.email.trusted.effects import send_email
 
         Email = effect(send_email)
 

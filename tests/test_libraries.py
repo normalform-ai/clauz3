@@ -78,7 +78,7 @@ def test_libraries_search_is_read_only(
 
 
 def test_project_status_and_global_metadata_do_not_import_code(tmp_path: Path) -> None:
-    trusted = tmp_path / "tools/git/trusted"
+    trusted = tmp_path / "cz3tools/git/trusted"
     trusted.mkdir(parents=True)
     (trusted / "__init__.py").write_text("raise AssertionError('must not import')")
     result = library_records(tmp_path, "stdlib:git")
@@ -90,7 +90,7 @@ def test_dependency_install_preserves_existing_library(
     tmp_path: Path, dependent_library: Library
 ) -> None:
     assert main(["install", "stdlib:filesystem"]) == 0
-    marker = tmp_path / ".clauz3/tools/filesystem/keep.txt"
+    marker = tmp_path / ".clauz3/cz3tools/filesystem/keep.txt"
     marker.write_text("operator customization")
     assert main(["install", dependent_library.source]) == 0
     assert marker.read_text() == "operator customization"
@@ -113,28 +113,28 @@ def test_global_install_requires_project_selection(
     assert main(["install", "-g", dependent_library.source]) == 0
     assert "clauz3 install global:search" in capsys.readouterr().out
     assert installed_domains(isolated_store) == {"search", "filesystem"}
-    assert not (tmp_path / ".clauz3/tools").exists()
+    assert not (tmp_path / ".clauz3/cz3tools").exists()
     assert discover_trusted_roots(import_roots=expand_import_roots([tmp_path])) == []
     libraries = {lib.source: lib for lib in global_catalog()}
     assert libraries["global:search"].dependencies == ("global:filesystem",)
     assert libraries["global:filesystem"].origin == "stdlib:filesystem"
     assert main(["install", "global:search"]) == 0
     assert installed_domains(tmp_path) == {"search", "filesystem"}
-    local = tmp_path / ".clauz3/tools/search/trusted/effects.py"
+    local = tmp_path / ".clauz3/cz3tools/search/trusted/effects.py"
     saved = local.read_text()
-    global_file = isolated_store / "tools/search/trusted/effects.py"
+    global_file = isolated_store / "cz3tools/search/trusted/effects.py"
     global_file.write_text("changed global version")
     assert local.read_text() == saved
     assert not local.is_symlink()
     assert all(
-        root.is_relative_to(tmp_path / ".clauz3/tools")
+        root.is_relative_to(tmp_path / ".clauz3/cz3tools")
         for root in discover_trusted_roots(import_roots=expand_import_roots([tmp_path]))
     )
     case = tmp_path / "case.py"
     case.write_text(
         "import clauz3\n"
-        "from tools.filesystem.trusted import contracts as fs\n"
-        "from tools.search.trusted.effects import search\n"
+        "from cz3tools.filesystem.trusted import contracts as fs\n"
+        "from cz3tools.search.trusted.effects import search\n"
         "@clauz3.guarantee(fs.only_read_under('/repo'))\n"
         "def main():\n"
         "    search('TODO', '/repo/a.txt')\n"
@@ -149,8 +149,8 @@ def test_global_install_requires_project_selection(
                 "--import-root",
                 str(tmp_path),
                 "--trusted-roots",
-                str(tmp_path / ".clauz3/tools/search/trusted"),
-                str(tmp_path / ".clauz3/tools/filesystem/trusted"),
+                str(tmp_path / ".clauz3/cz3tools/search/trusted"),
+                str(tmp_path / ".clauz3/cz3tools/filesystem/trusted"),
             ]
         )
         == 0
@@ -169,7 +169,7 @@ def test_global_copies_only_selected_domain(tmp_path: Path) -> None:
 )
 def test_global_invalid_selection_cannot_escape(source: str, tmp_path: Path) -> None:
     assert main(["install", source]) == 2
-    assert not (tmp_path / ".clauz3/tools").exists()
+    assert not (tmp_path / ".clauz3/cz3tools").exists()
 
 
 def test_global_into_conflict_and_self_copy_refused(tmp_path: Path) -> None:
@@ -185,10 +185,10 @@ def test_global_selection_rejects_symlinked_parent(
     outside = tmp_path / "outside"
     (outside / "git/trusted").mkdir(parents=True)
     (outside / "git/trusted/effects.py").write_text("private contents")
-    (isolated_store / "tools").mkdir(parents=True)
-    (isolated_store / "tools/nested").symlink_to(outside, target_is_directory=True)
+    (isolated_store / "cz3tools").mkdir(parents=True)
+    (isolated_store / "cz3tools/nested").symlink_to(outside, target_is_directory=True)
     assert main(["install", "global:nested/git"]) == 2
-    assert not (tmp_path / ".clauz3/tools").exists()
+    assert not (tmp_path / ".clauz3/cz3tools").exists()
 
 
 def test_global_root_honors_xdg(
@@ -216,7 +216,7 @@ def test_default_setup_installs_file_bundle(
     monkeypatch.setattr("builtins.input", lambda prompt: "")
     assert choose_libraries(tmp_path)
     assert installed_domains(tmp_path) == {"filesystem"}
-    assert not (tmp_path / ".clauz3/tools/git").exists()
+    assert not (tmp_path / ".clauz3/cz3tools/git").exists()
 
 
 @pytest.mark.parametrize("answer", ["q", "4"])
@@ -227,14 +227,14 @@ def test_setup_cancel_or_empty_is_read_only(
 ) -> None:
     monkeypatch.setattr("builtins.input", lambda prompt: answer)
     assert choose_libraries(tmp_path) == (answer == "4")
-    assert not (tmp_path / ".clauz3/tools").exists()
+    assert not (tmp_path / ".clauz3/cz3tools").exists()
 
 
 def test_setup_keeps_existing_project_library(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     install_layer("stdlib:filesystem", into=tmp_path)
-    marker = tmp_path / ".clauz3/tools/filesystem/trusted/effects.py"
+    marker = tmp_path / ".clauz3/cz3tools/filesystem/trusted/effects.py"
     marker.write_text("operator's existing library")
     monkeypatch.setattr("builtins.input", lambda prompt: "1")
     assert choose_libraries(tmp_path)
@@ -268,7 +268,7 @@ def test_empty_session_allows_libraries_but_refuses_run(tmp_path: Path) -> None:
         }
         result = client.call("libraries", query="stdlib:filesystem")
         assert "clauz3 install stdlib:filesystem" in result
-        assert not (tmp_path / ".clauz3/tools").exists()
+        assert not (tmp_path / ".clauz3/cz3tools").exists()
         # Installing during a running session must not silently expand its roots.
         install_layer("stdlib:filesystem", into=tmp_path)
         result = client.call("run", source="def main(): pass")

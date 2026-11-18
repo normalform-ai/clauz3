@@ -7,7 +7,7 @@ from clauz3.prover import prove_path
 
 ROOT = Path(__file__).resolve().parents[1]
 BANK_ROOT = ROOT / "examples/bank"
-TRUSTED_ROOT = BANK_ROOT / "tools/bank/trusted"
+TRUSTED_ROOT = BANK_ROOT / "cz3tools/bank/trusted"
 
 
 CASES = [

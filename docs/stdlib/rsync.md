@@ -2,9 +2,9 @@
 
 ## Source
 
-{{ include_file("src/clauz3/stdlib/rsync/tools/rsync/trusted/effects.py") }}
+{{ include_file("src/clauz3/stdlib/rsync/cz3tools/rsync/trusted/effects.py") }}
 
-{{ include_file("src/clauz3/stdlib/rsync/tools/rsync/trusted/contracts.py") }}
+{{ include_file("src/clauz3/stdlib/rsync/cz3tools/rsync/trusted/contracts.py") }}
 
 ## All cases
 

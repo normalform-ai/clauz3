@@ -10,12 +10,12 @@ from clauz3.policy import (
 
 ROOT = Path(__file__).resolve().parents[1]
 EMAIL_ROOT = ROOT / "examples/email"
-TRUSTED_ROOT = EMAIL_ROOT / "tools/email/trusted"
+TRUSTED_ROOT = EMAIL_ROOT / "cz3tools/email/trusted"
 
 EMAIL_POLICY = DomainPolicy(
     when_used=("send_email",),
     recommended=("only", "unique_recipients"),
-    domain_package="tools.email.trusted",
+    domain_package="cz3tools.email.trusted",
     label="email",
 )
 
@@ -24,8 +24,8 @@ def _source(*guarantee_calls: str) -> str:
     decorators = "\n".join(f"@clauz3.guarantee({call})" for call in guarantee_calls)
     return f"""
 import clauz3
-from tools.email.trusted import contracts as emails
-from tools.email.trusted.effects import send_email
+from cz3tools.email.trusted import contracts as emails
+from cz3tools.email.trusted.effects import send_email
 
 
 {decorators}
@@ -135,7 +135,7 @@ def test_required_gap_takes_precedence() -> None:
         when_used=("send_email",),
         required=("only",),
         recommended=("unique_recipients",),
-        domain_package="tools.email.trusted",
+        domain_package="cz3tools.email.trusted",
     )
     entry = compute_coverage(source=_source(), guarantees=[], policies=[policy])[0]
     assert entry["status"] == "required_gap"
@@ -151,4 +151,4 @@ def test_load_domain_policies_from_example() -> None:
     policy = policies[0]
     assert policy.when_used == ("send_email",)
     assert policy.recommended == ("only", "unique_recipients")
-    assert policy.domain_package == "tools.email.trusted"
+    assert policy.domain_package == "cz3tools.email.trusted"

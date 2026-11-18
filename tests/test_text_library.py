@@ -67,7 +67,7 @@ def test_read_line_runtime(
 def test_text_proofs(case_name: str, conclusion: Conclusion, description: str) -> None:
     results = prove_path(
         FS / "tests/cases" / case_name,
-        trusted_roots=[FS / "tools/filesystem/trusted"],
+        trusted_roots=[FS / "cz3tools/filesystem/trusted"],
         import_roots=[FS],
     )
     assert len(results) == 1

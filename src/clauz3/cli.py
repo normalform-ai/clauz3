@@ -43,7 +43,7 @@ from clauz3.libraries.discovery import (
     library_records,
 )
 from clauz3.libraries.install import InstallError, install_library
-from clauz3.libraries.layout import TOOLS_PACKAGE, LayoutError, expand_import_roots
+from clauz3.libraries.layout import TOOLS_PACKAGES, LayoutError, expand_import_roots
 from clauz3.libtest import LibTestError, run_lib_tests
 from clauz3.lint import LintError, format_violations, lint_paths
 from clauz3.prover import ProofResult, ProverConfigError, prove_path
@@ -386,16 +386,16 @@ def _build_parser() -> argparse.ArgumentParser:
         "install",
         help="install a trusted library into a project or the user-wide store",
         description=(
-            "Copy a trusted tools/ layer and declared library dependencies into "
-            "the project's .clauz3/tools/ (or the user-wide store with --global)."
+            "Copy a trusted cz3tools/ layer and declared library dependencies into "
+            "the project's .clauz3/cz3tools/ (or the user-wide store with --global)."
         ),
     )
     install.add_argument(
         "source",
         help=(
             "a bundled stdlib tool (such as stdlib:filesystem or stdlib:git), "
-            "global:<domain>, a git source, a local project containing tools/, "
-            "or a tools/ folder"
+            "global:<domain>, a git source, a local project containing cz3tools/, "
+            "or a cz3tools/ folder"
         ),
     )
     destination = install.add_mutually_exclusive_group()
@@ -1024,17 +1024,19 @@ _CONTRACT_DECORATORS = frozenset({"contract", "clauz3.spec.contract"})
 def _listing_base(root: Path, *, import_roots: list[Path]) -> Path:
     """The directory a ``clauz3 tools`` path is shown relative to.
 
-    For a root under an import root's ``tools/`` package that is ``tools/``
-    itself, so the shown path is the import path: ``email/trusted/...`` is
-    ``tools.email.trusted`` and ``acme/lims/trusted/...`` is
-    ``tools.acme.lims.trusted``. A root outside every import root keeps the
-    flat-layout display, relative to its grandparent.
+    For a root under an import root's ``cz3tools/`` (or legacy ``tools/``)
+    package that is ``cz3tools/`` itself, so the shown path is the import path:
+    ``email/trusted/...`` is ``cz3tools.email.trusted`` and
+    ``acme/lims/trusted/...`` is ``cz3tools.acme.lims.trusted``. A root outside
+    every import root keeps the flat-layout display, relative to its
+    grandparent.
     """
     resolved = root.resolve()
     for import_root in import_roots:
-        tools = (Path(import_root) / TOOLS_PACKAGE).resolve()
-        if resolved.is_relative_to(tools):
-            return tools
+        for pkg in TOOLS_PACKAGES:
+            tools = (Path(import_root) / pkg).resolve()
+            if resolved.is_relative_to(tools):
+                return tools
     return resolved.parent.parent
 
 

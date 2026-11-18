@@ -12,12 +12,12 @@ The trusted effect is a stub decorated with `@clauz3.trusted` and a
 `@clauz3.requires(...)` non-negativity precondition. The prover lifts that
 precondition into a proof obligation at every call site.
 
-{{ include_file("examples/bank/tools/bank/trusted/effects.py") }}
+{{ include_file("examples/bank/cz3tools/bank/trusted/effects.py") }}
 
 Two contract helpers wrap `effect(withdraw)`, the relation for calls to the
 imported trusted function.
 
-{{ include_file("examples/bank/tools/bank/trusted/contracts.py") }}
+{{ include_file("examples/bank/cz3tools/bank/trusted/contracts.py") }}
 
 ## A passing case
 

@@ -8,8 +8,8 @@ write-only task.
 
 ```python
 import clauz3
-from tools.filesystem.trusted import contracts as fs
-from tools.filesystem.trusted.effects import write_file
+from cz3tools.filesystem.trusted import contracts as fs
+from cz3tools.filesystem.trusted.effects import write_file
 
 @clauz3.guarantee(fs.only_writes_files([clauz3.FilePath("./data/result.txt")]))
 @clauz3.guarantee(fs.writes_at_most(1))

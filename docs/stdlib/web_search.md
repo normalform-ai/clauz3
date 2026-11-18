@@ -2,9 +2,9 @@
 
 ## Source
 
-{{ include_file("src/clauz3/stdlib/web_search/tools/web_search/trusted/effects.py") }}
+{{ include_file("src/clauz3/stdlib/web_search/cz3tools/web_search/trusted/effects.py") }}
 
-{{ include_file("src/clauz3/stdlib/web_search/tools/web_search/trusted/contracts.py") }}
+{{ include_file("src/clauz3/stdlib/web_search/cz3tools/web_search/trusted/contracts.py") }}
 
 ## All cases
 

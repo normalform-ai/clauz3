@@ -16,7 +16,7 @@ def git_effects(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
     """The bundled git effects, loaded by path to run their bodies."""
     monkeypatch.syspath_prepend(str(GIT_ROOT))
     spec = importlib.util.spec_from_file_location(
-        "git_effects", GIT_ROOT / "tools/git/trusted/effects.py"
+        "git_effects", GIT_ROOT / "cz3tools/git/trusted/effects.py"
     )
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)

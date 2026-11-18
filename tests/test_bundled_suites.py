@@ -26,8 +26,9 @@ JUSTFILES = sorted(
 )
 EFFECTS = sorted(
     [
+        *ROOT.glob("examples/*/cz3tools/**/trusted/effects.py"),
         *ROOT.glob("examples/*/tools/**/trusted/effects.py"),
-        *ROOT.glob("src/clauz3/stdlib/*/tools/**/trusted/effects.py"),
+        *ROOT.glob("src/clauz3/stdlib/*/cz3tools/**/trusted/effects.py"),
     ]
 )
 

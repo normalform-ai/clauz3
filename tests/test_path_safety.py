@@ -14,12 +14,12 @@ from clauz3.prover import ProofResult, prove_text
 
 ROOT = Path(__file__).resolve().parents[1]
 FILESYSTEM_ROOT = ROOT / "src/clauz3/stdlib/filesystem"
-FILESYSTEM_TRUSTED = FILESYSTEM_ROOT / "tools/filesystem/trusted"
+FILESYSTEM_TRUSTED = FILESYSTEM_ROOT / "cz3tools/filesystem/trusted"
 
 HEADER = """\
 import clauz3
-from tools.filesystem.trusted import contracts as fs
-from tools.filesystem.trusted.effects import write_file
+from cz3tools.filesystem.trusted import contracts as fs
+from cz3tools.filesystem.trusted.effects import write_file
 """
 
 
@@ -226,42 +226,42 @@ def main() -> None:
     [
         (
             "filesystem",
-            "from tools.filesystem.trusted.effects import append_file",
+            "from cz3tools.filesystem.trusted.effects import append_file",
             'append_file("/repo/out/../escape", "x")',
         ),
         (
             "filesystem",
-            "from tools.filesystem.trusted.effects import remove",
+            "from cz3tools.filesystem.trusted.effects import remove",
             'remove("/repo/out/../escape")',
         ),
         (
             "filesystem",
-            "from tools.filesystem.trusted.effects import copy",
+            "from cz3tools.filesystem.trusted.effects import copy",
             'copy("/repo/src", "/repo/out/../escape")',
         ),
         (
             "filesystem",
-            "from tools.filesystem.trusted.effects import find",
+            "from cz3tools.filesystem.trusted.effects import find",
             'find("/repo/out/../escape", [])',
         ),
         (
             "filesystem",
-            "from tools.filesystem.trusted.effects import grep",
+            "from cz3tools.filesystem.trusted.effects import grep",
             'grep("needle", "/repo/out/../escape")',
         ),
         (
             "rsync",
-            "from tools.rsync.trusted.effects import rsync",
+            "from cz3tools.rsync.trusted.effects import rsync",
             'rsync("/repo/src", "/repo/out/../escape", False, [])',
         ),
         (
             "git",
-            "from tools.git.trusted.effects import git",
+            "from cz3tools.git.trusted.effects import git",
             'git("status", [], "/repo/out/../escape")',
         ),
         (
             "web_fetch",
-            "from tools.web_fetch.trusted.effects import fetch_url",
+            "from cz3tools.web_fetch.trusted.effects import fetch_url",
             'fetch_url("https://example.test/safe/../escape")',
         ),
     ],
@@ -272,7 +272,7 @@ def test_other_stdlib_path_boundaries_reject_parent_traversal(
     call: str,
 ) -> None:
     domain_root = ROOT / f"src/clauz3/stdlib/{domain}"
-    trusted_root = domain_root / f"tools/{domain}/trusted"
+    trusted_root = domain_root / f"cz3tools/{domain}/trusted"
     results = prove_text(
         f"""\
 import clauz3
@@ -291,11 +291,11 @@ def main() -> None:
 
 def test_database_path_boundary_rejects_parent_traversal() -> None:
     domain_root = ROOT / "src/clauz3/stdlib/db"
-    trusted_root = domain_root / "tools/db/trusted"
+    trusted_root = domain_root / "cz3tools/db/trusted"
     results = prove_text(
         """\
 import clauz3
-from tools.db.trusted.effects import read_rows
+from cz3tools.db.trusted.effects import read_rows
 
 
 class Item(clauz3.Row):
@@ -332,11 +332,11 @@ def test_encoded_url_traversal_is_refused_symbolically(url: str) -> None:
     evaluate it, so exercise it through ``fetch_url``'s precondition.
     """
     domain_root = ROOT / "src/clauz3/stdlib/web_fetch"
-    trusted_root = domain_root / "tools/web_fetch/trusted"
+    trusted_root = domain_root / "cz3tools/web_fetch/trusted"
     results = prove_text(
         f"""\
 import clauz3
-from tools.web_fetch.trusted.effects import fetch_url
+from cz3tools.web_fetch.trusted.effects import fetch_url
 
 
 def main() -> None:

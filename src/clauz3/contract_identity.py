@@ -68,7 +68,11 @@ def identify_call(
     if root is None:
         raise ValueError("Contract is outside the selected trusted roots")
     symbol = f"{owner.__module__}.{owner.__name__}"
-    namespace = owner.__module__.split(".trusted", 1)[0].removeprefix("tools.")
+    namespace = owner.__module__.split(".trusted", 1)[0]
+    for prefix in ("cz3tools.", "tools."):
+        if namespace.startswith(prefix):
+            namespace = namespace.removeprefix(prefix)
+            break
     signature = inspect.signature(owner)
     bound = signature.bind(
         *[_argument(arg, aliases) for arg in expression.args],

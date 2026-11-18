@@ -16,7 +16,7 @@ from clauz3.cli import main
 
 ROOT = Path(__file__).resolve().parents[1]
 EMAIL_ROOT = ROOT / "examples/email"
-TRUSTED_ROOT = EMAIL_ROOT / "tools/email/trusted"
+TRUSTED_ROOT = EMAIL_ROOT / "cz3tools/email/trusted"
 
 
 @pytest.fixture(autouse=True)
@@ -31,8 +31,8 @@ def _approval_keys(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
 
 PASSING_SOURCE = """
 import clauz3
-from tools.email.trusted import contracts as emails
-from tools.email.trusted.effects import send_email
+from cz3tools.email.trusted import contracts as emails
+from cz3tools.email.trusted.effects import send_email
 
 
 @clauz3.guarantee(emails.only(["bob@example.com"]))
@@ -43,8 +43,8 @@ def main() -> None:
 
 FAILING_SOURCE = """
 import clauz3
-from tools.email.trusted import contracts as emails
-from tools.email.trusted.effects import send_email
+from cz3tools.email.trusted import contracts as emails
+from cz3tools.email.trusted.effects import send_email
 
 
 @clauz3.guarantee(emails.only(["bob@example.com"]))
@@ -58,8 +58,8 @@ def main() -> None:
 # beside is closed (#109); anchoring on recursion kept it alive through that.
 SKIPPED_SOURCE = """
 import clauz3
-from tools.email.trusted import contracts as emails
-from tools.email.trusted.effects import send_email
+from cz3tools.email.trusted import contracts as emails
+from cz3tools.email.trusted.effects import send_email
 
 
 def helper(n: int) -> int:
@@ -116,7 +116,7 @@ def test_clauz3_run_from_stdin_approved(
     assert (
         "executed: main\n"
         "effects: 1\n"
-        "  tools.email.trusted.effects.send_email('bob@example.com', "
+        "  cz3tools.email.trusted.effects.send_email('bob@example.com', "
         "'Report is ready')\n"
     ) in out
 
@@ -174,7 +174,7 @@ def test_clauz3_run_lists_effects_that_fired_before_a_failure(
     assert "executed:" not in captured.out
     assert (
         "effects: 1\n"
-        "  tools.email.trusted.effects.send_email('bob@example.com', "
+        "  cz3tools.email.trusted.effects.send_email('bob@example.com', "
         "'Report is ready')\n"
     ) in captured.out
     assert message in captured.err
@@ -528,8 +528,8 @@ def test_clauz3_run_allows_extra_import_when_opted_in(
     source = (
         "import pickle  # noqa: F401\n"
         "import clauz3\n"
-        "from tools.email.trusted import contracts as emails\n"
-        "from tools.email.trusted.effects import send_email\n"
+        "from cz3tools.email.trusted import contracts as emails\n"
+        "from cz3tools.email.trusted.effects import send_email\n"
         "\n"
         "@clauz3.guarantee(emails.only(['bob@example.com']))\n"
         "@clauz3.guarantee(emails.unique_recipients())\n"
@@ -649,8 +649,8 @@ def test_import_disappearing_after_receipt_verification_is_exit_2(
             # `_exec_module`, which used to run only after approval.
             "module-level-non-constant",
             "import clauz3\n"
-            "from tools.email.trusted import contracts as emails\n"
-            "from tools.email.trusted.effects import send_email\n"
+            "from cz3tools.email.trusted import contracts as emails\n"
+            "from cz3tools.email.trusted.effects import send_email\n"
             "\n"
             "OTHER = 5\n"
             "LIMIT = OTHER\n"
@@ -665,8 +665,8 @@ def test_import_disappearing_after_receipt_verification_is_exit_2(
             # it, but the refusal should not wait for the run either.
             "outside-the-subset",
             "import clauz3\n"
-            "from tools.email.trusted import contracts as emails\n"
-            "from tools.email.trusted.effects import send_email\n"
+            "from cz3tools.email.trusted import contracts as emails\n"
+            "from cz3tools.email.trusted.effects import send_email\n"
             "\n"
             '@clauz3.guarantee(emails.only(["bob@example.com"]))\n'
             "def main() -> None:\n"

@@ -271,10 +271,10 @@ def test_bundled_tutorial_proofs(
     tmp_path: Path, recipient: str, expected: Conclusion
 ) -> None:
     project = Workspaces(tmp_path / "state").prepare_email()
-    roots = [project / "tools/email/trusted"]
+    roots = [project / "cz3tools/email/trusted"]
     source = f"""import clauz3
-from tools.email.trusted import contracts as emails
-from tools.email.trusted.effects import send_email
+from cz3tools.email.trusted import contracts as emails
+from cz3tools.email.trusted.effects import send_email
 
 @clauz3.guarantee(emails.only(["bob@example.com"]))
 @clauz3.guarantee(emails.at_most(1))
@@ -285,7 +285,7 @@ def main() -> None:
     proofs = prove_text(source, trusted_roots=roots, import_paths=[project])
     assert [proof.proof.conclusion for proof in proofs] == [expected]
     assert mock_declarations(project, roots)["kind"] == "mock"
-    manifest = read_manifest(project / "tools/email", "email")
+    manifest = read_manifest(project / "cz3tools/email", "email")
     assert manifest and manifest["title"] == "Mock email"
 
 
@@ -351,13 +351,13 @@ def test_switch_cancels_request_finishing_verification_in_previous_workspace(
         ready(ws)
         root = Path(state["cwd"])
         source = """import clauz3
-from tools.email.trusted import contracts as emails
-from tools.email.trusted.effects import send_email
+from cz3tools.email.trusted import contracts as emails
+from cz3tools.email.trusted.effects import send_email
 @clauz3.guarantee(emails.only(["bob@example.com"]))
 def main() -> None:
     send_email("bob@example.com", "Hello")
 """
-        roots = [root / "tools/email/trusted"]
+        roots = [root / "cz3tools/email/trusted"]
         proofs = prove_text(source, trusted_roots=roots, import_paths=[root])
         payload = build_approval_request(
             source=source,

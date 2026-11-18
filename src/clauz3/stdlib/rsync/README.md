@@ -18,15 +18,15 @@ destination.
 clauz3 install stdlib:rsync
 ```
 
-This copies `tools/rsync/` into your project. Then prove a program against it:
+This copies `cz3tools/rsync/` into your project. Then prove a program against it:
 
 ```bash
-clauz3 prove --trusted-root tools/rsync/trusted plan.py
+clauz3 prove --trusted-root cz3tools/rsync/trusted plan.py
 ```
 
 ## Effect
 
-Import with `from tools.rsync.trusted.effects import rsync`:
+Import with `from cz3tools.rsync.trusted.effects import rsync`:
 
 - `rsync(src: str, dest: str, delete: bool, args: list[str]) -> str` — sync
   `src` to `dest` and return stdout. `delete` adds `--delete`. Precondition:
@@ -49,7 +49,7 @@ way may already have run its earlier calls.
 
 ## Contracts
 
-Import with `from tools.rsync.trusted import contracts as rsync_rules`:
+Import with `from cz3tools.rsync.trusted import contracts as rsync_rules`:
 
 - `rsync_rules.no_guarantees()` — explicit null contract.
 - `rsync_rules.no_syncs()` — the program performs no rsync calls.
@@ -67,8 +67,8 @@ Import with `from tools.rsync.trusted import contracts as rsync_rules`:
 
 ```python
 import clauz3
-from tools.rsync.trusted import contracts as rsync_rules
-from tools.rsync.trusted.effects import rsync
+from cz3tools.rsync.trusted import contracts as rsync_rules
+from cz3tools.rsync.trusted.effects import rsync
 
 
 @clauz3.guarantee(rsync_rules.only_src_under("/repo"))

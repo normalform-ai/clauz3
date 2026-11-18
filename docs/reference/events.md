@@ -120,7 +120,7 @@ A tool outside `stdlib:filesystem` can import its event classes:
 
 ```python
 from clauz3.events import performs
-from tools.filesystem.trusted.events import Read, Write
+from cz3tools.filesystem.trusted.events import Read, Write
 
 
 @clauz3.trusted

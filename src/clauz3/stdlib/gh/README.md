@@ -22,15 +22,15 @@ independently bound the object and the repository.
 clauz3 install stdlib:gh
 ```
 
-This copies `tools/gh/` into your project. Then prove a program against it:
+This copies `cz3tools/gh/` into your project. Then prove a program against it:
 
 ```bash
-clauz3 prove --trusted-root tools/gh/trusted plan.py
+clauz3 prove --trusted-root cz3tools/gh/trusted plan.py
 ```
 
 ## Effects
 
-Import with `from tools.gh.trusted.effects import gh`:
+Import with `from cz3tools.gh.trusted.effects import gh`:
 
 - `gh(command: str, action: str, args: list[str], repo: str) -> str` — run
   `gh <command> <action> --repo <repo> <args...>` and return its stdout.
@@ -70,7 +70,7 @@ earlier calls):
 
 ## Contracts
 
-Import with `from tools.gh.trusted import contracts as gh_rules`:
+Import with `from cz3tools.gh.trusted import contracts as gh_rules`:
 
 - `gh_rules.no_guarantees()` — explicit null contract.
 - `gh_rules.no_gh()` — the program makes no GitHub-CLI calls.
@@ -105,8 +105,8 @@ such as `repo:other/name` reaches other repositories.
 
 ```python
 import clauz3
-from tools.gh.trusted import contracts as gh_rules
-from tools.gh.trusted.effects import gh
+from cz3tools.gh.trusted import contracts as gh_rules
+from cz3tools.gh.trusted.effects import gh
 
 
 @clauz3.guarantee(gh_rules.only_repo("cmungall/agent-deal"))

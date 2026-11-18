@@ -5,7 +5,7 @@ used by `stdlib:filesystem`, and filesystem contracts will constrain those
 calls too. A Python import and `@performs` declaration establish this connection;
 the library's name and Deal's `read`/`write` markers do not.
 
-Declare the dependency in `tools/bio/clauz3.yaml`:
+Declare the dependency in `cz3tools/bio/clauz3.yaml`:
 
 ```yaml
 dependencies:
@@ -14,18 +14,18 @@ dependencies:
 
 Install both libraries and select both trusted roots when proving or running.
 Workspace selection includes declared dependencies. For direct CLI proofs,
-provide both roots, for example `--trusted-roots tools/bio/trusted
-.clauz3/tools/filesystem/trusted --import-root .`. Source-layout tests may use
+provide both roots, for example `--trusted-roots cz3tools/bio/trusted
+.clauz3/cz3tools/filesystem/trusted --import-root .`. Source-layout tests may use
 separate import roots instead. Keep the imported filesystem version consistent
 with the version against which the layer was reviewed.
 
 ## Declare every relevant operation
 
 ```python
-# tools/bio/trusted/effects.py
+# cz3tools/bio/trusted/effects.py
 import clauz3
 from clauz3.events import performs
-from tools.filesystem.trusted.events import Read, Write
+from cz3tools.filesystem.trusted.events import Read, Write
 
 
 @clauz3.trusted
@@ -43,8 +43,8 @@ without auditing the wrapper's actual behavior.
 ```python
 # convert.py
 import clauz3
-from tools.bio.trusted.effects import convert_alignment
-from tools.filesystem.trusted import contracts as fs
+from cz3tools.bio.trusted.effects import convert_alignment
+from cz3tools.filesystem.trusted import contracts as fs
 
 
 @clauz3.guarantee(fs.only_reads_files([clauz3.FilePath("input.sam")]))
@@ -62,7 +62,7 @@ or `only_writes_files_under(clauz3.DirectoryPath("out"))` for a directory bounda
 
 ## Limits of the declaration
 
-- Import the event classes from `tools.filesystem.trusted.events`; defining
+- Import the event classes from `cz3tools.filesystem.trusted.events`; defining
   another class called `Write` creates a different relation. Do not vendor a
   second event definition or assume that matching field names joins them.
 - Put one `@performs` directly above the function definition, below

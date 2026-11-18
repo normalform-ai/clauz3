@@ -8,13 +8,13 @@ from clauz3.prover import ProofResult, prove_text
 
 ROOT = Path(__file__).resolve().parents[1]
 EMAIL_ROOT = ROOT / "examples/email"
-TRUSTED_ROOT = EMAIL_ROOT / "tools/email/trusted"
+TRUSTED_ROOT = EMAIL_ROOT / "cz3tools/email/trusted"
 
 REQUIRED_UNIQUE = [
     DomainPolicy(
         when_used=("send_email",),
         required=("unique_recipients",),
-        domain_package="tools.email.trusted",
+        domain_package="cz3tools.email.trusted",
     )
 ]
 
@@ -34,7 +34,7 @@ def _conclusions(proofs: list[ProofResult]) -> list[Conclusion]:
 
 EMAILS_BOB_TWICE = """
 import clauz3
-from tools.email.trusted.effects import send_email
+from cz3tools.email.trusted.effects import send_email
 
 
 def main() -> None:
@@ -44,7 +44,7 @@ def main() -> None:
 
 EMAILS_BOB_ONCE = """
 import clauz3
-from tools.email.trusted.effects import send_email
+from cz3tools.email.trusted.effects import send_email
 
 
 def main() -> None:
@@ -94,7 +94,7 @@ def test_without_required_policy_unstated_violation_proves(
             DomainPolicy(
                 when_used=("send_email",),
                 recommended=("unique_recipients",),
-                domain_package="tools.email.trusted",
+                domain_package="cz3tools.email.trusted",
             )
         ],
     )
@@ -114,8 +114,8 @@ def test_monitored_required_policy_reports_submitted_locations(
     )
     source = '''"""A submitted module docstring."""
 import clauz3
-from tools.email.trusted import contracts as emails
-from tools.email.trusted.effects import send_email
+from cz3tools.email.trusted import contracts as emails
+from cz3tools.email.trusted.effects import send_email
 
 
 @clauz3.guarantee(emails.only(["bob@example.com"]))
@@ -184,7 +184,7 @@ def test_unmonitored_required_policy_body_error_uses_submitted_location(
         "clauz3.prover.load_domain_policies", lambda **_: REQUIRED_UNIQUE
     )
     source = """import clauz3
-from tools.email.trusted.effects import send_email
+from cz3tools.email.trusted.effects import send_email
 
 
 # These comments and blank lines disappear from the injected proof copy.

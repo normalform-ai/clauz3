@@ -4,7 +4,7 @@ This bundle provides Google Workspace services through clauz3, currently Gmail
 via gog: search and read messages, save drafts, and preview or send email. Install `stdlib:google_workspace` and select `google_workspace/gmail`.
 Read the public API with `tools(query="gmail")` before submitting a program.
 Future Sheets and Docs services belong beside Gmail with separate trusted roots
-and contracts; do not enable sibling services implicitly. The old `tools.email`
+and contracts; do not enable sibling services implicitly. The old `cz3tools.email`
 namespace is not provided. Keep Google-specific setup in the manifests.
 
 ## Searching and reading mail
@@ -20,8 +20,8 @@ namespace is not provided. Keep Google-specific setup in the manifests.
 
 ```python
 import clauz3
-from tools.google_workspace.gmail.trusted import contracts as email
-from tools.google_workspace.gmail.trusted.effects import search_messages
+from cz3tools.google_workspace.gmail.trusted import contracts as email
+from cz3tools.google_workspace.gmail.trusted.effects import search_messages
 
 
 @clauz3.guarantee(email.read_only())
@@ -51,8 +51,8 @@ without claiming it was saved. The CLI prints the draft identifiers.
 
 ```python
 import clauz3
-from tools.google_workspace.gmail.trusted import contracts as email
-from tools.google_workspace.gmail.trusted.effects import create_draft
+from cz3tools.google_workspace.gmail.trusted import contracts as email
+from cz3tools.google_workspace.gmail.trusted.effects import create_draft
 
 
 @clauz3.guarantee(email.drafts_only())
@@ -103,7 +103,7 @@ Clauz3 reads the docstrings for tool discovery and approval details. Installing
 with `--skills` also copies first-line summaries into the generated skill.
 Reinstall the local library into the consumer project after changing it.
 The root `clauz3.yaml` owns shared gog installation and account selection.
-`tools/google_workspace/gmail/clauz3.yaml` owns the Gmail summary, service authorization, and
+`cz3tools/google_workspace/gmail/clauz3.yaml` owns the Gmail summary, service authorization, and
 effect-specific setup. Installation generates a `.clauz3-package.yaml`
 snapshot beside the installed domain manifest; edit the source manifests and
 reinstall instead of maintaining that snapshot. Keep OAuth credentials and

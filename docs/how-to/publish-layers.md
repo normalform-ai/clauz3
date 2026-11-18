@@ -1,7 +1,7 @@
 # Publishing Trusted Layers
 
 This guide is for the author of a *domain trusted layer*: a
-`tools/<domain>/trusted/` package that lives in its own repository, possibly
+`cz3tools/<domain>/trusted/` package that lives in its own repository, possibly
 private, and is pulled into consumer projects with `clauz3 install`. The
 bundled [standard library](../reference/stdlib.md) is deliberately small;
 richer domains with their own release cadence, a larger surface area, or
@@ -43,8 +43,8 @@ clauz3-tools-<umbrella>/
       <contract>_fail.py    # must not prove
 ```
 
-One repository may hold several domains side by side (`tools/<org>/lims/`,
-`tools/<org>/madsci/`). `clauz3 install` copies every domain it finds, so split
+One repository may hold several domains side by side (`cz3tools/<org>/lims/`,
+`cz3tools/<org>/madsci/`). `clauz3 install` copies every domain it finds, so split
 domains across repositories when consumers should be able to install them
 independently, and keep them together when they are always used as a set.
 
@@ -71,10 +71,10 @@ A domain is found by one rule, shared by `install` and by every command that
 discovers trusted roots on its own (`clauz3 run`, `clauz3 tools`,
 `clauz3 policy-check`, `clauz3 start`):
 
-- it is a `trusted/` directory at `tools/<domain>/trusted/` or
-  `tools/<org>/<domain>/trusted/`; anything deeper is skipped with a warning;
+- it is a `trusted/` directory at `cz3tools/<domain>/trusted/` or
+  `cz3tools/<org>/<domain>/trusted/`; anything deeper is skipped with a warning;
 - every directory name on the way is a Python identifier, because it becomes
-  part of the import name. `tools/acme-labs/lims/trusted/` cannot be imported,
+  part of the import name. `cz3tools/acme-labs/lims/trusted/` cannot be imported,
   so it is skipped with a warning (and an install whose only domains are
   skipped fails). Use `acme_labs`, not `acme-labs`, even when the GitHub org
   has a hyphen;
@@ -87,11 +87,11 @@ discovers trusted roots on its own (`clauz3 run`, `clauz3 tools`,
 This is the decision to make first, because it appears in every import line.
 
 The prover imports a trusted layer through Python's import system under the
-dotted name of its directory: `.clauz3/tools/lims/trusted/` becomes
-`tools.lims.trusted`, whether it was installed under `.clauz3/tools/` or
-authored under the project's own `tools/`. Two different layers with the same
+dotted name of its directory: `.clauz3/cz3tools/lims/trusted/` becomes
+`cz3tools.lims.trusted`, whether it was installed under `.clauz3/cz3tools/` or
+authored under the project's own `cz3tools/`. Two different layers with the same
 dotted name therefore collide. Within one project, `install` refuses to
-overwrite an existing `.clauz3/tools/<domain>/` without `--force`, and refuses a
+overwrite an existing `.clauz3/cz3tools/<domain>/` without `--force`, and refuses a
 domain the project already authors. Across projects in one process (a
 long-running approval service, a test suite proving against several projects)
 the loader refuses a module already loaded from a different file rather than
@@ -103,15 +103,15 @@ error your consumers hit.
 A layer author has two options:
 
 1. **Namespace the domain under your org** (recommended):
-   `tools/<org>/<domain>/trusted/`, for example
-   `tools/normalform/lims/trusted/`. Consumers then write
-   `from tools.normalform.lims.trusted import contracts`. Nested domains are
+   `cz3tools/<org>/<domain>/trusted/`, for example
+   `cz3tools/normalform/lims/trusted/`. Consumers then write
+   `from cz3tools.normalform.lims.trusted import contracts`. Nested domains are
    supported end to end: `install` copies them to
-   `.clauz3/tools/<org>/<domain>/`, `--skills` writes
+   `.clauz3/cz3tools/<org>/<domain>/`, `--skills` writes
    `.clauz3/skills/<org>/<domain>/SKILL.md`, `prove --trusted-root` proves
    against them, and `run`, `tools`, `policy-check` and `start` discover them
    without an explicit `--trusted-root`. `clauz3 tools` lists each effect by
-   its path below `tools/` (`normalform/lims/trusted/effects.py:pipette`), so a
+   its path below `cz3tools/` (`normalform/lims/trusted/effects.py:pipette`), so a
    namespaced domain and a flat one of the same name are distinguishable.
 2. **Use a flat name that is provably unique.** Never reuse a bundled stdlib
    name (see [Standard library tools](../reference/stdlib.md)) or an
@@ -126,8 +126,8 @@ renaming it later breaks every consumer's imports and generated skills.
 Org namespacing separates *modules*, not *effects*. A contract addresses an
 effect by its bare function name (`effect("pipette")`), and so does a coverage
 policy's `when_used`. Every trusted root in a proof therefore shares one effect
-namespace: if `tools/acme/lims/trusted/effects.py` and
-`tools/other/lims/trusted/effects.py` both define `pipette`, proving with both
+namespace: if `cz3tools/acme/lims/trusted/effects.py` and
+`cz3tools/other/lims/trusted/effects.py` both define `pipette`, proving with both
 roots is refused with "two trusted effects are called 'pipette'" (and
 `clauz3 run`, which discovers every installed root, refuses too). A consumer
 then has to choose between your layer and the other one.
@@ -148,9 +148,9 @@ So treat effect function names as interface:
 Ship the layer as a git repository, not as a Python package on an index.
 
 - The installable artifact is a *directory*. `install` copies it into the
-  consumer's `.clauz3/tools/`, rejects symlinks in it, and refuses to clobber an
+  consumer's `.clauz3/cz3tools/`, rejects symlinks in it, and refuses to clobber an
   existing domain. A wheel would bypass all three checks.
-- The prover imports the layer as `tools.<...>.trusted` relative to the
+- The prover imports the layer as `cz3tools.<...>.trusted` relative to the
   consumer's import roots, and the untrusted-import allowlist admits only that
   prefix. A wheel would introduce a second import name (`import acme_lims`)
   that agent programs may not use.
@@ -199,7 +199,7 @@ template:
 # as well as from a source checkout.
 clauz3 := env_var_or_default("CLAUZ3", "uv run clauz3")
 
-trusted := "../tools/acme/lims/trusted"
+trusted := "../cz3tools/acme/lims/trusted"
 prove := clauz3 + " prove --trusted-root " + trusted + " --import-root .."
 
 test: lint cases
@@ -249,14 +249,14 @@ clauz3 test gh:<org>/clauz3-tools-<umbrella>@<sha>
 clauz3 install gh:<org>/clauz3-tools-<umbrella>@<sha> --skills
 
 # prove takes its trusted roots explicitly; it does not discover them.
-clauz3 prove --trusted-root .clauz3/tools/<org>/<domain>/trusted plan.py
+clauz3 prove --trusted-root .clauz3/cz3tools/<org>/<domain>/trusted plan.py
 
 # run, tools, policy-check and start discover installed domains, nested or flat.
 clauz3 tools
 clauz3 run plan.py
 ```
 
-Commit the installed `.clauz3/tools/` and `.clauz3/skills/` into the consumer
+Commit the installed `.clauz3/cz3tools/` and `.clauz3/skills/` into the consumer
 repository; the install is a copy, not a link, so the consumer's proofs do not
 change when the upstream moves. Upgrade deliberately with `--force` after
 re-running `clauz3 test` against the new sha. Each installed domain records its
@@ -268,7 +268,7 @@ reproducible upgrade workflow.
 ## Publishing checklist
 
 1. Name: `clauz3-tools-<umbrella>` for the repository,
-   `tools/<org>/<domain>/` inside, with identifier-only directory names.
+   `cz3tools/<org>/<domain>/` inside, with identifier-only directory names.
 2. Effect function names are prefixed where they are generic.
 3. `clauz3 test .` is green, including `clauz3 lint`.
 4. `clauz3 install . --into "$(mktemp -d)" --skills` copies exactly the domains
