@@ -5,10 +5,6 @@
 This is the current implementation spec for the Python subset used by
 `clauz3` / `clauz3`.
 
-The name "PyZ3" is tempting, but it is easy to confuse with Z3's own Python API.
-This document uses **ClauZ3 Python subset** for the source language and **Z3
-encoding** for the target constraints.
-
 The implementation has two related subsets:
 
 1. **Program subset**: agent-authored Python and trusted precondition lambdas

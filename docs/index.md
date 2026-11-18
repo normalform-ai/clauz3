@@ -5,11 +5,11 @@
 
 # ClauZ3
 
-Verifiable contracts for agent-authored Python.
+ClauZ3 is an alternative tool framework for AI agents (Claude Code, Codex, Antigravity, Opencode, Pi) that allows precise tunable guardrails on agent behavior, balancing trust with autonomy. Autonomous agents propose programs alongside verifiable *contracts*. Programs must be proven against the contracts before they can run.
 
 ## Try it
 
-Start with [mock email](quickstarts/mock-email.md): ask an agent to send a
+Run `uvx clauz3 ui` and start the [mock email tutorial](quickstarts/mock-email.md): ask an agent to send a
 message, review its proved guarantees, and approve a sender that does nothing.
 Then try [real file work](quickstarts/real-files.md): install a library,
 approve a file write, inspect the result, and count its lines.
