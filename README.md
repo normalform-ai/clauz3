@@ -539,3 +539,5 @@ ClauZ3 layers on two upstream projects and would not exist without them:
 - **[Z3](https://github.com/Z3Prover/z3)** — Microsoft Research's SMT solver,
   the back-end the prover compiles every guarantee into. The vendored
   `deal-solver` machinery is what bridges Python AST and Z3 constraints.
+
+ClauZ3 is distributed under the [license agreement and copyright notice](license.txt).

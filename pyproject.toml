@@ -3,6 +3,8 @@ name = "clauz3"
 dynamic = ["version"]
 description = "Static contract experiments for agent-authored Python"
 readme = "README.md"
+license = "LicenseRef-ClauZ3 AND MIT"
+license-files = ["license.txt", "src/clauz3/_vendor/deal_solver/LICENSE"]
 requires-python = ">=3.11"
 dependencies = [
     "astroid>=4.1.2,<4.2",
@@ -54,7 +56,7 @@ docs = [
 ]
 
 [build-system]
-requires = ["hatchling", "uv-dynamic-versioning"]
+requires = ["hatchling>=1.27", "uv-dynamic-versioning"]
 build-backend = "hatchling.build"
 
 # The version comes from the git tag of a GitHub release.
