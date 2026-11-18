@@ -540,4 +540,4 @@ ClauZ3 layers on two upstream projects and would not exist without them:
   the back-end the prover compiles every guarantee into. The vendored
   `deal-solver` machinery is what bridges Python AST and Z3 constraints.
 
-[License and copyright notice](license.txt).
+ClauZ3 is distributed under the [license agreement and copyright notice](license.txt).
