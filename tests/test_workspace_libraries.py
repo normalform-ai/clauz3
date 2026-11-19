@@ -457,6 +457,11 @@ def test_provider_switch_and_library_changes_preserve_identity(
         ready(ws)
         app = cast(FastAPI, client.app)
         original = app.state.conversation.identifier
+        # A chat is kept once something was sent in it.
+        prompt(ws, "Original")
+        ws.send_json({"method": "clauz3/new"})
+        until(ws, lambda m: m["method"] == "clauz3/restore")
+        ready(ws)
         # Even an empty chat with the same libraries must switch providers.
         ws.send_json(
             {"method": "clauz3/new", "params": {"agent": "opencode", "domains": []}}

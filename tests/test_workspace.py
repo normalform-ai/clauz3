@@ -660,6 +660,24 @@ def test_history_store_isolates_projects_and_keeps_events(tmp_path: Path) -> Non
     assert file.stat().st_mode & 0o077 == 0
 
 
+def test_first_message_titles_only_an_untitled_conversation(tmp_path: Path) -> None:
+    from clauz3.sessions.history import ConversationStore
+
+    store = ConversationStore(tmp_path / "history.sqlite", str(tmp_path))
+    first = {
+        "method": "clauz3/user",
+        "params": {"text": "Plan  the\nrelease", "turn": 1},
+    }
+    untitled, renamed = store.create(), store.create()
+    store.rename(renamed, "Release notes")
+    for identifier in (untitled, renamed):
+        assert store.load(identifier)["history"] == []
+        store.append(identifier, first)
+    assert store.load(untitled)["title"] == "Plan the release"
+    # A title the operator chose before sending anything is kept.
+    assert store.load(renamed)["title"] == "Release notes"
+
+
 def test_conversation_store_lease_releases_after_exit(tmp_path: Path) -> None:
     from clauz3.sessions.history import ConversationStore
 
@@ -734,6 +752,94 @@ def test_malformed_adapter_startup_is_visible_and_reaped(
             or "authentication failed" in conversation.error
         )
         assert all(task.done() for task in conversation.tasks)
+
+    asyncio.run(check())
+
+
+SCRIPTED_AGENT = """
+import json, sys
+
+def emit(value):
+    print(json.dumps({"jsonrpc": "2.0", **value}), flush=True)
+
+for line in sys.stdin:
+    message = json.loads(line)
+    method, identifier = message.get("method"), message.get("id")
+    if method == "initialize":
+        capabilities = {"loadSession": True}
+        emit({"id": identifier,
+              "result": {"protocolVersion": 1, "agentCapabilities": capabilities}})
+    elif method == "session/new":
+        emit({"id": identifier, "result": {"sessionId": "scripted"}})
+    elif method == "session/load":
+        pass  # Never answers.
+    elif method == "session/prompt":
+        text = message["params"]["prompt"][0]["text"]
+        if text == "limited":
+            error = {"message": "Rate limited, retry shortly"}
+            emit({"id": identifier, "error": error})
+        elif text == "exit":
+            sys.exit(0)
+        else:
+            emit({"id": identifier, "result": {"stopReason": "end_turn"}})
+"""
+
+
+def test_prompt_error_is_cleared_by_the_next_prompt(config: ChatConfig) -> None:
+    config.command = [sys.executable, "-c", SCRIPTED_AGENT]
+
+    async def settle(conversation: Conversation) -> None:
+        async with asyncio.timeout(10):
+            while conversation.busy:
+                await asyncio.sleep(0.01)
+
+    async def check() -> None:
+        conversation = Conversation(config)
+        await conversation.start()
+        conversation.submit("limited")
+        await settle(conversation)
+        assert conversation.state()["error"] == "Rate limited, retry shortly"
+        assert not conversation.ended
+        # The failure belonged to that prompt; it must not shadow later notices.
+        conversation.submit("again")
+        assert conversation.state()["error"] == ""
+        await settle(conversation)
+        assert conversation.state()["error"] == ""
+        assert conversation.history[-1]["method"] == "clauz3/turn_end"
+        # A fatal error ends the conversation and stays visible.
+        conversation.submit("exit")
+        async with asyncio.timeout(10):
+            while not conversation.closed:
+                await asyncio.sleep(0.01)
+        assert "Agent disconnected" in conversation.error
+        with pytest.raises(ValueError, match="not ready"):
+            conversation.submit("more")
+        assert "Agent disconnected" in conversation.state()["error"]
+
+    asyncio.run(check())
+
+
+def test_session_load_timeout_is_a_resume_failure(
+    config: ChatConfig, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config.command = [sys.executable, "-c", SCRIPTED_AGENT]
+    monkeypatch.setattr("clauz3.sessions.chat.LOAD_TIMEOUT", 0.2)
+    saved = {
+        "id": "saved",
+        "state": {"turn": 1, "sessionId": "scripted"},
+        "history": [],
+    }
+
+    async def check() -> None:
+        conversation = Conversation(config, None, saved)
+        await asyncio.wait_for(conversation.start(), 10)
+        assert conversation.closed
+        assert conversation.process and conversation.process.returncode is not None
+        # The UI's resume-recovery panel is driven by resumeError.
+        state = conversation.state()
+        assert state["resumeError"] == "Session loading timed out"
+        assert "Couldn’t resume this conversation" in state["error"]
+        assert state["sessionId"] is None
 
     asyncio.run(check())
 

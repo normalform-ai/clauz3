@@ -284,6 +284,13 @@ def test_ui_switches_provider_and_restores_identity(
                 raise AssertionError("Unrestricted Claude switch was not rejected")
             assert app.state.conversation.identifier == original["conversationId"]
             assert not app.state.conversation.closed
+            # A chat is kept once something was sent in it.
+            ws.send_json({"method": "session/prompt", "params": {"prompt": "hello"}})
+            for _ in range(80):
+                if ws.receive_json()["method"] == "clauz3/turn_end":
+                    break
+            else:
+                raise AssertionError("Prompt did not finish")
             ws.send_json({"method": "clauz3/new", "params": {"agent": "opencode"}})
             switched = ready("opencode")
             assert switched["conversationId"] != original["conversationId"]
@@ -294,6 +301,69 @@ def test_ui_switches_provider_and_restores_identity(
                 }
             )
             assert ready("codex")["conversationId"] == original["conversationId"]
+
+
+def test_agent_changes_before_the_first_message_leave_one_conversation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = config(tmp_path)
+    monkeypatch.setattr(providers, "command", lambda _: cfg.command)
+    app = create_approval_app(
+        auth_token="submit", decision_token="decide", chat_config=cfg
+    )
+    with TestClient(
+        app, base_url="http://127.0.0.1", client=("127.0.0.1", 12345)
+    ) as client:
+        client.get("/ui/login?key=decide")
+        with client.websocket_connect(
+            "ws://127.0.0.1/api/chat/acp", headers={"Origin": "http://127.0.0.1"}
+        ) as ws:
+
+            def switch(agent: str, *, choose: bool = True) -> str:
+                """Choose an agent; return the conversation it starts in."""
+                if choose:
+                    ws.send_json(
+                        {
+                            "method": "clauz3/new",
+                            "params": {"agent": agent, "domains": []},
+                        }
+                    )
+                for _ in range(80):
+                    message = ws.receive_json()
+                    state = message.get("params", {})
+                    if (
+                        message["method"] == "clauz3/state"
+                        and state.get("sessionId")
+                        and state.get("agent") == agent
+                    ):
+                        return str(state["conversationId"])
+                raise AssertionError("Provider did not start")
+
+            def listed() -> set[str]:
+                rows = client.get("/api/chat/conversations").json()["conversations"]
+                return {row["id"] for row in rows}
+
+            original = switch("codex", choose=False)
+            for agent in ("opencode", "codex", "opencode"):
+                current = switch(agent)
+                # The unused chat is replaced, not left behind in the history.
+                assert listed() == {current}
+            assert current != original
+            # A chat with a message in it is kept ...
+            ws.send_json({"method": "session/prompt", "params": {"prompt": "hello"}})
+            for _ in range(80):
+                if ws.receive_json()["method"] == "clauz3/turn_end":
+                    break
+            else:
+                raise AssertionError("Prompt did not finish")
+            used, current = current, switch("codex")
+            assert listed() == {used, current}
+            # ... and so is an unused one the operator has named.
+            ws.send_json(
+                {"method": "clauz3/rename", "params": {"id": current, "title": "Later"}}
+            )
+            named, current = current, switch("opencode")
+            assert listed() == {used, named, current}
 
 
 @pytest.mark.parametrize("stdin_kind", ["pipe", "file", "null"])
@@ -732,3 +802,34 @@ def test_native_stream_translation(
             await adapter.close()
 
     asyncio.run(check())
+
+
+def test_native_adapter_reads_the_longest_prompt_the_host_accepts() -> None:
+    from clauz3.sessions import chat, native_adapter
+
+    def request(identifier: int, method: str, params: dict[str, Any]) -> str:
+        # The host writes ASCII JSON, so each character below takes six bytes.
+        return json.dumps(
+            {"jsonrpc": "2.0", "id": identifier, "method": method, "params": params}
+        )
+
+    prompt = request(
+        2,
+        "session/prompt",
+        {"sessionId": "none", "prompt": [{"type": "text", "text": "日" * 20_000}]},
+    )
+    assert len(prompt) > 2**16  # Over asyncio's default stream limit.
+    result = subprocess.run(
+        [sys.executable, "-P", "-m", "clauz3.sessions.native_adapter", "agy", "agy"],
+        input=request(1, "initialize", {}) + "\n" + prompt + "\n",
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stderr
+    replies = [json.loads(line) for line in result.stdout.splitlines()]
+    # The long line is parsed and answered rather than ending the adapter.
+    assert [reply["id"] for reply in replies] == [1, 2]
+    assert replies[1]["error"]["message"] == "Unknown session"
+    # Both ends of the pipe accept the same line length.
+    assert native_adapter.MAX_MESSAGE == chat.MAX_MESSAGE

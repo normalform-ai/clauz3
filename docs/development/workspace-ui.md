@@ -116,7 +116,8 @@ libraries does not rewrite history. Records without a captured identity say
 Conversation events and run snapshots are stored in an operator-owned SQLite
 file, `conversations.sqlite`, under the user-wide Clauz3 data directory. Records
 are isolated by canonical project path. New conversation keeps the previous
-transcript. The sidebar follows the chat-app pattern: workspace switcher, New
+transcript. Choosing another agent before the first message replaces the
+unused conversation, unless it was renamed, instead of adding a row. The sidebar follows the chat-app pattern: workspace switcher, New
 conversation, Libraries and Approvals (with installed and waiting counts), then
 date-grouped history with search (⌘K) and a per-row menu for Rename and Copy
 handoff. The conversation header's ⋯ menu adds Export transcript. Menus are
@@ -155,6 +156,9 @@ explicit stop confirmation when work is active, and refuses switches while a
 library operation is mutating or preparing the workspace.
 
 The destination's project lease is acquired before stopping the source agent.
+Its tutorial copy and library selection are prepared first too, so a destination
+that cannot be opened leaves the source running and releases that lease; only
+resetting the current workspace waits for the agent to stop.
 Switching rebinds conversation storage, libraries, file browsing, and the
 approval profile, then releases the previous lease. Submission credentials
 rotate, pending approval requests are cancelled, and requests that finish

@@ -41,6 +41,8 @@ from clauz3.source import SourceError
 ADAPTER_VERSION = "0.89.1"
 MAX_MESSAGE = 2_000_000
 MAX_HISTORY = 8_000_000
+# Seconds an adapter may take to load a saved session.
+LOAD_TIMEOUT = 60.0
 HISTORY_NOTICE = (
     "Transcript storage limit reached. This action can finish, but later output "
     "will not be saved. Start a new conversation before sending another prompt."
@@ -615,7 +617,7 @@ class Conversation:
                     asyncio.create_task(self.read_agent()),
                     asyncio.create_task(self.drain_stderr()),
                 ]
-                async with asyncio.timeout(60):
+                async with asyncio.timeout(60) as startup:
                     result = await self.call(
                         "initialize",
                         {
@@ -637,10 +639,15 @@ class Conversation:
                                 raise ValueError(
                                     "This adapter cannot resume saved conversations"
                                 )
-                            await self.call(
-                                "session/load",
-                                {**parameters, "sessionId": self.resume_id},
-                            )
+                            # Loading has its own deadline. The startup one would
+                            # cancel it, reporting an agent that did not start
+                            # instead of a conversation that did not resume.
+                            startup.reschedule(None)
+                            async with asyncio.timeout(LOAD_TIMEOUT):
+                                await self.call(
+                                    "session/load",
+                                    {**parameters, "sessionId": self.resume_id},
+                                )
                         except Exception as exc:
                             # A local transcript can outlive the adapter's session.
                             # Never silently give a fresh agent the old chat's identity.
@@ -725,6 +732,9 @@ class Conversation:
             raise ValueError(HISTORY_NOTICE)
         self.publish(message)
         self.turn += 1
+        # A failed prompt's error describes that prompt only. Startup and fatal
+        # errors end the conversation, so they never reach this point.
+        self.error = ""
         self.saw_turn_output = False
         self.bridge_calls.clear()
         self.busy = True
@@ -1018,6 +1028,29 @@ def install_chat(
         return all(d in installed for d in domains) and (
             not fingerprint or manager.fingerprint(domains) == fingerprint
         )
+
+    def open_workspace(
+        destination: Path, records: ConversationStore, *, tutorial: bool, reset: bool
+    ) -> WorkspaceLibraries:
+        """Prepare a switch destination's files, history and library selection.
+
+        Called while holding the destination's project lease. This touches
+        nothing in the workspace being left unless that is the destination.
+        """
+        if tutorial:
+            workspaces.prepare_email(reset=reset)
+        storage = (
+            records.path.parent
+            / "workspaces"
+            / hashlib.sha256(str(destination).encode()).hexdigest()
+        )
+        if reset:
+            records.clear()
+            (storage / "libraries.json").unlink(missing_ok=True)
+        opened = WorkspaceLibraries(destination, storage, ["email"] if tutorial else [])
+        if not tutorial and not opened.preferences.exists():
+            opened.select(opened.installed())
+        return opened
 
     # No conversation writes or status-file resets before the project lease.
     conversation = Conversation(config)  # Unpersisted until lifespan owns the lease.
@@ -1328,10 +1361,18 @@ def install_chat(
         async def replace(
             identifier: str | None,
             configure: Callable[[dict[str, Any] | None], ChatConfig],
+            *,
+            discard: bool = False,
         ) -> None:
+            """Close this conversation and open a saved or new one.
+
+            ``discard`` forgets the closed conversation once its replacement
+            exists; it is for a conversation nothing was sent in.
+            """
             nonlocal conversation, startup, replacing
             replacing = True
             try:
+                replaced = conversation
                 await conversation.close()
                 # Load after closing so the record includes the final saved state.
                 saved = store.load(identifier) if identifier else None
@@ -1341,6 +1382,8 @@ def install_chat(
                 conversation = Conversation(
                     configure(saved).model_copy(update={"prompt": None}), store, saved
                 )
+                if discard:
+                    store.discard(replaced.identifier)
                 app.state.conversation = conversation
                 if attached_tab is websocket:
                     conversation.subscriber = queue
@@ -1426,30 +1469,32 @@ def install_chat(
                         next_leases = ExitStack()
                         if str(destination) != config.cwd:
                             next_leases.enter_context(next_store.lease())
+                        open_destination = partial(
+                            open_workspace,
+                            destination,
+                            next_store,
+                            tutorial=tutorial,
+                            reset=reset,
+                        )
                         switching = True
                         try:
-                            # Acquire the destination before stopping the source.
-                            # An already-open destination leaves the source running.
+                            # Acquire and open the destination before stopping the
+                            # source. A destination that is already open, or whose
+                            # libraries cannot be opened, leaves the source running.
+                            # Only resetting the current workspace has to wait: it
+                            # replaces files and history the source is still using.
+                            next_manager = (
+                                None
+                                if str(destination) == config.cwd
+                                else open_destination()
+                            )
                             if not startup.done():
                                 startup.cancel()
                                 await asyncio.gather(startup, return_exceptions=True)
                             await conversation.close()
                             manager.discard()
-                            if tutorial:
-                                workspaces.prepare_email(reset=reset)
-                            storage = (
-                                store.path.parent
-                                / "workspaces"
-                                / hashlib.sha256(str(destination).encode()).hexdigest()
-                            )
-                            if reset:
-                                next_store.clear()
-                                (storage / "libraries.json").unlink(missing_ok=True)
-                            next_manager = WorkspaceLibraries(
-                                destination, storage, ["email"] if tutorial else []
-                            )
-                            if not tutorial and not next_manager.preferences.exists():
-                                next_manager.select(next_manager.installed())
+                            if next_manager is None:
+                                next_manager = open_destination()
                             runner_env = {
                                 **config.runner_env,
                                 **activate_workspace(destination, reset),
@@ -1556,14 +1601,17 @@ def install_chat(
                             if domains is None
                             else domains
                         )
-                        if (
-                            requested_agent == conversation.config.agent
-                            and not conversation.turn
+                        unused = (
+                            not conversation.turn
                             and not conversation.ended
                             # A chat that cannot start (e.g. a mode refusal)
                             # is never reused, so New always recovers.
                             and not conversation.config.startup_error
                             and not conversation.history_limited
+                        )
+                        if (
+                            unused
+                            and requested_agent == conversation.config.agent
                             and (
                                 manager is None
                                 or target is not None
@@ -1593,6 +1641,10 @@ def install_chat(
                                 agent=requested_agent,
                                 adapter=adapter,
                             ),
+                            # Choosing another agent replaces an unused chat
+                            # instead of leaving it in the history.
+                            discard=unused
+                            and requested_agent != conversation.config.agent,
                         )
                     elif method == "clauz3/libraries":
                         idle()

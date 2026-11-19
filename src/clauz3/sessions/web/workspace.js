@@ -64,8 +64,14 @@
     $("prompt").disabled = !ready || state.historyLimited;
     $("send").disabled = !ready || state.busy || active || state.historyLimited;
     $("stop").disabled = !ready;
+    // Like New, the picker waits for the agent: the server refuses a change
+    // while one is still starting.
     $("agent-select").disabled =
-      !connected || state.busy || state.stopping || Boolean(state.turn);
+      !connected ||
+      state.busy ||
+      state.stopping ||
+      Boolean(state.turn) ||
+      (!state.sessionId && !state.ended);
     $("new").disabled =
       !connected ||
       state.busy ||
@@ -166,8 +172,18 @@
       assistant = null;
       state = p;
       replaying = true;
-      for (const item of p.history || []) display(item);
-      replaying = false;
+      try {
+        for (const item of p.history || []) {
+          // One saved message that cannot be shown must not hide the rest.
+          try {
+            display(item);
+          } catch (error) {
+            console.error("Skipped a saved message that could not be shown", error);
+          }
+        }
+      } finally {
+        replaying = false;
+      }
       applyState(p);
       if (initialView && p.showLibraries && location.pathname === "/ui")
         navigate("/ui/libraries");
@@ -181,6 +197,8 @@
     if (message.method === "clauz3/notice") {
       document.dispatchEvent(new CustomEvent("clauz3:workspace-notice", { detail: p.text }));
       notice(p.text);
+      // A refused agent change leaves the conversation on its current agent.
+      $("agent-select").value = state.agent || "claude";
       return;
     }
     if (message.method === "clauz3/confirm_libraries") {
@@ -273,9 +291,18 @@
         plan.className = "plan";
         currentTurn.append(plan);
       }
+      // Agents may omit an entry's status, or send one that is not a string.
       plan.replaceChildren(
-        ...(u.entries || []).map((e) =>
-          text("li", `${e.content} · ${e.status.replaceAll("_", " ")}`),
+        ...(Array.isArray(u.entries) ? u.entries : []).map((e) =>
+          text(
+            "li",
+            [
+              e?.content,
+              typeof e?.status === "string" ? e.status.replaceAll("_", " ") : "",
+            ]
+              .filter(Boolean)
+              .join(" · "),
+          ),
         ),
       );
     }

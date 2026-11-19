@@ -51,6 +51,10 @@ from typing import Any
 
 from clauz3.mcp._sdk import MCPNotInstalledError
 
+# Seconds the upstream server may take to start and answer ``initialize``,
+# and how much longer to wait for a server that did not to be shut down.
+_START_TIMEOUT = 30.0
+_STOP_TIMEOUT = 15.0
 _active_clients: weakref.WeakSet[MCPClient] = weakref.WeakSet()
 _atexit_registered = False
 
@@ -206,14 +210,28 @@ class MCPClient:
 
             async def _open() -> tuple[Any, AsyncExitStack]:
                 stack = AsyncExitStack()
-                read, write = await stack.enter_async_context(stdio_client(params))
-                session = await stack.enter_async_context(ClientSession(read, write))
-                await session.initialize()
+                try:
+                    async with asyncio.timeout(_START_TIMEOUT):
+                        read, write = await stack.enter_async_context(
+                            stdio_client(params)
+                        )
+                        session = await stack.enter_async_context(
+                            ClientSession(read, write)
+                        )
+                        await session.initialize()
+                except BaseException:
+                    # A server that fails to start, is too slow, or whose
+                    # start-up is cancelled must not outlive this attempt.
+                    with contextlib.suppress(Exception):
+                        await stack.aclose()
+                    raise
                 return session, stack
 
             future = asyncio.run_coroutine_threadsafe(_open(), loop)
             try:
-                session, stack = future.result(timeout=30)
+                # _open enforces the start-up deadline itself, so that it can
+                # stop the server; the extra time here only covers that stop.
+                session, stack = future.result(timeout=_START_TIMEOUT + _STOP_TIMEOUT)
             except Exception:
                 loop.call_soon_threadsafe(loop.stop)
                 thread.join(timeout=5)
