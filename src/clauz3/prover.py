@@ -1209,33 +1209,17 @@ def _unannotated(signature: inspect.Signature) -> inspect.Signature:
     )
 
 
-# Trusted-only decorators, by fully-qualified target. Aliases are resolved back
-# to these before matching so ``import clauz3 as c; @c.trusted`` (or the
-# legacy ``import deal as d; @d.has``) cannot slip through.
-_FORBIDDEN_QUALIFIED = frozenset(
-    {
-        "clauz3.trusted",
-        "clauz3.effects.trusted",
-        "clauz3.requires",
-        "clauz3.conditions.requires",
-        "clauz3.ensures",
-        "clauz3.conditions.ensures",
-        "deal.has",
-        "clauz3.spec.contract",
-        "clauz3.spec.effect",
-        decorators_mod.FLUENT_EFFECT,
-        decorators_mod.PERFORMS,
-        "clauz3.solver",
-    }
-)
 # Trusted-only leaf names, matched against the *resolved* final attribute of any
-# decorator however it is imported — including ``clauz3``'s own re-exports
-# (``clauz3.contract`` / ``clauz3.effect`` are the trusted ``clauz3.spec`` /
-# ``clauz3.fluent`` decorators). ``guarantee`` is intentionally absent, so
-# ``@clauz3.guarantee`` stays allowed. Matching the leaf (rather than gating on
-# an unqualified name) is robust to future re-exports and avoids the regression
-# where ``from clauz3 import contract`` resolved to a dotted name and slipped
-# past an unqualified-only check.
+# decorator however it is imported. Aliases are resolved before matching, so
+# ``import clauz3 as c; @c.trusted`` (or the legacy ``import deal as d;
+# @d.has``) cannot slip through. The leaf covers the defining modules and
+# ``clauz3``'s own re-exports alike: ``clauz3.contract`` / ``clauz3.effect`` are
+# the trusted ``clauz3.spec.contract`` / ``clauz3.spec.effect``, and the fluent
+# decorator ``clauz3.fluent.effect`` shares the ``effect`` leaf. ``guarantee``
+# is intentionally absent, so ``@clauz3.guarantee`` stays allowed. Matching the
+# leaf (rather than gating on an unqualified name) is robust to future
+# re-exports and avoids the regression where ``from clauz3 import contract``
+# resolved to a dotted name and slipped past an unqualified-only check.
 _FORBIDDEN_LEAF = frozenset(
     {
         "has",
@@ -1282,7 +1266,7 @@ def validate_untrusted_source(
             spelled = decorators_mod.dotted_name(decorator)
             canonical = decorators_mod.canonical_target(spelled, aliases)
             leaf = canonical.rsplit(".", 1)[-1]
-            if canonical in _FORBIDDEN_QUALIFIED or leaf in _FORBIDDEN_LEAF:
+            if leaf in _FORBIDDEN_LEAF:
                 raise ProverConfigError(
                     f"{path}: @{spelled} is only allowed in trusted roots",
                 )

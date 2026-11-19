@@ -31,7 +31,6 @@ import sys
 from pathlib import Path
 
 from clauz3.cli import _add_prove_args, _prove_entry
-from clauz3.libraries.layout import LayoutError
 
 PASS_SUFFIX = "_pass.py"
 FAIL_SUFFIX = "_fail.py"
@@ -64,11 +63,7 @@ def main(argv: list[str] | None = None) -> int:
     unexpected: list[str] = []
     for case in cases:
         expect_proved = case.name.endswith(PASS_SUFFIX)
-        try:
-            status = _prove_entry(case, args, label=True)
-        except LayoutError as exc:
-            print(f"error: {case}: {exc}", file=sys.stderr)
-            status = 2
+        status = _prove_entry(case, args, label=True)
         if (status == 0) != expect_proved:
             unexpected.append(
                 f"{case}: expected it to {'prove' if expect_proved else 'fail'}"

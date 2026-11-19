@@ -78,21 +78,20 @@ def receiver_type(value: Any) -> type | None:
     """The table key for ``value``, or None if it has no method surface.
 
     ``bool`` is matched before ``int`` and maps to nothing: the prover models no
-    methods on its bool sort, so neither does this.
+    methods on its bool sort, so neither does this. A ``frozenset`` shares the
+    ``set`` entry.
     """
     if isinstance(value, bool):
         return None
     for candidate in (str, list, tuple, set, frozenset, dict, int, float):
         if isinstance(value, candidate):
-            return frozenset if candidate is frozenset else candidate
+            return set if candidate is frozenset else candidate
     return None
 
 
 def lookup(value: Any, name: str) -> Callable[..., Any] | None:
     """Resolve ``value.name`` to a CPython implementation, or None."""
     key = receiver_type(value)
-    if key is frozenset:
-        key = set
     if key is None:
         return None
     if name not in MODELLED_METHODS.get(key, frozenset()):

@@ -1083,18 +1083,6 @@ def _page(title: str, body: str) -> str:
       border-bottom: 1px solid #d5d7db;
       margin-bottom: 1.5rem;
     }}
-    section {{
-      margin: 1.5rem 0;
-    }}
-    table {{
-      border-collapse: collapse;
-      width: 100%;
-    }}
-    th, td {{
-      border-bottom: 1px solid #e5e7eb;
-      padding: 0.5rem;
-      text-align: left;
-    }}
     textarea, pre {{
       background: #f7f8fa;
       border: 1px solid #d5d7db;
@@ -1123,7 +1111,7 @@ def _page(title: str, body: str) -> str:
     .approve {{
       font-weight: 700;
     }}
-    .empty, .pending {{
+    .empty {{
       color: #6b7280;
     }}
     ul.coverage {{
@@ -1135,11 +1123,6 @@ def _page(title: str, body: str) -> str:
       border-radius: 3px;
       margin: 0.3rem 0;
       padding: 0.35rem 0.6rem;
-    }}
-    .badge {{
-      border-radius: 999px;
-      font-size: 0.8rem;
-      padding: 0.1rem 0.55rem;
     }}
     .cov-covered {{
       background: #f2fbf4;

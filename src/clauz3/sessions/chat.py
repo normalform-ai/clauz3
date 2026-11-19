@@ -922,10 +922,6 @@ def install_chat(
                         "model": base.model if saved else None,
                     }
                 )
-            if saved:
-                base = base.model_copy(
-                    update={"model": saved["state"].get("requestedModel")}
-                )
         except (OSError, ValueError) as exc:
             if not saved:
                 raise

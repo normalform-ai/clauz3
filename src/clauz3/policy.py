@@ -244,22 +244,6 @@ def compute_coverage(
     return report
 
 
-def calls_in(node: ast.AST) -> set[str]:
-    """Trailing names of every call within an AST node (over-approximation).
-
-    This public syntactic helper includes nested scopes and does not resolve
-    aliases. Policy triggering uses :func:`transitive_calls` instead.
-    """
-
-    names: set[str] = set()
-    for child in ast.walk(node):
-        if isinstance(child, ast.Call):
-            callee = _callee(child)
-            if callee is not None:
-                names.add(callee.name)
-    return names
-
-
 def load_trusted_effects(
     trusted_roots: Iterable[Path],
 ) -> dict[str, tuple[str, ...]]:
@@ -310,7 +294,7 @@ def load_effect_markers(
 
     markers: dict[str, list[str]] = {}
     for node, aliases, _ in _effect_definitions(trusted_roots):
-        for decorator in _decorators_of(node):
+        for decorator in node.decorator_list:
             for declared in decorators_mod.unfold_chain(decorator, aliases):
                 if not decorators_mod.is_deal_has(declared, aliases):
                     continue
@@ -349,10 +333,6 @@ def _effect_definitions(
                     yield node, aliases, path
 
 
-def _decorators_of(node: ast.FunctionDef) -> list[ast.expr]:
-    return list(node.decorator_list)
-
-
 def _parameter_names(node: ast.FunctionDef) -> tuple[str, ...]:
     """Every parameter a call can bind, in signature order.
 
@@ -372,23 +352,6 @@ def domain_triggered(used: set[str], when_used: Sequence[str]) -> bool:
     """True if a trigger is reached or a dynamic call cannot rule it out."""
 
     return DYNAMIC_CALL in used or bool(used & set(when_used))
-
-
-@dataclass(frozen=True)
-class _Callee:
-    base: str  # leading name: "emails" in emails.only(...); "" for a bare call
-    name: str  # trailing name: "only", or "send_email"
-
-
-def _callee(node: ast.expr) -> _Callee | None:
-    if not isinstance(node, ast.Call):
-        return None
-    func = node.func
-    if isinstance(func, ast.Name):
-        return _Callee(base="", name=func.id)
-    if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
-        return _Callee(base=func.value.id, name=func.attr)
-    return None
 
 
 def _dotted_name(path: Path, import_paths: Sequence[Path]) -> str:

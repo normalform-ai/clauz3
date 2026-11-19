@@ -46,7 +46,7 @@ import z3
 from clauz3._vendor.deal_solver._exceptions import UnsupportedError
 from clauz3._vendor.deal_solver._proxies import types
 from clauz3._vendor.deal_solver._strings import string_domain, string_sort, string_val
-from clauz3.spec import ContractSpec, LambdaSpec, _as_proxy
+from clauz3.spec import ContractSpec, LambdaSpec, _as_proxy, _z3_expr
 
 # Value/key types a fluent may carry. These map directly onto Z3 sorts and the
 # matching value proxies, which is all the relation language already supports.
@@ -161,9 +161,6 @@ class Fluent:
     def _key_sort(self) -> z3.SortRef:
         return _SORTS[self.key_type]()
 
-    def _value_sort(self) -> z3.SortRef:
-        return _SORTS[self.value_type]()
-
     def _initial_array(self) -> z3.ArrayRef:
         return z3.K(self._key_sort(), _literal_z3(self.value_type, self.initial))
 
@@ -182,7 +179,7 @@ class Fluent:
                     f"{spec.name!r}"
                 )
             proxy = args[spec.name]
-            return proxy.expr if hasattr(proxy, "expr") else proxy
+            return _z3_expr(proxy)
         return _literal_z3(py_type, spec)
 
     def _final_array(self, ctx: Any) -> z3.ArrayRef:
@@ -203,7 +200,7 @@ class Fluent:
                     "fluent effects inside loops are not supported in v1; see "
                     "docs/todos/fluents.md"
                 )
-            cond = fact.cond.expr if hasattr(fact.cond, "expr") else fact.cond
+            cond = _z3_expr(fact.cond)
             for update in updates:
                 key_expr = self._resolve(update.key, self.key_type, fact.args)
                 value_expr = self._resolve(update.value, self.value_type, fact.args)

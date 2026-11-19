@@ -31,8 +31,11 @@ libraries (from the Libraries view, or delete them under `.clauz3/cz3tools/` and
 for user-wide installs, `~/.local/share/clauz3/cz3tools/`), then run
 `clauz3 install --force stdlib:filesystem`.
 
-Programs that imported them need the new names. `edit_file` is gone; use
-`write_file`. Contracts not listed keep their names under `fs`:
+Programs that imported them need the new names. The old
+`editor.edit_file(path, new_text)`, which replaced the whole file, is now
+`write_file(path, content)`; this library's `edit_file(path, old, new)` is a
+different effect that replaces exact text in place (see Effects below).
+Contracts not listed keep their names under `fs`:
 
 | Old | New |
 | --- | --- |
@@ -56,8 +59,10 @@ filesystem (`events.py`):
 | --- | --- |
 | `read_file(path)`, `read_lines(path)`, `read_line(path, line_number)` | `Read(path)` |
 | `grep(pattern, path)` | `Read(path)` |
+| `search_files(pattern, path, glob, max_results)` | `RecursiveRead(path)` |
 | `find(path, args)` | `List(path)` |
 | `write_file(path, content)`, `append_file(path, text)` | `WriteText(path, text)` |
+| `edit_file(path, old, new)` | `Read(path)`, `WriteText(path, new)` |
 | `make_dir(path)` | `DirectoryCreate(path)` (a `Create`) |
 | `touch(path)` | `Create(path)` |
 | `remove(path)` | `Delete(path)` |

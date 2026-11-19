@@ -90,8 +90,6 @@ def snapshot_catalogue(cwd: Path, roots: list[Path]) -> dict[str, list[str]]:
                             + "\n".join(fields)
                         )
                     continue
-                if not isinstance(node, ast.FunctionDef):
-                    continue
                 declared = [
                     item
                     for decorator in node.decorator_list
