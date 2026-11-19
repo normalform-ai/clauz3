@@ -72,6 +72,10 @@ def configured_service_url(*, cwd: Path | None = None) -> str | None:
     except json.JSONDecodeError as exc:
         msg = f"invalid approval config {config_path}: {exc}"
         raise ApprovalServiceError(msg) from exc
+    if not isinstance(payload, dict):
+        raise ApprovalServiceError(
+            f"approval config {config_path} must be a JSON object with a URL"
+        )
     url = payload.get("url")
     if not isinstance(url, str) or not url:
         raise ApprovalServiceError(f"approval config {config_path} must contain a URL")
@@ -107,6 +111,16 @@ def submit_approval_request(
             f"approval service returned HTTP {exc.code}: {detail}",
         ) from exc
     except URLError as exc:
+        raise ApprovalServiceError(f"approval service is unavailable: {exc}") from exc
+    except TimeoutError as exc:
+        # urllib wraps only errors from sending the request. A timeout or a
+        # dropped connection while awaiting the decision arrives bare, and
+        # must not escape as if the approved program had raised.
+        raise ApprovalServiceError(
+            f"approval service did not answer within {timeout:g} s; "
+            "the request may still be awaiting a decision",
+        ) from exc
+    except OSError as exc:
         raise ApprovalServiceError(f"approval service is unavailable: {exc}") from exc
 
     try:
@@ -227,11 +241,15 @@ def _make_handler(
                 return
 
             request_record = dict(request_payload)
+            try:
+                response = approval_response_from_config(
+                    config=config,
+                    request_payload=request_record,
+                )
+            except ValueError as exc:
+                self.send_error(400, str(exc))
+                return
             records.append(request_record)
-            response = approval_response_from_config(
-                config=config,
-                request_payload=request_record,
-            )
             body = json.dumps(response, sort_keys=True).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -357,10 +375,17 @@ def sign_approval_receipt(
 
 
 def request_id_from_payload(request_payload: Mapping[str, object]) -> str:
-    """Return the stable clauz3 request id for an approval request."""
+    """Return the stable clauz3 request id for an approval request.
+
+    Raises :class:`ValueError` for an id containing ``/``. The decision routes
+    address a request by one path segment, so such a request could be recorded
+    but never decided.
+    """
 
     request_id = request_payload.get("request_id")
     if isinstance(request_id, str) and request_id:
+        if "/" in request_id:
+            raise ValueError("request_id must not contain '/'")
         return request_id
     program_hash = request_payload.get("program_sha256")
     if isinstance(program_hash, str) and program_hash:

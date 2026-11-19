@@ -39,7 +39,12 @@ from clauz3.approvals.decisions import (
     parse_decision,
 )
 from clauz3.approvals.descriptions import render_guarantees
-from clauz3.approvals.login_links import forget_link, http_origin, keep_link
+from clauz3.approvals.login_links import (
+    forget_link,
+    http_origin,
+    keep_link,
+    login_link,
+)
 from clauz3.approvals.policy import (
     ApprovalPolicy,
     auto_approval_response,
@@ -236,7 +241,7 @@ def create_approval_app(
         if auth_token is None:
             return
         expected = f"Bearer {auth_token}"
-        if authorization is None or not hmac.compare_digest(authorization, expected):
+        if authorization is None or not _same_secret(authorization, expected):
             raise HTTPException(
                 status_code=401, detail="missing or invalid bearer token"
             )
@@ -430,6 +435,7 @@ def create_approval_app(
             request_profile = profile
             request_policy = policy
             request_layers = authorized_layers
+        _check_program_hash(payload)
         selected_layer: ApprovedLayer | None = None
         if request_policy is not None or request_profile is not None:
             try:
@@ -438,7 +444,10 @@ def create_approval_app(
                 )
             except ApprovalAuthorizationError as exc:
                 raise HTTPException(status_code=403, detail=str(exc)) from exc
-        request_id = request_id_from_payload(payload)
+        try:
+            request_id = request_id_from_payload(payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         # Only operator-authorized paths may supply UI metadata. A manual-only
         # service must not read arbitrary paths from a submitted request.
         metadata_layer = selected_layer
@@ -492,20 +501,39 @@ def create_approval_app(
             if generation != workspace_generation:
                 raise HTTPException(409, "Workspace changed during verification")
             previous = records.get(request_id)
-            if profile is not None and previous is not None:
-                fields = (
-                    "program",
-                    "target",
-                    "program_sha256",
-                    "guarantees",
-                    "coverage",
-                    "trusted_roots",
-                    "import_roots",
-                )
-                if any(previous.get(k) != payload.get(k) for k in fields):
+            # A pending record is what the approver is reading and deciding
+            # on, so no mode lets a second submission swap its content. A
+            # profile also refuses a decided record; elsewhere a decided
+            # record keeps answering retries under its request ID.
+            if previous is not None and (
+                profile is not None or not previous.get("approval")
+            ):
+                changed = {
+                    field
+                    for field in (
+                        "program",
+                        "target",
+                        "program_sha256",
+                        "guarantees",
+                        "coverage",
+                        "trusted_roots",
+                        "import_roots",
+                    )
+                    if previous.get(field) != payload.get(field)
+                }
+                if (
+                    profile is None
+                    and selected_layer is not None
+                    and record_layers.get(request_id) != selected_layer
+                ):
+                    # Selecting another operator-authorized layer supersedes
+                    # the pending request: its waiter is told so below.
+                    changed -= {"trusted_roots", "import_roots"}
+                if changed:
                     raise HTTPException(
                         409, "request ID already belongs to another submission"
                     )
+            if profile is not None and previous is not None:
                 if previous.get("approval"):
                     # Each resubmission is a new execution: reconsult current
                     # rules and mint a new receipt, never reuse a past decision.
@@ -741,9 +769,10 @@ def create_approval_app(
             )
             if remember and (profile is None or not record.get("profile_eligible")):
                 raise HTTPException(400, "this request cannot be remembered")
+            if "approval" in record:
+                # One decision per request: the runner already acted on it.
+                raise HTTPException(409, "this request has already been decided")
             if profile is not None:
-                if "approval" in record:
-                    raise HTTPException(409, "this request has already been decided")
                 if remember and decision not in REMEMBERABLE_DECISIONS:
                     raise HTTPException(
                         400, "only approval or rejection can be remembered"
@@ -787,6 +816,31 @@ def _same_secret(given: str, expected: str) -> bool:
     # Compare as bytes: ``hmac.compare_digest`` raises on non-ASCII ``str``,
     # which would turn a crafted header, cookie, or key into a 500.
     return hmac.compare_digest(given.encode(), expected.encode())
+
+
+def _check_program_hash(payload: Mapping[str, object]) -> None:
+    """Refuse a submitted hash that is not the hash of the submitted program.
+
+    The receipt signs ``program_sha256`` while the approver reads ``program``,
+    so the two must describe the same source. A submission that names no hash
+    is left alone: its receipt binds the empty hash, which no program has.
+    """
+
+    claimed = payload.get("program_sha256")
+    if claimed is None:
+        return
+    program = payload.get("program")
+    try:
+        actual = (
+            sha256(program.encode()).hexdigest() if isinstance(program, str) else None
+        )
+    except UnicodeEncodeError:
+        actual = None
+    if actual is None or claimed != actual:
+        raise HTTPException(
+            status_code=400,
+            detail="program_sha256 is not the SHA-256 of the submitted program",
+        )
 
 
 def _approver_login_required() -> HTMLResponse:
@@ -1292,7 +1346,7 @@ def serve_approval_service(
         if auth_token:
             print(f"CLAUZ3_APPROVAL_TOKEN={auth_token}", flush=True)
         approver_token = decision_token if decision_token is not None else auth_token
-        login_url = f"{origin}/ui/login?key={approver_token}"
+        login_url = login_link(origin, approver_token or "")
         saved = bool(approver_token) and keep_link(login_url)
         if approver_token:
             print(f"approver UI (keep private): {login_url}")

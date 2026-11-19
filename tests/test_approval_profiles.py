@@ -10,6 +10,7 @@ from contextlib import closing
 from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -175,6 +176,87 @@ def test_signature_binds_contract_project_and_code(
     contracts = layer.trusted_roots[0] / "contracts.py"
     contracts.write_text(contracts.read_text() + "\n# updated trusted library\n")
     assert verify(payload, layer, project=project)["signature"] != original["signature"]
+
+
+def _contracts_package(project: Path, name: str, effect: str) -> Path:
+    """A trusted package whose ``at_most`` counts calls of its own *effect*."""
+    root = project / name
+    root.mkdir(parents=True)
+    (root / "__init__.py").write_text("")
+    (root / "effects.py").write_text(
+        "import clauz3\n\n\n@clauz3.trusted\n"
+        f"def {effect}(value: str) -> None:\n    pass\n"
+    )
+    (root / "contracts.py").write_text(
+        "from clauz3.spec import ContractSpec, contract, effect\n\n\n@contract\n"
+        "def at_most(count: int) -> ContractSpec:\n"
+        f"    return effect('{effect}').count() <= count\n"
+    )
+    return root
+
+
+def _rebound_alias(tmp_path: Path) -> tuple[ApprovedLayer, str, str, str, str]:
+    """Two programs with one guarantee text and one flat list of imports.
+
+    Only the scope of the second ``contracts as c`` import differs. Inside a
+    helper it leaves the guarantee bound to the mail contract; at module level
+    it rebinds the same text to the other package's contract.
+    """
+    tag = uuid4().hex[:8]
+    project = tmp_path / "project"
+    mail = _contracts_package(project, f"mail_{tag}", "send")
+    other = _contracts_package(project, f"other_{tag}", "log")
+    head = (
+        "import clauz3\n"
+        f"from mail_{tag}.effects import send\n"
+        f"from mail_{tag} import contracts as c\n"
+    )
+    rebind = f"from other_{tag} import contracts as c\n"
+    main = "@clauz3.guarantee(c.at_most(1))\ndef main() -> None:\n    send('a')\n"
+    nested = head + "def helper() -> None:\n    " + rebind + "\n" + main
+    module = head + rebind + "def helper() -> None:\n    pass\n\n" + main
+    return ApprovedLayer((mail, other), (project,)), tag, nested, module, main
+
+
+def test_signature_binds_the_contract_a_guarantee_resolves_to(tmp_path: Path) -> None:
+    layer, tag, nested, module, _main = _rebound_alias(tmp_path)
+    project = str(layer.import_roots[0])
+    first_request, second_request = request(layer, nested), request(layer, module)
+    assert first_request["guarantees"] == second_request["guarantees"]
+    first = verify(first_request, layer, project=project)
+    second = verify(second_request, layer, project=project)
+
+    def symbol(basis: dict[str, object]) -> object:
+        identities = cast(dict[str, dict[str, object]], basis["contract_identities"])
+        return identities["c.at_most(1)"]["symbol"]
+
+    assert symbol(first) == f"mail_{tag}.contracts.at_most"
+    assert symbol(second) == f"other_{tag}.contracts.at_most"
+    assert first["profile_eligible"] is True
+    assert second["profile_eligible"] is True
+    assert first["signature"] != second["signature"]
+    # The signature still ignores what a remembered rule never bound.
+    again = verify(request(layer, nested), layer, project=project)
+    assert again["signature"] == first["signature"]
+
+
+def test_remembered_rule_does_not_cover_a_rebound_guarantee(tmp_path: Path) -> None:
+    layer, _tag, nested, module, main = _rebound_alias(tmp_path)
+    store = ProfileStore(tmp_path / "history.sqlite", project=layer.import_roots[0])
+    api = client(store, layer)
+    decide(api, request(layer, nested))
+
+    # The remembered contract still covers a changed body ...
+    changed = request(layer, nested.replace(main, main.replace("'a'", "'b'")))
+    covered = api.post("/requests", json=changed, headers=AGENT)
+    assert covered.status_code == 200, covered.text
+    assert covered.json()["decision"] == "auto_approved"
+    # ... but not the same guarantee text bound to another contract.
+    rebound = request(layer, module)
+    assert api.post("/requests", json=rebound, headers=AGENT).status_code == 503
+    record = api.get(f"/requests/{rebound['request_id']}").json()
+    assert record["status"] == "pending"
+    assert "auto_decision" not in record
 
 
 @pytest.mark.parametrize(

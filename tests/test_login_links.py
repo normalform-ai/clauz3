@@ -11,9 +11,11 @@ from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import pytest
 import uvicorn
+from fastapi.testclient import TestClient
 
 from clauz3.approvals.login_links import (
     LoginLinkError,
@@ -22,7 +24,7 @@ from clauz3.approvals.login_links import (
     remove_login_url,
     save_login_url,
 )
-from clauz3.approvals.service import serve_approval_service
+from clauz3.approvals.service import create_approval_app, serve_approval_service
 from clauz3.cli import main
 
 
@@ -226,6 +228,31 @@ def test_approval_service_saves_its_link_while_serving(
     assert "clauz3 login-url" in captured.out
     assert captured.out.count("key=decide") == 1
     assert captured.err == ""
+
+
+def test_printed_link_signs_in_whatever_the_token_contains(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # An operator-chosen token may hold characters a URL gives a meaning to.
+    token = "a+b&c#d e/é?=%"
+    seen: list[str] = []
+    fake_serve(monkeypatch, lambda port: seen.append(_saved(port)))
+    serve_approval_service(
+        host="127.0.0.1", port=0, auth_token="submit", decision_token=token
+    )
+    [printed] = [
+        line.split(": ", 1)[1]
+        for line in capsys.readouterr().out.splitlines()
+        if line.startswith("approver UI")
+    ]
+    assert seen == [printed]
+    # A browser sends the path and query, never the fragment.
+    parts = urlsplit(printed)
+    assert parts.fragment == ""
+    client = TestClient(create_approval_app(auth_token="submit", decision_token=token))
+    response = client.get(f"{parts.path}?{parts.query}", follow_redirects=False)
+    assert response.status_code == 303, response.text
+    assert client.get("/ui").status_code == 200
 
 
 def test_a_busy_port_leaves_the_running_servers_link(

@@ -1,3 +1,4 @@
+import hashlib
 import json
 import threading
 import time
@@ -326,14 +327,7 @@ def test_service_auto_approves_without_waiting() -> None:
     client = TestClient(app)
     response = client.post(
         "/requests",
-        json={
-            "request_id": "clr_pass",
-            "program_sha256": "pass",
-            "program": _program('    send_email("bob@example.com", "hi")\n'),
-            "target": "main",
-            "trusted_roots": [str(TRUSTED_ROOT)],
-            "import_roots": [str(EMAIL_ROOT)],
-        },
+        json=_submission("clr_pass", '    send_email("bob@example.com", "hi")\n'),
     )
     body = response.json()
     assert body["decision"] == "auto_approved"
@@ -352,14 +346,7 @@ def test_service_auto_rejects_without_waiting() -> None:
     client = TestClient(app)
     response = client.post(
         "/requests",
-        json={
-            "request_id": "clr_deny",
-            "program_sha256": "deny",
-            "program": _program('    send_email("ceo@example.com", "hi")\n'),
-            "target": "main",
-            "trusted_roots": [str(TRUSTED_ROOT)],
-            "import_roots": [str(EMAIL_ROOT)],
-        },
+        json=_submission("clr_deny", '    send_email("ceo@example.com", "hi")\n'),
     )
     body = response.json()
     assert body["decision"] == "auto_rejected"
@@ -376,14 +363,9 @@ def test_service_without_match_still_waits_for_user() -> None:
         responses.append(
             client.post(
                 "/requests",
-                json={
-                    "request_id": "clr_ask",
-                    "program_sha256": "ask",
-                    "program": _program('    send_email("stranger@other.com", "hi")\n'),
-                    "target": "main",
-                    "trusted_roots": [str(TRUSTED_ROOT)],
-                    "import_roots": [str(EMAIL_ROOT)],
-                },
+                json=_submission(
+                    "clr_ask", '    send_email("stranger@other.com", "hi")\n'
+                ),
             ).json()
         )
 
@@ -400,6 +382,19 @@ def test_service_without_match_still_waits_for_user() -> None:
     thread.join(timeout=5)
     assert not thread.is_alive()
     assert responses[0]["decision"] == "approved_once"
+
+
+def _submission(request_id: str, body: str) -> dict[str, object]:
+    program = _program(body)
+    return {
+        "request_id": request_id,
+        # The service refuses a hash that is not the submitted program's.
+        "program_sha256": hashlib.sha256(program.encode()).hexdigest(),
+        "program": program,
+        "target": "main",
+        "trusted_roots": [str(TRUSTED_ROOT)],
+        "import_roots": [str(EMAIL_ROOT)],
+    }
 
 
 def _wait_for_record(client: TestClient, request_id: str) -> None:

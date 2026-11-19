@@ -11,7 +11,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from http.cookiejar import CookieJar
 from pathlib import Path
 from typing import Any
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 from urllib.request import HTTPCookieProcessor, Request, build_opener, urlopen
 
 import pytest
@@ -566,6 +566,32 @@ def test_browser_failure_still_launches(
     monkeypatch.setattr("clauz3.sessions.launcher.webbrowser.open", fail)
     assert main(["start", "claude"]) == 0
     assert "Open the approver URL" in capsys.readouterr().err
+
+
+def test_opened_link_signs_in_with_a_configured_token_of_any_characters(
+    project: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The operator's token may hold characters a URL gives a meaning to.
+    monkeypatch.setenv("CLAUZ3_DOT_DECISION_TOKEN", "dot+key&x#y z/=%")
+    fake_agent(tmp_path, monkeypatch, "import sys\nsys.exit(0)\n")
+    landed: list[tuple[int, str]] = []
+
+    def sign_in(url: str) -> bool:
+        browser = build_opener(HTTPCookieProcessor(CookieJar()))
+        try:
+            with browser.open(url, timeout=5) as login:
+                landed.append((login.status, login.url))
+        except HTTPError as exc:
+            landed.append((exc.code, exc.url))
+        return True
+
+    monkeypatch.setattr("clauz3.sessions.launcher.webbrowser.open", sign_in)
+    assert main(["start", "claude"]) == 0
+    [(status, url)] = landed
+    assert status == 200
+    assert url.endswith("/ui")
 
 
 def test_launch_saves_private_login_link_until_it_stops(

@@ -67,8 +67,10 @@ Programs without explicit guarantees and contracts with Row-class arguments
 are not eligible in this version.
 
 Matching is deliberately exact: project directory, operator, target, guarantee
-expressions, import bindings, coverage, trusted source and dependency identities,
-and proof engine identity must match. Changes to source inside the function can
+expressions, the trusted contract and arguments each guarantee resolves to,
+import bindings, coverage, trusted source and dependency identities, and proof
+engine identity must match. The same guarantee text bound to a different
+contract is a different rule. Changes to source inside the function can
 match; changing a bound, project, library or engine requires another decision.
 Equivalent aliases or expressions may conservatively require another approval.
 Remembering a weak guarantee does not make it stronger. Review the complete
@@ -338,6 +340,13 @@ signing key from its environment (`CLAUZ3_APPROVAL_SIGNING_KEY`). Without a
 signing key it falls back to an unsigned `local-<request_id>` placeholder, which
 a fail-closed runner will reject — provision the keypair (see above).
 
+A request takes one decision: a second decision for the same request is
+refused with HTTP 409. While a request is pending, a submission that reuses its
+request ID with a different program, target, guarantees, coverage or roots is
+also refused with HTTP 409, so the decision always applies to the request the
+approver was shown. With a policy, a submission that selects another authorized
+layer still supersedes the pending one.
+
 ## Connect `clauz3 run`
 
 `clauz3 run` discovers the approval-service URL in this order:
@@ -453,6 +462,12 @@ A `clauz3 run` request looks like this:
 }
 ```
 
+`program_sha256` is the SHA-256 of `program`, encoded as UTF-8. The receipt
+signs that hash, so `clauz3 approval-service` refuses a request whose hash is
+not the hash of the program it would show the approver, with HTTP 400. A
+`request_id` must not contain `/`, because the decision routes address a
+request by one path segment; both services refuse such an ID with HTTP 400.
+
 The service response must be a JSON object whose `decision` is one of the
 strings under [User decisions](#user-decisions) or a policy decision:
 
@@ -498,6 +513,12 @@ read as a denial.
 : The service requires a bearer token the runner did not send. Set the same
   `CLAUZ3_APPROVAL_TOKEN` in both environments, or start the service with
   `--no-auth` for a localhost demo.
+
+`error: approval service did not answer within ... s`
+
+: No decision arrived within `--approval-timeout`. `clauz3 run` exits 2 without
+  executing. The request may still be pending in the service; decide it and
+  run again, or raise the timeout.
 
 `error: HTTP 403` for an unauthorized trusted layer
 

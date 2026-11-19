@@ -30,7 +30,7 @@ from clauz3.approvals.client import (
     APPROVAL_SERVICE_ENV,
     APPROVAL_TOKEN_ENV,
 )
-from clauz3.approvals.login_links import forget_link, keep_link
+from clauz3.approvals.login_links import forget_link, keep_link, login_link
 from clauz3.approvals.policy import load_approval_policy
 from clauz3.approvals.receipts import SIGNING_KEY_ENV, VERIFY_KEY_ENV, generate_keypair
 from clauz3.libraries.install import InstallError
@@ -566,7 +566,7 @@ def start_session(
                         ) from None
                     raise
                 listener.close()
-                login_url = f"{url}/ui/login?key={decision}"
+                login_url = login_link(url, decision)
                 if not env_decision_token and keep_link(login_url):
                     saved_link = login_url
                 print(f"Approval service: {url}", file=sys.stderr)
